@@ -1,12 +1,13 @@
 
 
+
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { FileUpload } from './components/FileUpload';
 import { ReportDisplay } from './components/ReportDisplay';
 import { Loader } from './components/Loader';
-import { analyzeCaseFiles, generateContextualDocument, refineText, generateReportSummary } from './services/geminiService';
+import { analyzeCaseFiles, generateContextualDocument, refineText, generateReportSummary, categorizeFile } from './services/geminiService';
 import { db, getAllCasesSorted, saveCase, deleteCaseById, bulkAddCases } from './services/db';
-import type { AnalysisReport, UploadedFile, SavedCase, SerializableFile, LitigationStage, LitigationType } from './types';
+import type { AnalysisReport, UploadedFile, SavedCase, SerializableFile, LitigationStage, LitigationType, FileCategory } from './types';
 import { ConsultingWorkflow } from './components/ConsultingWorkflow';
 import { AnalysisIcon } from './components/icons/AnalysisIcon';
 import { PreviewModal } from './components/PreviewModal';
@@ -20,6 +21,12 @@ import { FolderIcon } from './components/icons/FolderIcon';
 import { PlusIcon } from './components/icons/PlusIcon';
 import { CustomizeReportModal, ReportSection } from './components/CustomizeReportModal';
 import { BackIcon } from './components/icons/BackIcon';
+import { RefreshIcon } from './components/icons/RefreshIcon';
+import { WordIcon } from './components/icons/WordIcon';
+import { ExcelIcon } from './components/icons/ExcelIcon';
+import { PdfIcon } from './components/icons/PdfIcon';
+import { ImageIcon } from './components/icons/ImageIcon';
+import { FileIcon } from './components/icons/FileIcon';
 
 
 // Declare global variables from CDN scripts to satisfy TypeScript
@@ -136,6 +143,92 @@ const litigationStageSuggestions: Record<LitigationStage, StageSuggestions> = {
   dialogue: { actions: [], documents: [] },
 };
 
+// --- Helper Components ---
+
+const getFileIcon = (fileType: string, fileName: string) => {
+    const extension = fileName.split('.').pop()?.toLowerCase() || '';
+    const iconProps = { className: "w-7 h-7 flex-shrink-0" };
+    if (fileType.startsWith('image/')) return <ImageIcon {...iconProps} />;
+    if (extension === 'pdf') return <PdfIcon {...iconProps} />;
+    if (['doc', 'docx'].includes(extension)) return <WordIcon {...iconProps} />;
+    if (['xls', 'xlsx'].includes(extension)) return <ExcelIcon {...iconProps} />;
+    return <FileIcon {...iconProps} />;
+};
+
+const ProcessingProgress: React.FC<{
+    files: UploadedFile[];
+    onRetry: (fileId: string) => void;
+    onContinue: () => void;
+    onCancel: () => void;
+    isFinished: boolean;
+}> = ({ files, onRetry, onContinue, onCancel, isFinished }) => {
+    const completedCount = files.filter(f => f.status === 'completed' || f.status === 'failed').length;
+    const failedCount = files.filter(f => f.status === 'failed').length;
+    const totalCount = files.length;
+    const overallProgress = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
+
+    const getStatusPill = (status: UploadedFile['status']) => {
+        switch (status) {
+            case 'pending': return <span className="text-xs font-medium text-slate-500">Đang chờ...</span>;
+            case 'processing': return <div className="flex items-center gap-1.5"><Loader /><span className="text-xs font-medium text-blue-600">Đang xử lý...</span></div>;
+            case 'completed': return <span className="text-xs font-bold text-green-600">Hoàn thành</span>;
+            case 'failed': return <span className="text-xs font-bold text-red-600">Thất bại</span>;
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
+            <div className="bg-white rounded-xl shadow-2xl p-6 w-11/12 max-w-2xl flex flex-col max-h-[90vh]">
+                <h3 className="text-xl font-bold text-slate-900 mb-2">Tiền xử lý & Phân loại Hồ sơ</h3>
+                <p className="text-sm text-slate-600 mb-4">AI đang đọc và phân loại từng tài liệu để chuẩn bị phân tích.</p>
+                
+                <div className="w-full bg-slate-200 rounded-full h-2.5 mb-1">
+                    <div className="bg-blue-600 h-2.5 rounded-full transition-all duration-500" style={{ width: `${overallProgress}%` }}></div>
+                </div>
+                <p className="text-sm text-slate-600 text-center mb-4">Hoàn thành {completedCount} / {totalCount} tệp</p>
+                
+                <div className="flex-grow overflow-y-auto space-y-2 pr-2 -mr-4 border-t border-b border-slate-200 py-3 my-2">
+                    {files.map(file => (
+                        <div key={file.id} className={`p-2 rounded-lg flex items-center gap-3 transition-colors ${file.status === 'failed' ? 'bg-red-50' : 'bg-slate-50'}`}>
+                            {getFileIcon(file.file.type, file.file.name)}
+                            <div className="flex-grow min-w-0">
+                                <p className="text-sm font-medium text-slate-800 truncate">{file.file.name}</p>
+                                {file.status === 'failed' && file.error && (
+                                    <p className="text-xs text-red-700 mt-0.5 truncate" title={file.error}>Lỗi: {file.error}</p>
+                                )}
+                            </div>
+                            <div className="flex-shrink-0 flex items-center gap-2">
+                                {getStatusPill(file.status)}
+                                {file.status === 'failed' && (
+                                    <button onClick={() => onRetry(file.id)} className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-slate-200 rounded-full" title="Thử lại">
+                                        <RefreshIcon className="w-4 h-4" />
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+                
+                <div className="pt-4 space-y-2">
+                    {isFinished && failedCount > 0 && (
+                        <div className="p-3 text-center text-sm text-amber-800 bg-amber-100 rounded-md">
+                           Có {failedCount} tệp xử lý thất bại. Bạn có thể thử lại từng tệp hoặc tiếp tục phân tích với các tệp đã thành công.
+                        </div>
+                    )}
+                    <div className="flex justify-end gap-3">
+                         <button onClick={onCancel} className="px-4 py-2 text-sm font-semibold text-slate-700 bg-slate-200 rounded-lg hover:bg-slate-300">Hủy bỏ</button>
+                         {isFinished && failedCount > 0 && (
+                              <button onClick={onContinue} className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700">
+                                  Tiếp tục Phân tích
+                              </button>
+                         )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 const App: React.FC = () => {
   // --- Core State ---
@@ -176,6 +269,8 @@ const App: React.FC = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [isCustomizeModalOpen, setIsCustomizeModalOpen] = useState(false);
   const [libsReady, setLibsReady] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isPreprocessingFinished, setIsPreprocessingFinished] = useState(false);
 
   const handleGoBackToSelection = useCallback(() => {
     // This function now ONLY resets the state. The confirmation is handled in the UI.
@@ -234,16 +329,16 @@ const App: React.FC = () => {
     if (!report) {
         setMainAction({
             text: 'Phân tích Vụ việc',
-            disabled: !isReadyForAnalysis || isLoading,
+            disabled: !isReadyForAnalysis || isLoading || isProcessing,
             action: 'analyze',
-            loadingText: 'Đang phân tích...',
+            loadingText: 'Đang xử lý...',
         });
     } else {
         const isUpdatableStage = currentLitigationStage !== 'consulting' && currentLitigationStage !== 'closed';
         if (isUpdatableStage) {
             setMainAction({
                 text: `Cập nhật cho GĐ: ${stageLabel}`,
-                disabled: isLoading,
+                disabled: isLoading || isProcessing,
                 action: 'update',
                 loadingText: 'Đang cập nhật...',
             });
@@ -256,7 +351,7 @@ const App: React.FC = () => {
             });
         }
     }
-  }, [report, currentLitigationStage, currentLitigationType, files, caseContent, query, isLoading]);
+  }, [report, currentLitigationStage, currentLitigationType, files, caseContent, query, isLoading, isProcessing]);
 
 
   // --- Helper Functions ---
@@ -295,22 +390,59 @@ const App: React.FC = () => {
     }
     setError(null);
     setSummaryError(null);
-    setIsLoading(true);
     setReport(null);
     setOriginalReport(null);
     setGeneratedDocument(null);
     setSuggestedDocRequest('');
+    setIsPreprocessingFinished(false);
+    setIsProcessing(true);
+
+    // Reset statuses for all files before starting
+    const filesToProcess = files.map(f => ({ ...f, status: 'pending' as const, error: undefined }));
+    setFiles(filesToProcess);
+    
+    let anyFailed = false;
+
+    for (const file of filesToProcess) {
+        try {
+            setFiles(prev => prev.map(f => f.id === file.id ? { ...f, status: 'processing' } : f));
+            const category = await categorizeFile(file.file);
+            setFiles(prev => prev.map(f => f.id === file.id ? { ...f, status: 'completed', category } : f));
+            await new Promise(resolve => setTimeout(resolve, 500)); // Rate limiting
+        } catch (err) {
+            anyFailed = true;
+            const message = err instanceof Error ? err.message : 'Lỗi không xác định';
+            setFiles(prev => prev.map(f => f.id === file.id ? { ...f, status: 'failed', error: message } : f));
+        }
+    }
+
+    setIsPreprocessingFinished(true);
+
+    if (!anyFailed) {
+      handleContinueAnalysis(); // Automatically continue if all successful
+    }
+  }, [files, query, caseContent, clientRequest]);
+  
+  const handleContinueAnalysis = useCallback(async () => {
+    const successfulFiles = files.filter(f => f.status === 'completed');
+
+    if (successfulFiles.length === 0 && !caseContent.trim()) {
+        setIsProcessing(false);
+        setError("Không có tệp nào được xử lý thành công và không có nội dung. Không thể phân tích.");
+        return;
+    }
+
+    setIsProcessing(false);
+    setIsLoading(true);
 
     try {
-      const analysisResult = await analyzeCaseFiles(files, query, caseContent, clientRequest);
+      const analysisResult = await analyzeCaseFiles(successfulFiles, query, caseContent, clientRequest);
       setReport(analysisResult);
       setOriginalReport(analysisResult);
-      
-      if (currentLitigationStage === 'consulting') {
+       if (currentLitigationStage === 'consulting') {
           const nextStage = litigationStagesByType[currentLitigationType]?.[1]?.value || currentLitigationStage;
           setCurrentLitigationStage(nextStage);
       }
-
       let suggestion = '';
       const strategy = analysisResult.proposedStrategy;
       if (strategy?.litigation?.length > 0) suggestion = strategy.litigation[0];
@@ -325,7 +457,29 @@ const App: React.FC = () => {
       setIsLoading(false);
     }
   }, [files, query, caseContent, clientRequest, currentLitigationStage, currentLitigationType]);
+
+  const handleRetryFile = useCallback(async (fileId: string) => {
+    const fileToRetry = files.find(f => f.id === fileId);
+    if (!fileToRetry) return;
+
+    setFiles(prev => prev.map(f => f.id === fileId ? { ...f, status: 'processing', error: undefined } : f));
+
+    try {
+        const category = await categorizeFile(fileToRetry.file);
+        setFiles(prev => prev.map(f => f.id === fileId ? { ...f, status: 'completed', category } : f));
+    } catch (err) {
+        const message = err instanceof Error ? err.message : 'Lỗi không xác định';
+        setFiles(prev => prev.map(f => f.id === fileId ? { ...f, status: 'failed', error: message } : f));
+    }
+  }, [files]);
   
+  const handleCancelProcessing = () => {
+      setIsProcessing(false);
+      setIsPreprocessingFinished(false);
+      // Reset statuses back to pending
+      setFiles(prev => prev.map(f => ({ ...f, status: 'pending', error: undefined })));
+  };
+
   const handleUpdateAnalysis = useCallback(async () => {
     if (!originalReport) {
         setError("Không có báo cáo gốc để cập nhật. Vui lòng phân tích lại từ đầu.");
@@ -457,7 +611,7 @@ const App: React.FC = () => {
     
     const loadedFiles: UploadedFile[] = caseToLoad.files.map(sf => {
         const file = base64ToFile(sf.content, sf.name, sf.type);
-        return { id: `${sf.name}-${Math.random()}`, file, preview: null, category: 'Uncategorized', status: 'completed' };
+        return { id: `${sf.name}-${Math.random()}`, file, preview: null, category: 'Uncategorized', status: 'pending' };
     });
     setFiles(loadedFiles);
     setIsCaseListOpen(false);
@@ -776,6 +930,16 @@ const App: React.FC = () => {
       </div>
 
        <PreviewModal file={previewingFile} onClose={() => setPreviewingFile(null)} />
+
+       {isProcessing && (
+           <ProcessingProgress 
+               files={files} 
+               onRetry={handleRetryFile} 
+               onCancel={handleCancelProcessing}
+               onContinue={handleContinueAnalysis}
+               isFinished={isPreprocessingFinished}
+           />
+       )}
        
        {isWorkflowSelectorOpen && (
            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">

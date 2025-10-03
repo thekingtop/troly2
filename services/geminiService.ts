@@ -20,12 +20,16 @@ const handleGeminiError = (error: any, context: string): Error => {
 
   if (error instanceof Error) {
     const errorMessage = error.message.toLowerCase();
-    if (errorMessage.includes("api key not valid")) {
+    
+    // Check for authentication errors first, as they are critical.
+    if (errorMessage.includes("401") || errorMessage.includes("unauthenticated") || errorMessage.includes("invalid authentication credentials")) {
+        message = 'Lỗi xác thực: API Key không hợp lệ hoặc bị thiếu. Vui lòng liên hệ quản trị viên.';
+    } else if (errorMessage.includes("api key not valid")) { // Keep for broader compatibility
       message = 'Lỗi cấu hình: API Key không hợp lệ hoặc đã hết hạn. Vui lòng liên hệ quản trị viên.';
+    } else if (errorMessage.includes('429') || errorMessage.includes('resource_exhausted')) {
+      message = `Bạn đã gửi quá nhiều yêu cầu tới AI. Vui lòng đợi một lát rồi thử lại.`;
     } else if (errorMessage.includes('400')) {
       message = `Yêu cầu không hợp lệ khi ${context}. Vui lòng kiểm tra lại định dạng tệp và nội dung yêu cầu.`;
-    } else if (errorMessage.includes('429')) {
-      message = `Bạn đã gửi quá nhiều yêu cầu tới AI. Vui lòng đợi một lát rồi thử lại.`;
     } else if (errorMessage.includes('500') || errorMessage.includes('503')) {
       message = `Dịch vụ AI hiện đang gặp sự cố hoặc quá tải. Vui lòng thử lại sau.`;
     } else if (errorMessage.includes('candidate was blocked')) {
@@ -76,14 +80,15 @@ const getFileContentParts = async (files: UploadedFile[]): Promise<{ fileContent
     const imageParts: Part[] = [];
 
     for (const f of files) {
+      const categoryLabel = fileCategoryLabels[f.category] || f.category;
       if (isMimeTypeSupported(f.file.type) && f.file.type.startsWith('image/')) {
         imageParts.push(await fileToGenerativePart(f.file));
-        fileContentParts.push(`Tệp hình ảnh: ${f.file.name} (Nội dung được đính kèm riêng)`);
+        fileContentParts.push(`Tệp hình ảnh: ${f.file.name} (Loại: ${categoryLabel}). Nội dung được đính kèm riêng.`);
       } else if (f.file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' && typeof mammoth !== 'undefined') {
         try {
           const arrayBuffer = await f.file.arrayBuffer();
           const result = await mammoth.extractRawText({ arrayBuffer });
-          fileContentParts.push(`--- NỘI DUNG TỆP: ${f.file.name} ---\n${result.value}\n--- HẾT TỆP ---`);
+          fileContentParts.push(`--- TÀI LIỆU: ${f.file.name} (Loại: ${categoryLabel}) ---\n${result.value}\n--- HẾT TÀI LIỆU ---`);
         } catch (conversionError) {
           console.error(`Error converting DOCX file ${f.file.name}:`, conversionError);
           fileContentParts.push(`--- LỖI TỆP: ${f.file.name} (KHÔNG THỂ ĐỌC NỘI DUNG) ---`);
@@ -91,7 +96,7 @@ const getFileContentParts = async (files: UploadedFile[]): Promise<{ fileContent
       } else {
          try {
             const textContent = await f.file.text();
-            fileContentParts.push(`--- NỘI DUNG TỆP: ${f.file.name} ---\n${textContent}\n--- HẾT TỆP ---`);
+            fileContentParts.push(`--- TÀI LIỆU: ${f.file.name} (Loại: ${categoryLabel}) ---\n${textContent}\n--- HẾT TÀI LIỆU ---`);
         } catch (readError) {
             console.error(`Could not read file ${f.file.name} as text.`, readError);
             fileContentParts.push(`--- TỆP KHÔNG HỖ TRỢ: ${f.file.name} ---`);
@@ -136,7 +141,8 @@ export const categorizeFile = async (file: File): Promise<FileCategory> => {
         // This will catch 500 Internal errors and prevent the app from crashing.
         console.error(`Error categorizing file ${file.name}:`, error);
         // Fallback to 'Uncategorized' on any API error.
-        return 'Uncategorized';
+        // Re-throw the specific error to be handled by the caller, which can then decide on a fallback UI state.
+        throw handleGeminiError(error, `phân loại tệp ${file.name}`);
     }
 };
 
@@ -155,7 +161,7 @@ export const analyzeCaseFiles = async (
   try {
     const { fileContentParts, imageParts } = await getFileContentParts(files);
 
-    const filesContent = fileContentParts.length > 0 ? fileContentParts.join('\n\n') : 'Không có tệp nào được tải lên.';
+    const filesContent = fileContentParts.length > 0 ? fileContentParts.join('\n\n') : 'Không có tài liệu mới nào được cung cấp.';
     const currentDate = new Date().toLocaleDateString('vi-VN');
     
     let promptText: string;
@@ -164,41 +170,57 @@ export const analyzeCaseFiles = async (
     if (updateContext) {
       // Prompt for updating an existing report
       promptText = `
-**BÁO CÁO PHÂN TÍCH HIỆN TẠI:**
+Hãy thực hiện vai trò của bạn như một luật sư AI cao cấp. Cập nhật báo cáo phân tích dựa trên các thông tin mới.
+
+**1. BÁO CÁO PHÂN TÍCH HIỆN TẠI ĐỂ XEM XÉT:**
 \`\`\`json
 ${JSON.stringify(updateContext.report, null, 2)}
 \`\`\`
 
-**BỐI CẢNH MỚI:**
-- Vụ việc đã chuyển sang giai đoạn: **${updateContext.stage}**
-- Ngày hiện tại là ${currentDate}.
-- Yêu cầu cập nhật của luật sư: "${query}"
+---
 
-**THÔNG TIN & TÀI LIỆU MỚI (NẾU CÓ):**
+**2. THÔNG TIN CẬP NHẬT:**
+- **Giai đoạn tố tụng mới:** ${updateContext.stage}
+- **Yêu cầu cập nhật từ luật sư:** "${query}"
+- **Ngày hiện tại:** ${currentDate}
+- **Hồ sơ/Tài liệu mới (nếu có):**
 ${filesContent}
 
-**YÊU CẦU:**
-Dựa trên vai trò của bạn, hãy xem xét lại toàn bộ bối cảnh và trả về một báo cáo JSON **hoàn chỉnh và đã được cập nhật**. Đặc biệt, hãy xây dựng lại mục "proposedStrategy" để phù hợp với giai đoạn tố tụng mới.
+---
+
+**3. YÊU CẦU ĐẦU RA:**
+Dựa trên vai trò của bạn (được nêu trong system instruction), hãy tích hợp các thông tin mới và trả về một phiên bản **hoàn chỉnh và được cập nhật** của báo cáo JSON.
 `;
     } else {
       // Prompt for initial analysis
+      const effectiveFilesContent = fileContentParts.length > 0 ? fileContentParts.join('\n\n') : 'Không có tệp nào được tải lên.';
       promptText = `
-Dựa trên các thông tin dưới đây, hãy tiến hành phân tích và trả về kết quả dưới định dạng JSON theo cấu trúc đã được yêu cầu.
+Hãy thực hiện vai trò của bạn như một trợ lý luật sư AI xuất sắc. Phân tích toàn bộ thông tin được cung cấp dưới đây và trả về một báo cáo JSON hoàn chỉnh.
 
-**Thông tin bối cảnh quan trọng:**
-- Ngày hiện tại là ${currentDate}.
+**PHƯƠНG PHÁP LUẬN PHÂN TÍCH:**
+1.  **Tổng hợp bối cảnh:** Đọc kỹ tóm tắt vụ việc, yêu cầu khách hàng, và toàn bộ nội dung các tài liệu. Xây dựng một dòng thời gian các sự kiện chính.
+2.  **Xác định mâu thuẫn:** Tìm kiếm bất kỳ điểm mâu thuẫn, không nhất quán nào giữa các tài liệu hoặc giữa tài liệu và lời trình bày.
+3.  **Phân tích pháp lý:** Dựa trên bối cảnh đã tổng hợp, xác định quan hệ pháp luật, các vấn đề cốt lõi và viện dẫn các điều luật có liên quan (đảm bảo còn hiệu lực).
+4.  **Đánh giá & Đề xuất:** Từ phân tích trên, đánh giá điểm mạnh, điểm yếu, rủi ro, xác định các thông tin còn thiếu và đề xuất một chiến lược hành động rõ ràng.
+5.  **Tạo JSON:** Cấu trúc toàn bộ kết quả phân tích vào đối tượng JSON được yêu cầu.
 
-**1. Tóm tắt nội dung vụ việc:**
-${caseContent.trim() ? caseContent : 'Không có.'}
+---
 
-**2. Yêu cầu của khách hàng:**
-${clientRequest.trim() ? clientRequest : 'Chưa được cung cấp.'}
+**THÔNG TIN VỤ VIỆC:**
 
-**3. Yêu cầu của luật sư đối với AI:**
-${query}
+**A. Bối cảnh & Yêu cầu chính:**
+- Ngày hiện tại: ${currentDate}.
+- Tóm tắt nội dung vụ việc (do luật sư cung cấp): ${caseContent.trim() ? caseContent : 'Chưa cung cấp.'}
+- Yêu cầu của khách hàng (do luật sư cung cấp): ${clientRequest.trim() ? clientRequest : 'Chưa cung cấp.'}
+- Yêu cầu của luật sư đối với AI (Mục tiêu phân tích): **${query}**
 
-**4. Nội dung các tài liệu đính kèm:**
-${filesContent}
+**B. Hồ sơ tài liệu đính kèm:**
+${effectiveFilesContent}
+
+---
+
+**YÊU CẦU ĐẦU RA:**
+Trả về báo cáo phân tích dưới dạng một đối tượng JSON duy nhất, hợp lệ, tuân thủ nghiêm ngặt cấu trúc đã được định nghĩa.
 `;
     }
 

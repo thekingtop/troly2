@@ -20,18 +20,6 @@ interface FileUploadProps {
   onPreview: (file: UploadedFile) => void;
 }
 
-const ProgressBar: React.FC = () => (
-    <div className="absolute bottom-0 left-0 right-0 h-1 bg-slate-200 rounded-b-md overflow-hidden">
-        <div 
-            className="h-full bg-blue-500 animate-progress"
-            style={{
-                backgroundImage: 'linear-gradient(90deg, #3b82f6 50%, #60a5fa 50%)',
-                backgroundSize: '2rem 100%',
-            }}
-        ></div>
-    </div>
-);
-
 const getFileIcon = (fileType: string, fileName: string) => {
   const extension = fileName.split('.').pop()?.toLowerCase() || '';
 
@@ -39,6 +27,7 @@ const getFileIcon = (fileType: string, fileName: string) => {
   if (extension === 'pdf') return <PdfIcon className="w-8 h-8 text-red-500" />;
   if (['doc', 'docx'].includes(extension)) return <WordIcon className="w-8 h-8 text-blue-600" />;
   if (['xls', 'xlsx'].includes(extension)) return <ExcelIcon className="w-8 h-8 text-green-600" />;
+  if (extension === 'zip') return <ZipIcon className="w-8 h-8 text-amber-600" />;
 
   return <FileIcon className="w-8 h-8 text-slate-500" />;
 };
@@ -46,44 +35,26 @@ const getFileIcon = (fileType: string, fileName: string) => {
 export const FileUpload: React.FC<FileUploadProps> = ({ files, setFiles, onPreview }) => {
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
-  const [confirmationMessage, setConfirmationMessage] = useState<string>('');
   const [isZipping, setIsZipping] = useState(false);
   
   const [isDragging, setIsDragging] = useState(false);
 
-  const handleFileChange = (newFiles: FileList | null) => {
-    if (newFiles && newFiles.length > 0) {
-      const newUploadedFiles: UploadedFile[] = Array.from(newFiles).map(file => ({
-          id: `${file.name}-${file.lastModified}-${Math.random()}`,
-          file,
-          preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
-          category: 'Uncategorized',
-          status: 'uploading',
-        }));
+  const handleFileChange = useCallback((newFiles: FileList | null) => {
+    if (!newFiles || newFiles.length === 0) return;
 
-      setFiles(prev => [...prev, ...newUploadedFiles]);
+    const filesToAdd: UploadedFile[] = Array.from(newFiles).map(file => ({
+        id: `${file.name}-${file.lastModified}-${Math.random()}`,
+        file,
+        preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
+        category: 'Uncategorized',
+        status: 'pending', // Set initial status to 'pending'
+        error: undefined,
+    }));
+    
+    // The App component will now handle the processing logic
+    setFiles(prev => [...prev, ...filesToAdd]);
 
-      newUploadedFiles.forEach(fileToProcess => {
-        setTimeout(() => {
-          setFiles(currentFiles => 
-            currentFiles.map(f => f.id === fileToProcess.id ? { ...f, status: 'categorizing' } : f)
-          );
-          
-          categorizeFile(fileToProcess.file).then(category => {
-             setFiles(currentFiles => 
-                currentFiles.map(f => f.id === fileToProcess.id ? { ...f, status: 'completed', category: category } : f)
-             );
-          });
-        }, 700 + Math.random() * 500);
-      });
-      
-      setTimeout(() => {
-        const message = `${newFiles.length} tệp đã được tải lên và phân loại.`;
-        setConfirmationMessage(message);
-        setTimeout(() => setConfirmationMessage(''), 4000);
-      }, 2500);
-    }
-  };
+  }, [setFiles]);
 
   const handleCategoryChange = (fileId: string, newCategory: FileCategory) => {
     setFiles(prevFiles =>
@@ -97,7 +68,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({ files, setFiles, onPrevi
     event.preventDefault();
     event.currentTarget.classList.remove('border-blue-500', 'bg-blue-50/50');
     handleFileChange(event.dataTransfer.files);
-  }, []);
+  }, [handleFileChange]);
 
   const onDragOver = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -166,7 +137,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({ files, setFiles, onPrevi
           multiple
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
           onChange={(e) => handleFileChange(e.target.files)}
-          accept=".png,.jpg,.jpeg,.pdf,.doc,.docx,.xls,.xlsx"
+          accept=".png,.jpg,.jpeg,.pdf,.doc,.docx,.xls,.xlsx,.zip"
         />
         <div className="text-center">
           <svg className="mx-auto h-10 w-10 text-slate-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
@@ -175,16 +146,11 @@ export const FileUpload: React.FC<FileUploadProps> = ({ files, setFiles, onPrevi
           <p className="mt-2 text-sm text-slate-600">
             <span className="font-semibold text-blue-600">Kéo và thả tệp</span> hoặc click để chọn
           </p>
-          <p className="text-xs text-slate-400">PNG, JPG, PDF, DOCX, XLSX. Kéo thả để sắp xếp.</p>
+          <p className="text-xs text-slate-400">PNG, JPG, PDF, DOCX, XLSX, ZIP. Kéo thả để sắp xếp.</p>
         </div>
       </div>
       {files.length > 0 && (
         <div className="space-y-2">
-           {confirmationMessage && (
-             <div className="p-2 text-center text-sm text-green-800 bg-green-100 rounded-md animate-fade-in-down">
-               {confirmationMessage}
-             </div>
-           )}
           <div className="flex justify-between items-center">
             <h3 className="text-sm font-semibold text-slate-700">Tài liệu đã tải lên ({files.length}):</h3>
              <button
@@ -240,24 +206,17 @@ export const FileUpload: React.FC<FileUploadProps> = ({ files, setFiles, onPrevi
                       >
                         {uploadedFile.file.name}
                       </p>
-                        {uploadedFile.status === 'categorizing' ? (
-                            <div className="flex items-center gap-1 mt-1">
-                                <Loader />
-                                <span className="text-xs text-slate-500">Đang phân loại...</span>
-                            </div>
-                        ) : (
-                           <select
-                            value={uploadedFile.category}
-                            onChange={(e) => handleCategoryChange(uploadedFile.id, e.target.value as FileCategory)}
-                            onClick={(e) => e.stopPropagation()}
-                            className="mt-1 w-full text-xs p-1 bg-white border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all text-slate-700"
-                            aria-label={`Phân loại cho tệp ${uploadedFile.file.name}`}
-                          >
-                            {Object.entries(fileCategoryLabels).map(([key, label]) => (
-                              <option key={key} value={key}>{label}</option>
-                            ))}
-                          </select>
-                        )}
+                       <select
+                        value={uploadedFile.category}
+                        onChange={(e) => handleCategoryChange(uploadedFile.id, e.target.value as FileCategory)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="mt-1 w-full text-xs p-1 bg-white border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all text-slate-700"
+                        aria-label={`Phân loại cho tệp ${uploadedFile.file.name}`}
+                      >
+                        {Object.entries(fileCategoryLabels).map(([key, label]) => (
+                          <option key={key} value={key}>{label}</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                   <button 
@@ -267,8 +226,6 @@ export const FileUpload: React.FC<FileUploadProps> = ({ files, setFiles, onPrevi
                   >
                     <TrashIcon className="w-5 h-5 text-slate-500 hover:text-red-500" />
                   </button>
-
-                   {uploadedFile.status === 'uploading' && <ProgressBar />}
                 </li>
               )
             })}

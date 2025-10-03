@@ -8,7 +8,8 @@ export interface UploadedFile {
     file: File;
     preview: string | null; 
     category: FileCategory;
-    status: 'uploading' | 'categorizing' | 'completed';
+    status: 'pending' | 'processing' | 'completed' | 'failed';
+    error?: string;
 }
 
 export type DocType = '' | 'legalServiceContract' | 'demandLetter' | 'powerOfAttorney' | 'meetingMinutes' | 'lawsuit' | 'evidenceList' | 'civilMatterPetition' | 'statement' | 'appeal' | 'civilContract' | 'businessRegistration' | 'divorcePetition' | 'will' | 'enforcementPetition' | 'complaint' | 'reviewPetition' | 'inheritanceWaiver';
