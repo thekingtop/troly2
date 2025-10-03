@@ -1,20 +1,42 @@
 
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { FileUpload } from './FileUpload';
 import { Loader } from './Loader';
 import { MagicIcon } from './icons/MagicIcon';
 import { FileImportIcon } from './icons/FileImportIcon';
 import { generateConsultingDocument, extractDataFromDocument, suggestCaseType } from '../services/geminiService';
-import type { UploadedFile, LitigationType } from '../types';
+import type { UploadedFile, LitigationType, SavedCase, SerializableFile } from '../types';
 import { BackIcon } from './icons/BackIcon';
+import { saveCase } from '../services/db';
+import { SaveCaseIcon } from './icons/SaveCaseIcon';
+
 
 interface ConsultingWorkflowProps {
     onPreview: (file: UploadedFile) => void;
     onGoBack: () => void;
+    activeCase: SavedCase | null;
+    onCasesUpdated: () => void;
 }
 
-export const ConsultingWorkflow: React.FC<ConsultingWorkflowProps> = ({ onPreview, onGoBack }) => {
+const fileToBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result.split(',')[1]) : reject(new Error('Failed to read file.'));
+        reader.onerror = (error) => reject(error);
+    });
+
+const base64ToFile = (base64: string, filename: string, mimeType: string): File => {
+    const byteCharacters = atob(base64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) byteNumbers[i] = byteCharacters.charCodeAt(i);
+    const byteArray = new Uint8Array(byteNumbers);
+    return new File([byteArray], filename, { type: mimeType });
+};
+
+
+export const ConsultingWorkflow: React.FC<ConsultingWorkflowProps> = ({ onPreview, onGoBack, activeCase, onCasesUpdated }) => {
     // State for inputs
     const [files, setFiles] = useState<UploadedFile[]>([]);
     const [disputeContent, setDisputeContent] = useState('');
@@ -34,6 +56,29 @@ export const ConsultingWorkflow: React.FC<ConsultingWorkflowProps> = ({ onPrevie
     const [generatedText, setGeneratedText] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const [generationError, setGenerationError] = useState<string | null>(null);
+
+    // State for saving
+    const [isSaving, setIsSaving] = useState(false);
+    const [currentCaseId, setCurrentCaseId] = useState<string | null>(null);
+    const [caseName, setCaseName] = useState('');
+
+    useEffect(() => {
+        if (activeCase && activeCase.workflowType === 'consulting') {
+            const loadedFiles: UploadedFile[] = (activeCase.files || []).map(sf => {
+                const file = base64ToFile(sf.content, sf.name, sf.type);
+                return { id: `${sf.name}-${Math.random()}`, file, preview: null, category: 'Uncategorized', status: 'pending' };
+            });
+            setFiles(loadedFiles);
+            setDisputeContent(activeCase.caseContent || '');
+            setClientRequest(activeCase.clientRequest || '');
+            setExtractedData(activeCase.extractedData || null);
+            setGeneratedText(activeCase.generatedText || '');
+            setLitigationType(activeCase.litigationType || null);
+            setCurrentCaseId(activeCase.id);
+            setCaseName(activeCase.name);
+        }
+    }, [activeCase]);
+
 
     const handleBackClick = () => {
         if (window.confirm("Bạn có chắc chắn muốn quay lại? Mọi dữ liệu chưa lưu sẽ bị mất.")) {
@@ -99,6 +144,58 @@ export const ConsultingWorkflow: React.FC<ConsultingWorkflowProps> = ({ onPrevie
             setIsGenerating(false);
         }
     };
+    
+    const handleSave = async () => {
+        if (!activeCase) return;
+        const defaultName = caseName || clientRequest || `Tư vấn ngày ${new Date().toLocaleDateString('vi-VN')}`;
+        const newCaseName = window.prompt("Nhập tên để lưu nghiệp vụ:", defaultName);
+        if (!newCaseName) return;
+
+        setIsSaving(true);
+        try {
+            const serializableFiles: SerializableFile[] = await Promise.all(
+                files.map(async (uploadedFile) => ({
+                    name: uploadedFile.file.name,
+                    type: uploadedFile.file.type,
+                    content: await fileToBase64(uploadedFile.file),
+                }))
+            );
+
+            const now = new Date().toISOString();
+            const isNewCase = activeCase.id.startsWith('new_');
+            
+            const caseToSave: SavedCase = {
+                ...activeCase,
+                id: isNewCase ? now : activeCase.id,
+                createdAt: isNewCase ? now : activeCase.createdAt,
+                updatedAt: now,
+                name: newCaseName,
+                workflowType: 'consulting',
+                files: serializableFiles,
+                caseContent: disputeContent,
+                clientRequest: clientRequest,
+                query: '', // Not used in consulting
+                litigationType: litigationType,
+                litigationStage: 'consulting', // Default stage for this type
+                analysisReport: null, // Not used in consulting
+                extractedData: extractedData,
+                generatedText: generatedText,
+            };
+
+            await saveCase(caseToSave);
+            onCasesUpdated(); // Notify parent to refresh the case list
+            setCurrentCaseId(caseToSave.id); // Update current ID to the real one
+            setCaseName(caseToSave.name);
+            alert(`Nghiệp vụ "${newCaseName}" đã được lưu thành công!`);
+
+        } catch (err) {
+            console.error("Error saving consulting case:", err);
+            alert("Đã xảy ra lỗi khi lưu nghiệp vụ.");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
 
     const handleCopyToClipboard = () => {
         if (generatedText) {
@@ -113,10 +210,14 @@ export const ConsultingWorkflow: React.FC<ConsultingWorkflowProps> = ({ onPrevie
 
     return (
         <div className="animate-fade-in">
-            <div className="mb-6">
+            <div className="mb-6 flex justify-between items-center">
                 <button onClick={handleBackClick} className="flex items-center gap-2 text-sm text-slate-600 hover:text-blue-600 font-semibold transition-colors">
                     <BackIcon className="w-5 h-5" />
                     Quay lại Chọn Nghiệp vụ
+                </button>
+                <button onClick={handleSave} disabled={isSaving} className="flex items-center justify-center gap-2 py-2 px-4 bg-slate-600 text-white text-sm font-semibold rounded-lg hover:bg-slate-700 disabled:bg-slate-300 transition-colors">
+                    {isSaving ? <Loader /> : <SaveCaseIcon className="w-4 h-4" />}
+                    Lưu Nghiệp vụ
                 </button>
             </div>
             <div className="space-y-8">

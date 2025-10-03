@@ -34,10 +34,11 @@ const getFileIcon = (fileType: string, fileName: string) => {
 
 export const FileUpload: React.FC<FileUploadProps> = ({ files, setFiles, onPreview }) => {
   const dragItem = useRef<number | null>(null);
-  const dragOverItem = useRef<number | null>(null);
-  const [isZipping, setIsZipping] = useState(false);
+  const [dragOverItemIndex, setDragOverItemIndex] = useState<number | null>(null);
+  const [draggedItemIndex, setDraggedItemIndex] = useState<number | null>(null);
   
-  const [isDragging, setIsDragging] = useState(false);
+  const [isZipping, setIsZipping] = useState(false);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
 
   const handleFileChange = useCallback((newFiles: FileList | null) => {
     if (!newFiles || newFiles.length === 0) return;
@@ -66,18 +67,18 @@ export const FileUpload: React.FC<FileUploadProps> = ({ files, setFiles, onPrevi
 
   const onDrop = useCallback((event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
-    event.currentTarget.classList.remove('border-blue-500', 'bg-blue-50/50');
+    setIsDraggingOver(false);
     handleFileChange(event.dataTransfer.files);
   }, [handleFileChange]);
 
   const onDragOver = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
-    event.currentTarget.classList.add('border-blue-500', 'bg-blue-50/50');
+     setIsDraggingOver(true);
   };
   
   const onDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
-    event.currentTarget.classList.remove('border-blue-500', 'bg-blue-50/50');
+     setIsDraggingOver(false);
   };
 
   const removeFile = (id: string) => {
@@ -85,14 +86,13 @@ export const FileUpload: React.FC<FileUploadProps> = ({ files, setFiles, onPrevi
   };
 
   const handleSort = () => {
-    if (dragItem.current === null || dragOverItem.current === null || dragItem.current === dragOverItem.current) return;
+    if (dragItem.current === null || dragOverItemIndex === null || dragItem.current === dragOverItemIndex) return;
     
     const filesCopy = [...files];
     const draggedItemContent = filesCopy.splice(dragItem.current, 1)[0];
-    filesCopy.splice(dragOverItem.current, 0, draggedItemContent);
+    filesCopy.splice(dragOverItemIndex, 0, draggedItemContent);
     
     dragItem.current = null;
-    dragOverItem.current = null;
     
     setFiles(filesCopy);
   };
@@ -130,7 +130,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({ files, setFiles, onPrevi
         onDrop={onDrop}
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
-        className="relative flex flex-col items-center justify-center w-full p-5 border-2 border-dashed border-slate-300 rounded-lg transition-colors bg-gray-50 hover:bg-gray-100"
+        className={`relative flex flex-col items-center justify-center w-full p-5 border-2 border-dashed rounded-lg transition-colors duration-300 ${isDraggingOver ? 'border-blue-500 bg-blue-50/50' : 'border-slate-300 bg-slate-50 hover:bg-slate-100'}`}
       >
         <input
           type="file"
@@ -139,7 +139,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({ files, setFiles, onPrevi
           onChange={(e) => handleFileChange(e.target.files)}
           accept=".png,.jpg,.jpeg,.pdf,.doc,.docx,.xls,.xlsx,.zip"
         />
-        <div className="text-center">
+        <div className="text-center pointer-events-none">
           <svg className="mx-auto h-10 w-10 text-slate-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
             <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"></path>
           </svg>
@@ -163,12 +163,11 @@ export const FileUpload: React.FC<FileUploadProps> = ({ files, setFiles, onPrevi
                 Tải về (.zip)
             </button>
           </div>
-          <ul className="max-h-60 overflow-y-auto space-y-2 pr-2 -mr-2">
+          <ul className="max-h-60 overflow-y-auto space-y-2 pr-2 -mr-2" onDragLeave={() => setDragOverItemIndex(null)}>
             {files.map((uploadedFile, index) => {
-               const isBeingDragged = isDragging && dragItem.current === index;
-               let itemClasses = 'flex items-center justify-between p-2 bg-white rounded-lg cursor-grab active:cursor-grabbing relative overflow-hidden transition-all border border-slate-200 hover:bg-slate-50/50';
-               if (isBeingDragged) itemClasses += ' dragging';
-               if (dragOverItem.current === index) itemClasses += ' drag-placeholder';
+               const isItemDragging = draggedItemIndex === index;
+               const isDragOver = dragOverItemIndex === index;
+               const itemClasses = `flex items-center justify-between p-2 bg-white rounded-lg cursor-grab active:cursor-grabbing relative overflow-hidden transition-all duration-200 border border-slate-200 hover:border-blue-400 hover:bg-blue-50/50 soft-shadow ${isItemDragging ? 'dragging' : ''} ${isDragOver ? 'drag-placeholder' : ''}`;
 
               return(
                 <li 
@@ -176,16 +175,16 @@ export const FileUpload: React.FC<FileUploadProps> = ({ files, setFiles, onPrevi
                   draggable
                   onDragStart={() => {
                     dragItem.current = index;
-                    setIsDragging(true);
+                    setDraggedItemIndex(index);
                   }}
                   onDragEnter={(e) => {
                     e.preventDefault();
-                    dragOverItem.current = index;
+                    setDragOverItemIndex(index);
                   }}
                   onDragEnd={() => {
                     handleSort();
-                    setIsDragging(false);
-                    dragOverItem.current = null;
+                    setDraggedItemIndex(null);
+                    setDragOverItemIndex(null);
                   }}
                   onDragOver={(e) => e.preventDefault()}
                   className={itemClasses}

@@ -44,18 +44,20 @@ Bạn là một trợ lý luật sư AI xuất sắc tại Việt Nam, được 
 
 QUY TẮC BẮT BUỘC:
 1.  **Tư duy như luật sư:** Phân tích logic, xác định đúng quan hệ pháp luật và các vấn đề pháp lý cốt lõi.
-2.  **Tổng hợp thông tin:** Nhiệm vụ quan trọng nhất của bạn là xâu chuỗi các sự kiện, dữ liệu từ nhiều tài liệu khác nhau (hợp đồng, email, biên bản) để tạo ra một dòng thời gian và bối cảnh vụ việc hoàn chỉnh. Hãy đặc biệt chú ý đến các mâu thuẫn hoặc điểm không nhất quán giữa các tài liệu.
-3.  **Hiệu lực văn bản:** Khi viện dẫn cơ sở pháp lý, phải kiểm tra và đảm bảo văn bản đó có hiệu lực tại thời điểm xảy ra vụ việc. Luôn ưu tiên áp dụng văn bản pháp luật chuyên ngành trước, sau đó mới đến các văn bản chung.
-4.  **Bám sát dữ liệu:** Mọi phân tích và nhận định phải dựa hoàn toàn vào các thông tin, tài liệu được cung cấp. Nếu thông tin không đủ, hãy chỉ ra đó là "lỗ hổng thông tin".
-5.  **Chú ý đến loại tài liệu:** Phân tích nội dung của mỗi tài liệu trong bối cảnh loại tài liệu đó (ví dụ: 'Hợp đồng' có giá trị pháp lý cao hơn 'Email trao đổi').
-6.  **JSON Output:** Phản hồi của bạn BẮT BUỘC phải là một đối tượng JSON hợp lệ, không chứa bất kỳ văn bản nào khác bên ngoài đối tượng JSON đó.
+2.  **Tổng hợp thông tin:** Xâu chuỗi các sự kiện, dữ liệu từ nhiều tài liệu khác nhau để tạo ra một bối cảnh vụ việc hoàn chỉnh. Hãy đặc biệt chú ý đến các mâu thuẫn.
+3.  **Tìm kiếm Lỗ hổng Pháp lý:** Chủ động tìm kiếm các 'lỗ hổng' pháp lý — không chỉ là thông tin thiếu, mà là các điểm yếu trong lập luận, các quy định mâu thuẫn, hoặc các kẽ hở trong hợp đồng/tài liệu mà đối phương có thể khai thác.
+4.  **Tư duy Chiến lược:** Không chỉ tóm tắt. Phải xây dựng một chiến lược hành động chi tiết trong mục "proposedStrategy". Chiến lược này BẮT BUỘC phải: a) Tận dụng các "strengths" (điểm mạnh); b) Đề xuất giải pháp giảm thiểu "weaknesses" (điểm yếu) và "risks" (rủi ro); c) Khai thác các "legalLoopholes" (lỗ hổng pháp lý) đã được xác định để tạo lợi thế hoặc tấn công lập luận của đối phương.
+5.  **Hiệu lực văn bản:** Khi viện dẫn cơ sở pháp lý, phải kiểm tra và đảm bảo văn bản đó có hiệu lực tại thời điểm xảy ra vụ việc. Luôn ưu tiên áp dụng văn bản pháp luật chuyên ngành trước, sau đó mới đến các văn bản chung.
+6.  **Bám sát dữ liệu:** Mọi phân tích và nhận định phải dựa hoàn toàn vào các thông tin, tài liệu được cung cấp. Nếu thông tin không đủ, hãy chỉ ra đó là "lỗ hổng thông tin".
+7.  **Chú ý đến loại tài liệu:** Phân tích nội dung của mỗi tài liệu trong bối cảnh loại tài liệu đó (ví dụ: 'Hợp đồng' có giá trị pháp lý cao hơn 'Email trao đổi').
+8.  **JSON Output:** Phản hồi của bạn BẮT BUỘC phải là một đối tượng JSON hợp lệ, không chứa bất kỳ văn bản nào khác bên ngoài đối tượng JSON đó.
 `;
 
 export const ANALYSIS_UPDATE_SYSTEM_INSTRUCTION = `
 Bạn là một luật sư AI cao cấp, đang xem xét lại một hồ sơ vụ việc đã được phân tích sơ bộ. Vụ việc hiện đã chuyển sang một giai đoạn tố tụng mới. Nhiệm vụ của bạn là:
 1.  **Tái tổng hợp:** Tích hợp các thông tin/tài liệu mới (nếu có) vào bối cảnh chung của vụ việc từ báo cáo hiện tại.
-2.  **Phân tích lại:** Dựa trên bối cảnh đã được cập nhật và giai đoạn tố tụng mới, đánh giá lại toàn bộ các mục của báo cáo.
-3.  **Tập trung vào Chiến lược:** Trọng tâm chính là phải xây dựng lại mục "proposedStrategy" (Chiến lược Đề xuất) để nó trở nên cực kỳ chi tiết, cụ thể và phù hợp với giai đoạn tố tụng mới này.
+2.  **Phân tích lại:** Dựa trên bối cảnh đã được cập nhật và giai đoạn tố tụng mới, đánh giá lại toàn bộ các mục của báo cáo, đặc biệt là mục **CaseProspects** (Triển vọng Vụ việc) và **GapAnalysis** (Phân tích Lỗ hổng, bao gồm cả các lỗ hổng pháp lý).
+3.  **Tập trung vào Chiến lược:** Trọng tâm chính là phải xây dựng lại mục "proposedStrategy". Chiến lược mới phải cực kỳ chi tiết, phù hợp với giai đoạn tố tụng mới, và phải dựa trên việc đánh giá lại các điểm mạnh, điểm yếu, rủi ro và lỗ hổng pháp lý trong bối cảnh mới.
 4.  **Giữ nguyên Cấu trúc:** Phản hồi của bạn BẮT BUỘC phải là một đối tượng JSON hoàn chỉnh, hợp lệ, tuân thủ đúng cấu trúc đã cho, không chứa bất kỳ văn bản nào khác bên ngoài.
 `;
 
@@ -96,7 +98,7 @@ export const REPORT_SCHEMA = {
     },
     gapAnalysis: {
       type: Type.OBJECT,
-      description: "Phân tích các lỗ hổng thông tin và đề xuất hành động.",
+      description: "Phân tích các lỗ hổng thông tin, lỗ hổng pháp lý và đề xuất hành động.",
       properties: {
         missingInformation: {
           type: Type.ARRAY,
@@ -107,9 +109,14 @@ export const REPORT_SCHEMA = {
           type: Type.ARRAY,
           description: "Một mảng các chuỗi đề xuất hành động cụ thể để thu thập thông tin còn thiếu.",
           items: { type: Type.STRING }
+        },
+        legalLoopholes: {
+          type: Type.ARRAY,
+          description: "Một mảng các chuỗi mô tả các lỗ hổng pháp lý tiềm ẩn, điểm yếu trong lập luận, hoặc các quy định mâu thuẫn có thể bị đối phương khai thác.",
+          items: { type: Type.STRING }
         }
       },
-      required: ['missingInformation', 'recommendedActions']
+      required: ['missingInformation', 'recommendedActions', 'legalLoopholes']
     },
     caseProspects: {
       type: Type.OBJECT,

@@ -1,4 +1,6 @@
 
+
+
 import React, { useState } from 'react';
 import type { AnalysisReport, ApplicableLaw, LawArticle, UploadedFile } from '../types';
 import { MagicIcon } from './icons/MagicIcon';
@@ -40,7 +42,7 @@ const HighlightedText: React.FC<{ text: string | undefined; term: string }> = Re
 
 const Section: React.FC<{ title: string; children: React.ReactNode; id?: string; highlightTerm: string; }> = ({ title, children, id, highlightTerm }) => (
   <div id={id} className="mb-8">
-    <h3 className="text-lg font-semibold text-slate-900 border-b border-slate-200 pb-2 mb-4">
+    <h3 className="text-lg font-semibold text-slate-900 border-b-2 border-slate-100 pb-2 mb-4">
         <HighlightedText text={title} term={highlightTerm} />
     </h3>
     <div className="space-y-3 text-slate-700">
@@ -122,7 +124,7 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
       </div>
 
       {report.quickSummary && (
-        <div className="mb-8 p-5 bg-blue-100 border-l-4 border-blue-500 rounded-lg relative animate-fade-in-down shadow-md shadow-blue-500/10">
+        <div className="mb-8 p-5 bg-blue-50 border-l-4 border-blue-500 rounded-lg relative animate-fade-in-down shadow-md shadow-blue-500/10">
             <div className="flex justify-between items-start">
                 <h3 className="text-lg font-bold text-blue-900 mb-2 flex items-center gap-2">
                     <MagicIcon className="w-6 h-6 text-blue-600" />
@@ -130,7 +132,7 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
                 </h3>
                  <button 
                     onClick={onClearSummary} 
-                    className="text-blue-500 hover:text-blue-700 p-1 rounded-full hover:bg-blue-200/50"
+                    className="text-blue-500 hover:text-blue-700 p-1 rounded-full hover:bg-blue-100/50"
                     title="Ẩn tóm tắt"
                  >
                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
@@ -144,7 +146,7 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
 
       {report.customNotes && (
         <Section title="Ghi chú Tùy chỉnh" id="customNotesSection" highlightTerm={highlightTerm}>
-          <p className="whitespace-pre-wrap bg-yellow-50 border-l-4 border-yellow-300 p-4 text-slate-800"><HighlightedText text={report.customNotes} term={highlightTerm} /></p>
+          <p className="whitespace-pre-wrap bg-yellow-50 border-l-4 border-yellow-300 p-4 text-slate-800 rounded-md"><HighlightedText text={report.customNotes} term={highlightTerm} /></p>
         </Section>
       )}
 
@@ -192,9 +194,16 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
 
       {report.gapAnalysis && (
         <Section title="4. Phân tích Lỗ hổng & Hành động Đề xuất" id="gapAnalysis" highlightTerm={highlightTerm}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-4 rounded-lg border border-slate-200">
-              <BulletList title="Thông tin / Chứng cứ còn thiếu" items={report.gapAnalysis.missingInformation} highlightTerm={highlightTerm} />
-              <BulletList title="Hành động đề xuất" items={report.gapAnalysis.recommendedActions} highlightTerm={highlightTerm} />
+          <div className="flex flex-col gap-6 bg-slate-50 p-4 rounded-lg border border-slate-200">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <BulletList title="Thông tin / Chứng cứ còn thiếu" items={report.gapAnalysis.missingInformation} highlightTerm={highlightTerm} />
+                <BulletList title="Hành động đề xuất" items={report.gapAnalysis.recommendedActions} highlightTerm={highlightTerm} />
+              </div>
+              {report.gapAnalysis.legalLoopholes && report.gapAnalysis.legalLoopholes.length > 0 && (
+                <div className="bg-amber-100 border-l-4 border-amber-500 p-4 rounded-r-lg">
+                   <BulletList title="Lỗ hổng pháp lý tiềm ẩn" items={report.gapAnalysis.legalLoopholes} highlightTerm={highlightTerm} />
+                </div>
+              )}
           </div>
         </Section>
       )}

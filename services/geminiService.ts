@@ -21,19 +21,19 @@ const handleGeminiError = (error: any, context: string): Error => {
   if (error instanceof Error) {
     const errorMessage = error.message.toLowerCase();
     
-    // Check for authentication errors first, as they are critical.
-    if (errorMessage.includes("401") || errorMessage.includes("unauthenticated") || errorMessage.includes("invalid authentication credentials")) {
-        message = 'Lỗi xác thực: API Key không hợp lệ hoặc bị thiếu. Vui lòng liên hệ quản trị viên.';
-    } else if (errorMessage.includes("api key not valid")) { // Keep for broader compatibility
-      message = 'Lỗi cấu hình: API Key không hợp lệ hoặc đã hết hạn. Vui lòng liên hệ quản trị viên.';
+    if (errorMessage.includes("api key not valid") || errorMessage.includes("401") || errorMessage.includes("unauthenticated")) {
+        message = 'Lỗi xác thực (401): API Key không hợp lệ hoặc bị thiếu. Vui lòng kiểm tra lại cấu hình hoặc liên hệ quản trị viên.';
     } else if (errorMessage.includes('429') || errorMessage.includes('resource_exhausted')) {
-      message = `Bạn đã gửi quá nhiều yêu cầu tới AI. Vui lòng đợi một lát rồi thử lại.`;
-    } else if (errorMessage.includes('400')) {
-      message = `Yêu cầu không hợp lệ khi ${context}. Vui lòng kiểm tra lại định dạng tệp và nội dung yêu cầu.`;
-    } else if (errorMessage.includes('500') || errorMessage.includes('503')) {
-      message = `Dịch vụ AI hiện đang gặp sự cố hoặc quá tải. Vui lòng thử lại sau.`;
+      message = 'Vượt giới hạn yêu cầu (429): Bạn đã gửi quá nhiều yêu cầu tới AI trong một thời gian ngắn. Vui lòng đợi một lát rồi thử lại.';
+    } else if (errorMessage.includes('500') || errorMessage.includes('503') || errorMessage.includes('internal error')) {
+      message = 'Lỗi máy chủ AI (500/503): Dịch vụ AI hiện đang gặp sự cố hoặc quá tải. Vui lòng thử lại sau ít phút.';
+    } else if (errorMessage.includes('400') || errorMessage.includes('bad request')) {
+      message = `Yêu cầu không hợp lệ (400) khi ${context}. Vui lòng kiểm tra lại định dạng tệp và nội dung yêu cầu của bạn.`;
     } else if (errorMessage.includes('candidate was blocked')) {
-      message = `Yêu cầu của bạn đã bị chặn vì lý do an toàn. Vui lòng điều chỉnh lại nội dung và thử lại.`;
+      message = 'Nội dung bị chặn: Yêu cầu của bạn đã bị chặn vì có thể vi phạm chính sách an toàn. Vui lòng điều chỉnh lại nội dung và thử lại.';
+    } else {
+        // Fallback to a more detailed error message if none of the specific cases match
+        message = `Lỗi khi ${context}: ${error.message}`;
     }
   }
 
@@ -197,12 +197,17 @@ Dựa trên vai trò của bạn (được nêu trong system instruction), hãy 
       promptText = `
 Hãy thực hiện vai trò của bạn như một trợ lý luật sư AI xuất sắc. Phân tích toàn bộ thông tin được cung cấp dưới đây và trả về một báo cáo JSON hoàn chỉnh.
 
-**PHƯƠНG PHÁP LUẬN PHÂN TÍCH:**
+**PHƯƠНG PHÁP LUẬN PHÂN TÍCH (BẮT BUỘC TUÂN THỦ):**
 1.  **Tổng hợp bối cảnh:** Đọc kỹ tóm tắt vụ việc, yêu cầu khách hàng, và toàn bộ nội dung các tài liệu. Xây dựng một dòng thời gian các sự kiện chính.
 2.  **Xác định mâu thuẫn:** Tìm kiếm bất kỳ điểm mâu thuẫn, không nhất quán nào giữa các tài liệu hoặc giữa tài liệu và lời trình bày.
 3.  **Phân tích pháp lý:** Dựa trên bối cảnh đã tổng hợp, xác định quan hệ pháp luật, các vấn đề cốt lõi và viện dẫn các điều luật có liên quan (đảm bảo còn hiệu lực).
-4.  **Đánh giá & Đề xuất:** Từ phân tích trên, đánh giá điểm mạnh, điểm yếu, rủi ro, xác định các thông tin còn thiếu và đề xuất một chiến lược hành động rõ ràng.
-5.  **Tạo JSON:** Cấu trúc toàn bộ kết quả phân tích vào đối tượng JSON được yêu cầu.
+4.  **Phân tích Lỗ hổng (Gap Analysis):** a) Xác định các thông tin, tài liệu, chứng cứ quan trọng còn thiếu. b) **Quan trọng:** Phân tích và chỉ ra các "lỗ hổng pháp lý" — các điểm yếu trong lập luận, các quy định mâu thuẫn, các kẽ hở trong hợp đồng mà đối phương có thể khai thác. c) Đề xuất hành động cụ thể để thu thập thông tin hoặc củng cố các điểm yếu này.
+5.  **Đánh giá Triển vọng (Case Prospects):**
+    - **Điểm mạnh:** Liệt kê các lợi thế pháp lý và chứng cứ rõ ràng.
+    - **Điểm yếu:** Chỉ ra các điểm bất lợi, mâu thuẫn trong hồ sơ.
+    - **Rủi ro:** Phân tích các rủi ro tiềm ẩn (ví dụ: khả năng thua kiện, chi phí phát sinh).
+6.  **Xây dựng Chiến lược (Proposed Strategy):** Dựa trên TOÀN BỘ KẾT QUẢ PHÂN TÍCH ở trên (đặc biệt là mục 4 và 5), hãy xây dựng một chiến lược chi tiết. Chiến lược phải chỉ rõ: a) Cách tận dụng Điểm mạnh. b) Cách khắc phục hoặc giảm thiểu Điểm yếu và Rủi ro. c) Cách khai thác các Lỗ hổng pháp lý để tạo lợi thế. d) Đề xuất các hành động cụ thể cho từng giai đoạn (Tiền tố tụng và Tố tụng).
+7.  **Tạo JSON:** Cấu trúc toàn bộ kết quả phân tích vào đối tượng JSON được yêu cầu.
 
 ---
 

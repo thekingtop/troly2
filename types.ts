@@ -34,6 +34,7 @@ export interface ApplicableLaw {
 export interface GapAnalysis {
     missingInformation: string[];
     recommendedActions: string[];
+    legalLoopholes: string[];
 }
 
 export interface CaseProspects {
@@ -80,7 +81,10 @@ export interface SavedCase {
     createdAt: string;
     // --- New contextual fields ---
     updatedAt: string;
-    litigationType: LitigationType; // Added to specify the case type
+    litigationType: LitigationType | null; // Can be null for consulting cases
     litigationStage: LitigationStage;
     analysisReport: AnalysisReport | null;
+    // --- New fields for consulting workflow ---
+    extractedData?: Record<string, string> | null;
+    generatedText?: string;
 }

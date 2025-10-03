@@ -163,6 +163,7 @@ const ProcessingProgress: React.FC<{
     isFinished: boolean;
 }> = ({ files, onRetry, onContinue, onCancel, isFinished }) => {
     const completedCount = files.filter(f => f.status === 'completed' || f.status === 'failed').length;
+    const successfulCount = files.filter(f => f.status === 'completed').length;
     const failedCount = files.filter(f => f.status === 'failed').length;
     const totalCount = files.length;
     const overallProgress = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
@@ -177,19 +178,34 @@ const ProcessingProgress: React.FC<{
     };
 
     return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
-            <div className="bg-white rounded-xl shadow-2xl p-6 w-11/12 max-w-2xl flex flex-col max-h-[90vh]">
-                <h3 className="text-xl font-bold text-slate-900 mb-2">Tiền xử lý & Phân loại Hồ sơ</h3>
+        <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="progress-dialog-title"
+        >
+            <div className="bg-white rounded-xl shadow-2xl p-6 w-11/12 max-w-2xl flex flex-col max-h-[90vh] soft-shadow-lg">
+                <h3 id="progress-dialog-title" className="text-xl font-bold text-slate-900 mb-2">Tiền xử lý & Phân loại Hồ sơ</h3>
                 <p className="text-sm text-slate-600 mb-4">AI đang đọc và phân loại từng tài liệu để chuẩn bị phân tích.</p>
                 
-                <div className="w-full bg-slate-200 rounded-full h-2.5 mb-1">
-                    <div className="bg-blue-600 h-2.5 rounded-full transition-all duration-500" style={{ width: `${overallProgress}%` }}></div>
+                <div
+                    className="w-full bg-slate-200 rounded-full h-3 mb-1"
+                    role="progressbar"
+                    aria-valuenow={overallProgress}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-label={`Tiến trình xử lý tệp`}
+                >
+                    <div 
+                      className="bg-gradient-to-r from-blue-500 to-indigo-600 h-3 rounded-full transition-all duration-500 animate-progress-stripes" 
+                      style={{ width: `${overallProgress}%` }}>
+                    </div>
                 </div>
-                <p className="text-sm text-slate-600 text-center mb-4">Hoàn thành {completedCount} / {totalCount} tệp</p>
+                <p className="text-sm text-slate-600 text-center mb-4" aria-live="polite">Hoàn thành {completedCount} / {totalCount} tệp</p>
                 
                 <div className="flex-grow overflow-y-auto space-y-2 pr-2 -mr-4 border-t border-b border-slate-200 py-3 my-2">
                     {files.map(file => (
-                        <div key={file.id} className={`p-2 rounded-lg flex items-center gap-3 transition-colors ${file.status === 'failed' ? 'bg-red-50' : 'bg-slate-50'}`}>
+                        <div key={file.id} className={`p-2 rounded-lg flex items-center gap-3 transition-colors duration-200 ${file.status === 'failed' ? 'bg-red-50' : 'bg-slate-50 hover:bg-slate-100'}`}>
                             {getFileIcon(file.file.type, file.file.name)}
                             <div className="flex-grow min-w-0">
                                 <p className="text-sm font-medium text-slate-800 truncate">{file.file.name}</p>
@@ -211,15 +227,19 @@ const ProcessingProgress: React.FC<{
                 
                 <div className="pt-4 space-y-2">
                     {isFinished && failedCount > 0 && (
-                        <div className="p-3 text-center text-sm text-amber-800 bg-amber-100 rounded-md">
+                        <div className="p-3 text-center text-sm text-amber-800 bg-amber-100 rounded-md" role="alert">
                            Có {failedCount} tệp xử lý thất bại. Bạn có thể thử lại từng tệp hoặc tiếp tục phân tích với các tệp đã thành công.
                         </div>
                     )}
                     <div className="flex justify-end gap-3">
-                         <button onClick={onCancel} className="px-4 py-2 text-sm font-semibold text-slate-700 bg-slate-200 rounded-lg hover:bg-slate-300">Hủy bỏ</button>
-                         {isFinished && failedCount > 0 && (
-                              <button onClick={onContinue} className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700">
-                                  Tiếp tục Phân tích
+                         <button onClick={onCancel} className="px-5 py-2 text-sm font-semibold text-slate-700 bg-slate-200 rounded-lg hover:bg-slate-300 transition-colors">Hủy bỏ</button>
+                         {isFinished && (
+                              <button
+                                  onClick={onContinue}
+                                  disabled={successfulCount === 0}
+                                  className="px-5 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors"
+                              >
+                                  {failedCount > 0 ? `Tiếp tục với ${successfulCount} tệp thành công` : 'Bắt đầu Phân tích'}
                               </button>
                          )}
                     </div>
@@ -295,18 +315,19 @@ const App: React.FC = () => {
     setCurrentLitigationStage(defaultStage);
   }, []);
 
+  const loadData = useCallback(async () => {
+      try {
+          const casesFromDb = await getAllCasesSorted();
+          setSavedCases(casesFromDb);
+      } catch (e) {
+          console.error("Failed to load cases:", e);
+      }
+  }, []);
+
   // --- Effects ---
   useEffect(() => {
-    const loadData = async () => {
-        try {
-            const casesFromDb = await getAllCasesSorted();
-            setSavedCases(casesFromDb);
-        } catch (e) {
-            console.error("Failed to load cases:", e);
-        }
-    };
     loadData();
-  }, []);
+  }, [loadData]);
 
   useEffect(() => {
     if (typeof docx !== 'undefined' && typeof XLSX !== 'undefined' && typeof jspdf !== 'undefined' && typeof html2canvas !== 'undefined') {
@@ -372,7 +393,8 @@ const App: React.FC = () => {
       return new File([byteArray], filename, { type: mimeType });
   };
   
-  const getStageLabel = (type: LitigationType, stage: LitigationStage): string => {
+  const getStageLabel = (type: LitigationType | null, stage: LitigationStage): string => {
+    if (!type) return 'Chưa xác định';
     const stageOptions = litigationStagesByType[type] || [];
     return stageOptions.find(opt => opt.value === stage)?.label || 'Chưa xác định';
   };
@@ -400,27 +422,20 @@ const App: React.FC = () => {
     // Reset statuses for all files before starting
     const filesToProcess = files.map(f => ({ ...f, status: 'pending' as const, error: undefined }));
     setFiles(filesToProcess);
-    
-    let anyFailed = false;
 
     for (const file of filesToProcess) {
         try {
             setFiles(prev => prev.map(f => f.id === file.id ? { ...f, status: 'processing' } : f));
             const category = await categorizeFile(file.file);
             setFiles(prev => prev.map(f => f.id === file.id ? { ...f, status: 'completed', category } : f));
-            await new Promise(resolve => setTimeout(resolve, 500)); // Rate limiting
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Rate limiting to avoid 429 errors
         } catch (err) {
-            anyFailed = true;
             const message = err instanceof Error ? err.message : 'Lỗi không xác định';
             setFiles(prev => prev.map(f => f.id === file.id ? { ...f, status: 'failed', error: message } : f));
         }
     }
 
     setIsPreprocessingFinished(true);
-
-    if (!anyFailed) {
-      handleContinueAnalysis(); // Automatically continue if all successful
-    }
   }, [files, query, caseContent, clientRequest]);
   
   const handleContinueAnalysis = useCallback(async () => {
@@ -428,7 +443,14 @@ const App: React.FC = () => {
 
     if (successfulFiles.length === 0 && !caseContent.trim()) {
         setIsProcessing(false);
-        setError("Không có tệp nào được xử lý thành công và không có nội dung. Không thể phân tích.");
+        const firstFailedFile = files.find(f => f.status === 'failed');
+        if (firstFailedFile && firstFailedFile.error) {
+            setError(`Phân tích thất bại vì không có tệp nào được xử lý thành công. Lỗi đầu tiên gặp phải: ${firstFailedFile.error}`);
+        } else if (files.length > 0) {
+            setError("Không có tệp nào được xử lý thành công. Vui lòng kiểm tra lại và thử lại.");
+        } else {
+            setError("Không có tệp nào được xử lý thành công và không có nội dung. Không thể phân tích.");
+        }
         return;
     }
 
@@ -794,7 +816,7 @@ const App: React.FC = () => {
         </div>
         <div className={`grid grid-cols-1 ${gridLayout} gap-6 transition-all duration-500`}>
           {/* Left Column: Input */}
-          <div className={`${inputColSpan} ${isInputCollapsed ? 'input-panel-collapsed' : 'input-panel-expanded'} border border-slate-200 rounded-xl bg-white shadow-sm`}>
+          <div className={`${inputColSpan} ${isInputCollapsed ? 'input-panel-collapsed' : 'input-panel-expanded'} border border-slate-200 rounded-xl bg-white soft-shadow`}>
             <div className="flex justify-between items-center p-3 bg-slate-50 border-b border-slate-200 rounded-t-xl">
               <h3 className="text-sm font-bold text-slate-700 truncate" title={activeCase?.name || 'Nhập liệu Vụ việc'}>{activeCase?.name ? `Vụ việc: ${activeCase.name}` : 'Nhập liệu Vụ việc'}</h3>
               <button onClick={() => setIsInputCollapsed(!isInputCollapsed)} className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-slate-200 rounded-full ml-auto" title={isInputCollapsed ? "Mở rộng" : "Thu gọn"}>
@@ -826,11 +848,11 @@ const App: React.FC = () => {
                 <h3 className="text-base font-semibold text-slate-800 mb-2">1. Tải lên Hồ sơ</h3>
                 <FileUpload files={files} setFiles={setFiles} onPreview={setPreviewingFile} />
               </div>
-              <div className="relative"><label htmlFor="caseContent" className="block text-base font-semibold text-slate-800 mb-2">2. Tóm tắt Nội dung</label><div className="absolute top-0 right-0 flex items-center gap-1.5"><RefineButton field="caseContent" mode="concise" text="Gọn" /><RefineButton field="caseContent" mode="detailed" text="Chi tiết" /></div><textarea id="caseContent" value={caseContent} onChange={(e) => setCaseContent(e.target.value)} placeholder="Tóm tắt diễn biến, sự việc..." className="w-full h-32 p-3 bg-gray-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500" />{refineError?.field === 'caseContent' && <p className="text-red-500 text-sm mt-1">{refineError.message}</p>}</div>
-              <div className="relative"><label htmlFor="clientRequest" className="block text-base font-semibold text-slate-800 mb-2">3. Yêu cầu Khách hàng</label><div className="absolute top-0 right-0 flex items-center gap-1.5"><RefineButton field="clientRequest" mode="concise" text="Gọn" /><RefineButton field="clientRequest" mode="detailed" text="Chi tiết" /></div><textarea id="clientRequest" value={clientRequest} onChange={(e) => setClientRequest(e.target.value)} placeholder="Ví dụ: Đòi lại tiền cọc..." className="w-full h-24 p-3 bg-gray-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500" />{refineError?.field === 'clientRequest' && <p className="text-red-500 text-sm mt-1">{refineError.message}</p>}</div>
-              <div><label htmlFor="mainQuery" className="block text-base font-semibold text-slate-800 mb-2">4. Yêu cầu Chính</label><input id="mainQuery" type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Ví dụ: Phân tích và đề xuất chiến lược" className="w-full p-3 bg-gray-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500" /></div>
+              <div className="relative"><label htmlFor="caseContent" className="block text-base font-semibold text-slate-800 mb-2">2. Tóm tắt Nội dung</label><div className="absolute top-0 right-0 flex items-center gap-1.5"><RefineButton field="caseContent" mode="concise" text="Gọn" /><RefineButton field="caseContent" mode="detailed" text="Chi tiết" /></div><textarea id="caseContent" value={caseContent} onChange={(e) => setCaseContent(e.target.value)} placeholder="Tóm tắt diễn biến, sự việc..." className="input-base h-32" />{refineError?.field === 'caseContent' && <p className="text-red-500 text-sm mt-1">{refineError.message}</p>}</div>
+              <div className="relative"><label htmlFor="clientRequest" className="block text-base font-semibold text-slate-800 mb-2">3. Yêu cầu Khách hàng</label><div className="absolute top-0 right-0 flex items-center gap-1.5"><RefineButton field="clientRequest" mode="concise" text="Gọn" /><RefineButton field="clientRequest" mode="detailed" text="Chi tiết" /></div><textarea id="clientRequest" value={clientRequest} onChange={(e) => setClientRequest(e.target.value)} placeholder="Ví dụ: Đòi lại tiền cọc..." className="input-base h-24" />{refineError?.field === 'clientRequest' && <p className="text-red-500 text-sm mt-1">{refineError.message}</p>}</div>
+              <div><label htmlFor="mainQuery" className="block text-base font-semibold text-slate-800 mb-2">4. Yêu cầu Chính</label><input id="mainQuery" type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Ví dụ: Phân tích và đề xuất chiến lược" className="input-base" /></div>
               <div className="space-y-2 pt-3 border-t border-slate-200">
-                  <button onClick={handleMainActionClick} disabled={mainAction.disabled} className="w-full py-3 px-4 bg-blue-600 text-white font-bold text-base rounded-lg hover:bg-blue-700 disabled:bg-slate-300 flex items-center justify-center gap-2">{isLoading ? <><Loader /><span>{mainAction.loadingText}</span></> : mainAction.text}</button>
+                  <button onClick={handleMainActionClick} disabled={mainAction.disabled} className="btn btn-primary">{isLoading ? <><Loader /><span>{mainAction.loadingText}</span></> : mainAction.text}</button>
                   <div className="grid grid-cols-2 gap-2">
                       <button onClick={handleSaveCase} disabled={isSaving} className="w-full flex items-center justify-center gap-2 py-2 px-2 bg-slate-600 text-white text-sm font-semibold rounded-lg hover:bg-slate-700 disabled:bg-slate-300">{isSaving ? <Loader /> : <SaveCaseIcon className="w-4 h-4" />}Lưu Vụ việc</button>
                       <button onClick={() => setIsCaseListOpen(true)} className="w-full flex items-center justify-center gap-2 py-2 px-2 bg-slate-200 text-slate-800 text-sm font-semibold rounded-lg hover:bg-slate-300"><FolderIcon className="w-4 h-4" />Mở danh sách</button>
@@ -850,7 +872,7 @@ const App: React.FC = () => {
                 </div>)}
             </div>
             {summaryError && <p className="text-red-600 bg-red-100 p-3 rounded-lg text-sm mb-3 text-center animate-fade-in">{summaryError}</p>}
-            <div className="flex-grow rounded-xl bg-white border border-slate-200 p-6 overflow-y-auto min-h-[85vh] shadow-inner">
+            <div className="flex-grow rounded-xl bg-white border border-slate-200 p-6 overflow-y-auto min-h-[85vh] soft-shadow">
               {isLoading && (<div className="flex flex-col items-center justify-center h-full text-slate-500"><Loader /><p className="mt-4 text-base">{mainAction.loadingText}</p></div>)}
               {!isLoading && !report && !generatedDocument && (<div className="flex flex-col items-center justify-center h-full text-center text-slate-400"><AnalysisIcon className="w-20 h-20 mb-4 text-slate-300" /><p className="text-lg font-medium text-slate-600">Báo cáo phân tích sẽ xuất hiện ở đây.</p></div>)}
               {report && (<div className="animate-fade-in">
@@ -889,7 +911,7 @@ const App: React.FC = () => {
                     <h3 className="text-xl font-bold text-slate-800 mb-4">Soạn thảo Văn bản theo Bối cảnh</h3>
                     {suggestedDocRequest && (<div className="mb-4"><button onClick={() => handleGenerateCaseDocument(true)} disabled={isGeneratingDocument} className="w-full text-left p-3 bg-blue-50 border-2 border-dashed border-blue-200 text-blue-800 font-semibold rounded-lg hover:bg-blue-100 flex items-center justify-between"><span className="flex items-center gap-2"><MagicIcon className="w-5 h-5 text-blue-600"/><span>{`Gợi ý: Soạn thảo cho "${suggestedDocRequest}"`}</span></span>{isGeneratingDocument && caseDocRequest === '' && <Loader />}</button></div>)}
                     <div className="flex gap-2">
-                      <input type="text" value={caseDocRequest} onChange={(e) => setCaseDocRequest(e.target.value)} placeholder="Ví dụ: Soạn Đơn khởi kiện" className="flex-grow p-2 bg-gray-50 border border-slate-300 rounded-lg focus:ring-1 focus:ring-blue-500" />
+                      <input type="text" value={caseDocRequest} onChange={(e) => setCaseDocRequest(e.target.value)} placeholder="Ví dụ: Soạn Đơn khởi kiện" className="input-base flex-grow" />
                       <button onClick={() => handleGenerateCaseDocument(false)} disabled={isGeneratingDocument || !caseDocRequest} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-slate-300">{isGeneratingDocument && caseDocRequest !== '' ? 'Soạn...' : "Soạn thảo"}</button>
                     </div>
                     {generationError && <p className="text-red-500 mt-2">{generationError}</p>}
@@ -915,17 +937,17 @@ const App: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800">
+    <div className="min-h-screen text-slate-800">
       <div className="container mx-auto px-4 py-8">
-        <header className="text-center mb-8">
+        <header className="text-center mb-8 pb-4 border-b border-slate-200">
           <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight">Trợ lý của LS Hồng Vân</h1>
           <p className="mt-3 text-slate-600 max-w-2xl mx-auto">Phân tích hồ sơ, xây dựng chiến lược, soạn thảo văn bản và quản lý vụ việc.</p>
         </header>
         
-        <main className="mt-0 p-6 sm:p-8 bg-white rounded-xl border border-slate-200 shadow-lg shadow-slate-200/50">
+        <main className="mt-0 p-6 sm:p-8 bg-white rounded-xl border border-slate-200 soft-shadow-lg">
             {!activeCase && renderWelcomeScreen()}
             {activeCase?.workflowType === 'litigation' && renderLitigationWorkflow()}
-            {activeCase?.workflowType === 'consulting' && <ConsultingWorkflow onPreview={setPreviewingFile} onGoBack={handleGoBackToSelection} />}
+            {activeCase?.workflowType === 'consulting' && <ConsultingWorkflow onPreview={setPreviewingFile} onGoBack={handleGoBackToSelection} activeCase={activeCase} onCasesUpdated={loadData} />}
         </main>
       </div>
 
@@ -943,15 +965,15 @@ const App: React.FC = () => {
        
        {isWorkflowSelectorOpen && (
            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
-                <div className="bg-white rounded-xl shadow-2xl p-8 w-11/12 max-w-lg text-center">
+                <div className="bg-white rounded-xl shadow-2xl p-8 w-11/12 max-w-lg text-center soft-shadow-lg">
                     <h3 className="text-xl font-bold text-slate-900 mb-4">Chọn loại Nghiệp vụ</h3>
                     <p className="text-slate-600 mb-8">Chọn một luồng công việc phù hợp với nhu cầu của bạn.</p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <button onClick={() => startNewWorkflow('litigation')} className="p-6 border border-slate-200 rounded-lg hover:bg-blue-50 hover:border-blue-400 transition-all">
+                        <button onClick={() => startNewWorkflow('litigation')} className="p-6 border border-slate-200 rounded-lg hover:bg-blue-50 hover:border-blue-400 transition-all text-left">
                             <h4 className="font-bold text-blue-700">Vụ việc Tranh tụng</h4>
                             <p className="text-sm text-slate-500 mt-2">Phân tích sâu, quản lý theo giai đoạn, xây dựng chiến lược cho các vụ việc phức tạp.</p>
                         </button>
-                        <button onClick={() => startNewWorkflow('consulting')} className="p-6 border border-slate-200 rounded-lg hover:bg-green-50 hover:border-green-400 transition-all">
+                        <button onClick={() => startNewWorkflow('consulting')} className="p-6 border border-slate-200 rounded-lg hover:bg-green-50 hover:border-green-400 transition-all text-left">
                             <h4 className="font-bold text-green-700">Nhiệm vụ Tư vấn</h4>
                             <p className="text-sm text-slate-500 mt-2">Soạn thảo nhanh thư tư vấn, thư yêu cầu, hoặc các văn bản đơn lẻ khác.</p>
                         </button>
@@ -963,15 +985,15 @@ const App: React.FC = () => {
 
        {isCaseListOpen && (
             <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
-                <div className="bg-white rounded-xl shadow-2xl p-6 w-11/12 max-w-3xl flex flex-col max-h-[85vh]">
+                <div className="bg-white rounded-xl shadow-2xl p-6 w-11/12 max-w-3xl flex flex-col max-h-[85vh] soft-shadow-lg">
                     <div className="flex justify-between items-center pb-4 border-b border-slate-200">
                         <h3 className="text-xl font-bold text-slate-900">Danh sách Vụ việc đã lưu</h3>
                         <button onClick={() => setIsCaseListOpen(false)} className="text-slate-400 hover:text-red-600 text-3xl p-1 leading-none">&times;</button>
                     </div>
-                    <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Tìm kiếm..." className="w-full p-2.5 my-4 bg-gray-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
+                    <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Tìm kiếm..." className="input-base w-full p-2.5 my-4" />
                     <div className="flex-grow overflow-y-auto space-y-3 pr-2 -mr-2">
                        {filteredCases.length > 0 ? filteredCases.map(c => (
-                           <div key={c.id} className="p-3 bg-white border border-slate-200 rounded-lg flex justify-between items-center gap-4 hover:border-blue-400">
+                           <div key={c.id} className="p-3 bg-white border border-slate-200 rounded-lg flex justify-between items-center gap-4 hover:border-blue-400 hover:bg-slate-50/50 transition-colors">
                                <div>
                                    <p className="font-semibold text-blue-700 truncate">{c.name}</p>
                                    <div className="flex items-center gap-3 mt-1.5">
