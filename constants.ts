@@ -1,5 +1,5 @@
 import { Type } from "@google/genai";
-import type { FileCategory, DocType } from "./types";
+import type { FileCategory, DocType, LitigationType, LitigationStage } from "./types";
 
 export const fileCategoryLabels: Record<FileCategory, string> = {
     Uncategorized: 'Chưa phân loại',
@@ -43,14 +43,15 @@ export const SYSTEM_INSTRUCTION = `
 Bạn là một trợ lý luật sư AI xuất sắc tại Việt Nam, được đào tạo chuyên sâu để phân tích hồ sơ vụ việc. Nhiệm vụ của bạn là nhận các thông tin, tài liệu thô và trả về một báo cáo phân tích có cấu trúc JSON chặt chẽ.
 
 QUY TẮC BẮT BUỘC:
-1.  **Tư duy như luật sư:** Phân tích logic, xác định đúng quan hệ pháp luật và các vấn đề pháp lý cốt lõi.
-2.  **Tổng hợp thông tin:** Xâu chuỗi các sự kiện, dữ liệu từ nhiều tài liệu khác nhau để tạo ra một bối cảnh vụ việc hoàn chỉnh. Hãy đặc biệt chú ý đến các mâu thuẫn.
-3.  **Tìm kiếm Lỗ hổng Pháp lý:** Chủ động tìm kiếm các 'lỗ hổng' pháp lý — không chỉ là thông tin thiếu, mà là các điểm yếu trong lập luận, các quy định mâu thuẫn, hoặc các kẽ hở trong hợp đồng/tài liệu mà đối phương có thể khai thác.
-4.  **Tư duy Chiến lược:** Không chỉ tóm tắt. Phải xây dựng một chiến lược hành động chi tiết trong mục "proposedStrategy". Chiến lược này BẮT BUỘC phải: a) Tận dụng các "strengths" (điểm mạnh); b) Đề xuất giải pháp giảm thiểu "weaknesses" (điểm yếu) và "risks" (rủi ro); c) Khai thác các "legalLoopholes" (lỗ hổng pháp lý) đã được xác định để tạo lợi thế hoặc tấn công lập luận của đối phương.
-5.  **Hiệu lực văn bản:** Khi viện dẫn cơ sở pháp lý, phải kiểm tra và đảm bảo văn bản đó có hiệu lực tại thời điểm xảy ra vụ việc. Luôn ưu tiên áp dụng văn bản pháp luật chuyên ngành trước, sau đó mới đến các văn bản chung.
-6.  **Bám sát dữ liệu:** Mọi phân tích và nhận định phải dựa hoàn toàn vào các thông tin, tài liệu được cung cấp. Nếu thông tin không đủ, hãy chỉ ra đó là "lỗ hổng thông tin".
-7.  **Chú ý đến loại tài liệu:** Phân tích nội dung của mỗi tài liệu trong bối cảnh loại tài liệu đó (ví dụ: 'Hợp đồng' có giá trị pháp lý cao hơn 'Email trao đổi').
-8.  **JSON Output:** Phản hồi của bạn BẮT BUỘC phải là một đối tượng JSON hợp lệ, không chứa bất kỳ văn bản nào khác bên ngoài đối tượng JSON đó.
+1.  **Xác định Giai đoạn Tố tụng:** Dựa vào các tài liệu (bản án, đơn kháng cáo, quyết định thi hành án...), hãy xác định vụ việc đang ở giai đoạn tố tụng nào và điền giá trị (key) tương ứng vào trường 'litigationStage'. Ví dụ: nếu có bản án sơ thẩm và đơn kháng cáo, giai đoạn là 'appeal'. Nếu chỉ có yêu cầu tư vấn, giai đoạn là 'consulting'.
+2.  **Tư duy như luật sư:** Phân tích logic, xác định đúng quan hệ pháp luật và các vấn đề pháp lý cốt lõi.
+3.  **Tổng hợp thông tin:** Xâu chuỗi các sự kiện, dữ liệu từ nhiều tài liệu khác nhau để tạo ra một bối cảnh vụ việc hoàn chỉnh. Hãy đặc biệt chú ý đến các mâu thuẫn.
+4.  **Tìm kiếm Lỗ hổng Pháp lý:** Chủ động tìm kiếm các 'lỗ hổng' pháp lý — không chỉ là thông tin thiếu, mà là các điểm yếu trong lập luận, các quy định mâu thuẫn, hoặc các kẽ hở trong hợp đồng/tài liệu mà đối phương có thể khai thác.
+5.  **Tư duy Chiến lược:** Không chỉ tóm tắt. Phải xây dựng một chiến lược hành động chi tiết trong mục "proposedStrategy". Chiến lược này BẮT BUỘC phải: a) Tận dụng các "strengths" (điểm mạnh); b) Đề xuất giải pháp giảm thiểu "weaknesses" (điểm yếu) và "risks" (rủi ro); c) Khai thác các "legalLoopholes" (lỗ hổng pháp lý) đã được xác định để tạo lợi thế hoặc tấn công lập luận của đối phương.
+6.  **Hiệu lực văn bản:** Khi viện dẫn cơ sở pháp lý, phải kiểm tra và đảm bảo văn bản đó có hiệu lực tại thời điểm xảy ra vụ việc. Luôn ưu tiên áp dụng văn bản pháp luật chuyên ngành trước, sau đó mới đến các văn bản chung.
+7.  **Bám sát dữ liệu:** Mọi phân tích và nhận định phải dựa hoàn toàn vào các thông tin, tài liệu được cung cấp. Nếu thông tin không đủ, hãy chỉ ra đó là "lỗ hổng thông tin".
+8.  **Chú ý đến loại tài liệu:** Phân tích nội dung của mỗi tài liệu trong bối cảnh loại tài liệu đó (ví dụ: 'Hợp đồng' có giá trị pháp lý cao hơn 'Email trao đổi').
+9.  **JSON Output:** Phản hồi của bạn BẮT BUỘC phải là một đối tượng JSON hợp lệ, không chứa bất kỳ văn bản nào khác bên ngoài đối tượng JSON đó.
 `;
 
 export const ANALYSIS_UPDATE_SYSTEM_INSTRUCTION = `
@@ -64,6 +65,10 @@ Bạn là một luật sư AI cao cấp, đang xem xét lại một hồ sơ v�
 export const REPORT_SCHEMA = {
   type: Type.OBJECT,
   properties: {
+    litigationStage: {
+      type: Type.STRING,
+      description: "Giai đoạn tố tụng của vụ việc, xác định từ tài liệu. Phải là một trong các giá trị: 'consulting', 'firstInstance', 'appeal', 'cassation', 'enforcement', 'prosecutionRequest', 'prosecution', 'dialogue', 'closed'."
+    },
     legalRelationship: {
       type: Type.STRING,
       description: "Xác định quan hệ pháp luật chính (ví dụ: Tranh chấp hợp đồng mua bán, Tranh chấp thừa kế...)"
@@ -147,6 +152,7 @@ export const REPORT_SCHEMA = {
     }
   },
   required: [
+    "litigationStage",
     "legalRelationship",
     "coreLegalIssues",
     "applicableLaws",
@@ -162,3 +168,108 @@ Bạn là một Trợ lý Pháp lý AI chuyên sâu. Nhiệm vụ của bạn l�
 2.  Tiếp nhận một yêu cầu cụ thể từ luật sư về loại văn bản cần soạn thảo.
 3.  Dựa vào toàn bộ bối cảnh từ báo cáo phân tích, hãy soạn thảo văn bản được yêu cầu một cách chuyên nghiệp, đầy đủ và chính xác theo văn phong pháp lý Việt Nam.
 `;
+
+export const litigationStagesByType: Record<LitigationType, { value: LitigationStage; label: string }[]> = {
+    civil: [
+        { value: 'consulting', label: 'Tư vấn ban đầu' },
+        { value: 'firstInstance', label: 'Sơ thẩm' },
+        { value: 'appeal', label: 'Phúc thẩm' },
+        { value: 'cassation', label: 'Giám đốc thẩm/Tái thẩm' },
+        { value: 'enforcement', label: 'Thi hành án' },
+        { value: 'closed', label: 'Đã đóng' },
+    ],
+    criminal: [
+        { value: 'consulting', label: 'Tư vấn ban đầu' },
+        { value: 'prosecutionRequest', label: 'Khởi tố, Điều tra' },
+        { value: 'prosecution', label: 'Truy tố' },
+        { value: 'firstInstance', label: 'Xét xử Sơ thẩm' },
+        { value: 'appeal', label: 'Xét xử Phúc thẩm' },
+        { value: 'enforcement', label: 'Thi hành án' },
+        { value: 'closed', label: 'Đã đóng' },
+    ],
+    administrative: [
+        { value: 'consulting', label: 'Tư vấn ban đầu' },
+        { value: 'dialogue', label: 'Đối thoại' },
+        { value: 'firstInstance', label: 'Sơ thẩm' },
+        { value: 'appeal', label: 'Phúc thẩm' },
+        { value: 'enforcement', label: 'Thi hành án' },
+        { value: 'closed', label: 'Đã đóng' },
+    ],
+};
+
+export const getStageLabel = (type: LitigationType | null, stage: LitigationStage): string => {
+    if (!type) return 'Chưa xác định';
+    const stageOptions = litigationStagesByType[type] || [];
+    return stageOptions.find(opt => opt.value === stage)?.label || 'Chưa xác định';
+};
+
+
+export const litigationStageSuggestions: Record<LitigationStage, { actions: string[]; documents: string[] }> = {
+  prosecutionRequest: {
+    actions: [
+      "Hỗ trợ thân chủ làm việc với cơ quan điều tra.",
+      "Thu thập và củng cố chứng cứ.",
+      "Yêu cầu giám định pháp y hoặc các giám định chuyên môn khác.",
+    ],
+    documents: [
+      "Đơn đề nghị mời luật sư tham gia tố tụng",
+      "Đơn yêu cầu sao chụp hồ sơ, tài liệu vụ án",
+      "Văn bản trình bày ý kiến của luật sư",
+      "Đơn khiếu nại quyết định của Điều tra viên",
+    ],
+  },
+  prosecution: {
+    actions: [
+      "Nghiên cứu kỹ Kết luận điều tra và Cáo trạng.",
+      "Phân tích, tìm các mâu thuẫn, vi phạm tố tụng.",
+      "Trao đổi với thân chủ về nội dung Cáo trạng.",
+    ],
+    documents: [
+      "Bản kiến nghị gửi Viện kiểm sát",
+      "Đơn đề nghị đình chỉ vụ án/bị can",
+      "Đơn yêu cầu trả hồ sơ để điều tra bổ sung",
+    ],
+  },
+  firstInstance: {
+    actions: [
+      "Xây dựng Luận cứ bào chữa/bảo vệ chi tiết.",
+      "Chuẩn bị hệ thống câu hỏi cho phiên tòa.",
+      "Dự kiến các tình huống pháp lý có thể phát sinh tại tòa.",
+    ],
+    documents: [
+      "Bản luận cứ bào chữa",
+      "Bản luận cứ bảo vệ quyền và lợi ích hợp pháp",
+      "Dàn ý câu hỏi tại phiên tòa",
+      "Yêu cầu triệu tập người làm chứng/người liên quan",
+    ],
+  },
+  appeal: {
+    actions: [
+        "Nghiên cứu bản án sơ thẩm, xác định căn cứ kháng cáo.",
+        "Soạn thảo đơn kháng cáo trong thời hạn luật định.",
+        "Bổ sung, củng cố chứng cứ cho phiên tòa phúc thẩm."
+    ],
+    documents: [
+        "Đơn kháng cáo",
+        "Bản luận cứ bào chữa/bảo vệ cho phiên tòa phúc thẩm",
+        "Bản trình bày quan điểm bổ sung",
+    ],
+  },
+  enforcement: {
+    actions: [
+        "Theo dõi và đôn đốc quá trình thi hành án.",
+        "Làm việc với Chấp hành viên và Cơ quan thi hành án.",
+        "Hỗ trợ thân chủ thực hiện các quyền và nghĩa vụ."
+    ],
+    documents: [
+        "Đơn yêu cầu thi hành án",
+        "Đơn khiếu nại về thi hành án",
+        "Đơn đề nghị tạm hoãn/miễn/giảm thi hành án",
+    ],
+  },
+  consulting: { actions: [], documents: [] },
+  closed: { actions: [], documents: [] },
+  investigation: { actions: [], documents: [] },
+  cassation: { actions: [], documents: [] },
+  dialogue: { actions: [], documents: [] },
+};

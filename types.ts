@@ -49,6 +49,7 @@ export interface ProposedStrategy {
 }
 
 export interface AnalysisReport {
+  litigationStage: LitigationStage;
   legalRelationship: string;
   coreLegalIssues: string[];
   applicableLaws: ApplicableLaw[];

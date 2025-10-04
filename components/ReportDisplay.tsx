@@ -2,17 +2,19 @@
 
 
 import React, { useState } from 'react';
-import type { AnalysisReport, ApplicableLaw, LawArticle, UploadedFile } from '../types';
+import type { AnalysisReport, ApplicableLaw, LawArticle, UploadedFile, LitigationType } from '../types';
 import { MagicIcon } from './icons/MagicIcon';
 import { explainLaw } from '../services/geminiService';
 import { Loader } from './Loader';
 import { SearchIcon } from './icons/SearchIcon';
+import { getStageLabel } from '../constants';
 
 interface ReportDisplayProps {
   report: AnalysisReport;
   files: UploadedFile[];
   onPreview: (file: UploadedFile) => void;
   onClearSummary: () => void;
+  litigationType: LitigationType;
 }
 
 const HighlightedText: React.FC<{ text: string | undefined; term: string }> = React.memo(({ text, term }) => {
@@ -61,7 +63,7 @@ const BulletList: React.FC<{ items: string[]; title: string; highlightTerm: stri
 );
 
 
-export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSummary }) => {
+export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSummary, litigationType }) => {
   const [explanation, setExplanation] = useState<{
     law: string;
     content: string;
@@ -147,6 +149,14 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
       {report.customNotes && (
         <Section title="Ghi chú Tùy chỉnh" id="customNotesSection" highlightTerm={highlightTerm}>
           <p className="whitespace-pre-wrap bg-yellow-50 border-l-4 border-yellow-300 p-4 text-slate-800 rounded-md"><HighlightedText text={report.customNotes} term={highlightTerm} /></p>
+        </Section>
+      )}
+
+      {report.litigationStage && (
+        <Section title="Giai đoạn Tố tụng (do AI xác định)" highlightTerm={highlightTerm}>
+          <p className="font-bold text-blue-700 bg-blue-50 px-3 py-2 inline-block rounded-md border border-blue-200">
+            <HighlightedText text={getStageLabel(litigationType, report.litigationStage)} term={highlightTerm} />
+          </p>
         </Section>
       )}
 

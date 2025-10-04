@@ -1,4 +1,5 @@
 
+
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { FileUpload } from './components/FileUpload';
 import { ReportDisplay } from './components/ReportDisplay';
@@ -25,6 +26,7 @@ import { ExcelIcon } from './components/icons/ExcelIcon';
 import { PdfIcon } from './components/icons/PdfIcon';
 import { ImageIcon } from './components/icons/ImageIcon';
 import { FileIcon } from './components/icons/FileIcon';
+import { litigationStagesByType, getStageLabel, litigationStageSuggestions } from './constants';
 
 
 // Declare global variables from CDN scripts to satisfy TypeScript
@@ -44,108 +46,11 @@ interface MainAction {
     loadingText: string;
 }
 
-const litigationStagesByType: Record<LitigationType, { value: LitigationStage; label: string }[]> = {
-    civil: [
-        { value: 'consulting', label: 'Tư vấn ban đầu' },
-        { value: 'firstInstance', label: 'Sơ thẩm' },
-        { value: 'appeal', label: 'Phúc thẩm' },
-        { value: 'cassation', label: 'Giám đốc thẩm/Tái thẩm' },
-        { value: 'enforcement', label: 'Thi hành án' },
-        { value: 'closed', label: 'Đã đóng' },
-    ],
-    criminal: [
-        { value: 'consulting', label: 'Tư vấn ban đầu' },
-        { value: 'prosecutionRequest', label: 'Khởi tố, Điều tra' },
-        { value: 'prosecution', label: 'Truy tố' },
-        { value: 'firstInstance', label: 'Xét xử Sơ thẩm' },
-        { value: 'appeal', label: 'Xét xử Phúc thẩm' },
-        { value: 'enforcement', label: 'Thi hành án' },
-        { value: 'closed', label: 'Đã đóng' },
-    ],
-    administrative: [
-        { value: 'consulting', label: 'Tư vấn ban đầu' },
-        { value: 'dialogue', label: 'Đối thoại' },
-        { value: 'firstInstance', label: 'Sơ thẩm' },
-        { value: 'appeal', label: 'Phúc thẩm' },
-        { value: 'enforcement', label: 'Thi hành án' },
-        { value: 'closed', label: 'Đã đóng' },
-    ],
-};
-
 type StageSuggestions = {
   actions: string[];
   documents: string[];
 };
 
-const litigationStageSuggestions: Record<LitigationStage, StageSuggestions> = {
-  prosecutionRequest: {
-    actions: [
-      "Hỗ trợ thân chủ làm việc với cơ quan điều tra.",
-      "Thu thập và củng cố chứng cứ.",
-      "Yêu cầu giám định pháp y hoặc các giám định chuyên môn khác.",
-    ],
-    documents: [
-      "Đơn đề nghị mời luật sư tham gia tố tụng",
-      "Đơn yêu cầu sao chụp hồ sơ, tài liệu vụ án",
-      "Văn bản trình bày ý kiến của luật sư",
-      "Đơn khiếu nại quyết định của Điều tra viên",
-    ],
-  },
-  prosecution: {
-    actions: [
-      "Nghiên cứu kỹ Kết luận điều tra và Cáo trạng.",
-      "Phân tích, tìm các mâu thuẫn, vi phạm tố tụng.",
-      "Trao đổi với thân chủ về nội dung Cáo trạng.",
-    ],
-    documents: [
-      "Bản kiến nghị gửi Viện kiểm sát",
-      "Đơn đề nghị đình chỉ vụ án/bị can",
-      "Đơn yêu cầu trả hồ sơ để điều tra bổ sung",
-    ],
-  },
-  firstInstance: {
-    actions: [
-      "Xây dựng Luận cứ bào chữa/bảo vệ chi tiết.",
-      "Chuẩn bị hệ thống câu hỏi cho phiên tòa.",
-      "Dự kiến các tình huống pháp lý có thể phát sinh tại tòa.",
-    ],
-    documents: [
-      "Bản luận cứ bào chữa",
-      "Bản luận cứ bảo vệ quyền và lợi ích hợp pháp",
-      "Dàn ý câu hỏi tại phiên tòa",
-      "Yêu cầu triệu tập người làm chứng/người liên quan",
-    ],
-  },
-  appeal: {
-    actions: [
-        "Nghiên cứu bản án sơ thẩm, xác định căn cứ kháng cáo.",
-        "Soạn thảo đơn kháng cáo trong thời hạn luật định.",
-        "Bổ sung, củng cố chứng cứ cho phiên tòa phúc thẩm."
-    ],
-    documents: [
-        "Đơn kháng cáo",
-        "Bản luận cứ bào chữa/bảo vệ cho phiên tòa phúc thẩm",
-        "Bản trình bày quan điểm bổ sung",
-    ],
-  },
-  enforcement: {
-    actions: [
-        "Theo dõi và đôn đốc quá trình thi hành án.",
-        "Làm việc với Chấp hành viên và Cơ quan thi hành án.",
-        "Hỗ trợ thân chủ thực hiện các quyền và nghĩa vụ."
-    ],
-    documents: [
-        "Đơn yêu cầu thi hành án",
-        "Đơn khiếu nại về thi hành án",
-        "Đơn đề nghị tạm hoãn/miễn/giảm thi hành án",
-    ],
-  },
-  consulting: { actions: [], documents: [] },
-  closed: { actions: [], documents: [] },
-  investigation: { actions: [], documents: [] },
-  cassation: { actions: [], documents: [] },
-  dialogue: { actions: [], documents: [] },
-};
 
 // --- Helper Functions & Types ---
 
@@ -165,12 +70,6 @@ const base64ToFile = (base64: string, filename: string, mimeType: string): File 
     return new File([byteArray], filename, { type: mimeType });
 };
   
-const getStageLabel = (type: LitigationType | null, stage: LitigationStage): string => {
-    if (!type) return 'Chưa xác định';
-    const stageOptions = litigationStagesByType[type] || [];
-    return stageOptions.find(opt => opt.value === stage)?.label || 'Chưa xác định';
-};
-
 
 // --- UI Components (Defined within App.tsx for simplicity) ---
 
@@ -412,10 +311,15 @@ const App: React.FC = () => {
           const analysisResult = await analyzeCaseFiles(filesToAnalyze, query, caseContent, clientRequest);
           setReport(analysisResult);
           setOriginalReport(analysisResult);
-          if (currentLitigationStage === 'consulting') {
+          
+          const currentStageOptions = litigationStagesByType[currentLitigationType] || [];
+          if (analysisResult.litigationStage && currentStageOptions.some(opt => opt.value === analysisResult.litigationStage)) {
+              setCurrentLitigationStage(analysisResult.litigationStage);
+          } else if (currentLitigationStage === 'consulting') {
               const nextStage = litigationStagesByType[currentLitigationType]?.[1]?.value || currentLitigationStage;
               setCurrentLitigationStage(nextStage);
           }
+
           let suggestion = '';
           const strategy = analysisResult.proposedStrategy;
           if (strategy?.litigation?.length > 0) suggestion = strategy.litigation[0];
@@ -783,8 +687,8 @@ const App: React.FC = () => {
               
               <div className="space-y-3 pt-5 border-t border-slate-200">
                   <div title={mainAction.disabled ? "Vui lòng tải lên hồ sơ hoặc tóm tắt nội dung, và nhập Yêu cầu Chính." : mainAction.text}>
-                    <button onClick={handleMainActionClick} disabled={mainAction.disabled} className="btn btn-primary !text-lg !py-3.5 w-full group">
-                      {isLoading ? <><Loader /><span>{mainAction.loadingText}</span></> : <><AnalysisIcon className="w-6 h-6 transition-transform group-hover:scale-110"/> <span>{mainAction.text}</span></>}
+                    <button onClick={handleMainActionClick} disabled={mainAction.disabled} className="btn btn-primary !text-xl !font-extrabold !py-4 w-full group !from-blue-500 !to-indigo-600 hover:!from-blue-600 hover:!to-indigo-700 !shadow-lg !shadow-blue-500/40 hover:!shadow-xl hover:!shadow-blue-500/50 !gap-3">
+                      {isLoading ? <><Loader /><span>{mainAction.loadingText}</span></> : <><MagicIcon className="w-7 h-7 transition-transform group-hover:scale-110"/> <span>{mainAction.text}</span></>}
                     </button>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -809,7 +713,13 @@ const App: React.FC = () => {
               {isLoading && (<div className="flex flex-col items-center justify-center h-full text-slate-500"><Loader /><p className="mt-4 text-base">{mainAction.loadingText}</p></div>)}
               {!isLoading && !report && !generatedDocument && (<div className="flex flex-col items-center justify-center h-full text-center text-slate-400"><AnalysisIcon className="w-20 h-20 mb-4 text-slate-300" /><p className="text-lg font-medium text-slate-600">Báo cáo phân tích sẽ xuất hiện ở đây.</p></div>)}
               {report && (<div className="animate-fade-in">
-                  <ReportDisplay report={report} files={files} onPreview={setPreviewingFile} onClearSummary={handleClearSummary} />
+                  <ReportDisplay 
+                    report={report} 
+                    files={files} 
+                    onPreview={setPreviewingFile} 
+                    onClearSummary={handleClearSummary}
+                    litigationType={currentLitigationType}
+                  />
                   {showStageSuggestions && (
                     <div className="mt-8 pt-6 border-t-2 border-slate-100">
                       <h3 className="text-xl font-bold text-slate-800 mb-4">Gợi ý cho GĐ: {getStageLabel(currentLitigationType, currentLitigationStage)}</h3>
