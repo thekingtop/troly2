@@ -1,17 +1,44 @@
 
-
-
 import React, { useState, useCallback, useEffect } from 'react';
 import { FileUpload } from './FileUpload';
 import { Loader } from './Loader';
 import { MagicIcon } from './icons/MagicIcon';
-import { analyzeConsultingCase, generateConsultingDocument } from '../services/geminiService';
+import { analyzeConsultingCase, generateConsultingDocument, categorizeFile } from '../services/geminiService';
 import type { UploadedFile, SavedCase, SerializableFile, ConsultingReport, LitigationType } from '../types';
 import { BackIcon } from './icons/BackIcon';
 import { saveCase } from '../services/db';
 import { SaveCaseIcon } from './icons/SaveCaseIcon';
 import { PlusIcon } from './icons/PlusIcon';
+import { ProcessingProgress } from './ProcessingProgress';
 
+// --- Internal Icons ---
+const DiscussionIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 20.25c4.97 0 9-3.694 9-8.25s-4.03-8.25-9-8.25S3 7.006 3 11.55c0 2.944 1.79 5.515 4.5 6.943.25.123.5.217.75.284V21a.75.75 0 0 0 .94.724l2.16-1.08a8.25 8.25 0 0 0 4.66 0l2.16 1.08a.75.75 0 0 0 .94-.724v-2.008c.25-.067.5-.16.75-.284A8.845 8.845 0 0 0 21 11.55c0-4.556-4.03-8.25-9-8.25Z" />
+    </svg>
+);
+const CaseInfoIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75c0-.231-.035-.454-.1-.664M6.75 7.5h10.5a2.25 2.25 0 0 1 2.25 2.25v7.5a2.25 2.25 0 0 1-2.25-2.25H6.75a2.25 2.25 0 0 1-2.25-2.25v-7.5a2.25 2.25 0 0 1 2.25-2.25Z" />
+    </svg>
+);
+const DocumentSuggestionIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m3.75 9h7.5m-7.5 3h7.5m-11.25-3h.008v.008h-.008V12Zm0 3h.008v.008h-.008V15Zm-3.75-3h.008v.008h-.008V12Zm0 3h.008v.008h-.008V15Zm-3.75-3h.008v.008h-.008V12Zm0 3h.008v.008h-.008V15Z" />
+    </svg>
+);
+
+const Alert: React.FC<{ message: string; type: 'error' | 'warning' | 'info' }> = ({ message, type }) => {
+    const baseClasses = "p-4 text-sm rounded-lg animate-fade-in";
+    const typeClasses = { error: "bg-red-50 text-red-800", warning: "bg-amber-50 text-amber-800", info: "bg-blue-50 text-blue-800" };
+    const messageParts = message.split(/:(.*)/s);
+    const hasTitle = messageParts.length > 1;
+    return (
+        <div className={`${baseClasses} ${typeClasses[type]}`} role="alert">
+            {hasTitle ? (<><span className="font-bold">{messageParts[0]}:</span><span className="ml-1">{messageParts[1]}</span></>) : message}
+        </div>
+    );
+};
 
 interface ConsultingWorkflowProps {
     onPreview: (file: UploadedFile) => void;
@@ -36,125 +63,67 @@ const base64ToFile = (base64: string, filename: string, mimeType: string): File 
     return new File([byteArray], filename, { type: mimeType });
 };
 
-
 export const ConsultingWorkflow: React.FC<ConsultingWorkflowProps> = ({ onPreview, onGoBack, activeCase, onCasesUpdated }) => {
-    // State for inputs
     const [files, setFiles] = useState<UploadedFile[]>([]);
     const [disputeContent, setDisputeContent] = useState('');
-    const [generationRequest, setGenerationRequest] = useState('');
-    
-    // State for analysis
+    const [clientRequest, setClientRequest] = useState('');
+
     const [consultingReport, setConsultingReport] = useState<ConsultingReport | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [analysisError, setAnalysisError] = useState<string | null>(null);
 
-    // State for document generation
     const [generatedText, setGeneratedText] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const [generationError, setGenerationError] = useState<string | null>(null);
+    const [generationRequest, setGenerationRequest] = useState('');
 
-    // State for saving
     const [isSaving, setIsSaving] = useState(false);
     const [caseName, setCaseName] = useState('');
+    
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [isPreprocessingFinished, setIsPreprocessingFinished] = useState(false);
 
     useEffect(() => {
-        if (activeCase && activeCase.workflowType === 'consulting') {
-            const loadedFiles: UploadedFile[] = (activeCase.files || []).map(sf => {
-                const file = base64ToFile(sf.content, sf.name, sf.type);
-                return { id: `${sf.name}-${Math.random()}`, file, preview: null, category: 'Uncategorized', status: 'pending' };
-            });
+        if (activeCase?.workflowType === 'consulting') {
+            const loadedFiles: UploadedFile[] = (activeCase.files || []).map(sf => ({
+                id: `${sf.name}-${Math.random()}`, file: base64ToFile(sf.content, sf.name, sf.type),
+                preview: null, category: 'Uncategorized', status: 'pending'
+            }));
             setFiles(loadedFiles);
             setDisputeContent(activeCase.caseContent || '');
-            setGenerationRequest(activeCase.clientRequest || ''); // clientRequest maps to generationRequest
+            setClientRequest(activeCase.clientRequest || '');
             setConsultingReport(activeCase.consultingReport || null);
             setCaseName(activeCase.name);
         }
     }, [activeCase]);
 
     const handleBackClick = () => {
-        if (window.confirm("Bạn có chắc chắn muốn quay lại? Mọi dữ liệu chưa lưu sẽ bị mất.")) {
-            onGoBack();
-        }
+        if (window.confirm("Bạn có chắc chắn muốn quay lại? Mọi dữ liệu chưa lưu sẽ bị mất.")) onGoBack();
     };
 
-    const handleAnalyze = useCallback(async () => {
-        if (files.length === 0 && !disputeContent.trim()) {
-            setAnalysisError("Vui lòng tải lên tệp hoặc nhập nội dung vụ việc để phân tích.");
-            return;
-        }
-        setAnalysisError(null);
-        setConsultingReport(null);
-        setIsAnalyzing(true);
-        try {
-            const result = await analyzeConsultingCase(files, disputeContent, generationRequest);
-            setConsultingReport(result);
-        } catch (err) {
-            setAnalysisError(err instanceof Error ? err.message : "Đã xảy ra lỗi không xác định khi phân tích.");
-        } finally {
-            setIsAnalyzing(false);
-        }
-    }, [files, disputeContent, generationRequest]);
-
-    const handleGenerate = async (requestText: string) => {
-        if (!requestText.trim()) {
-            setGenerationError("Vui lòng nhập yêu cầu hoặc chọn một gợi ý.");
-            return;
-        }
-        setGenerationRequest(requestText);
-        setGenerationError(null);
-        setIsGenerating(true);
-        setGeneratedText('');
-        try {
-            const result = await generateConsultingDocument(consultingReport, disputeContent, requestText);
-            setGeneratedText(result);
-        } catch (err) {
-            setGenerationError(err instanceof Error ? err.message : "Đã xảy ra lỗi không xác định.");
-        } finally {
-            setIsGenerating(false);
-        }
-    };
-    
     const handleSave = async () => {
         if (!activeCase) return;
-        const defaultName = caseName || generationRequest || `Tư vấn ngày ${new Date().toLocaleDateString('vi-VN')}`;
+        const defaultName = caseName || clientRequest || `Tư vấn ngày ${new Date().toLocaleDateString('vi-VN')}`;
         const newCaseName = window.prompt("Nhập tên để lưu nghiệp vụ:", defaultName);
         if (!newCaseName) return;
 
         setIsSaving(true);
         try {
             const serializableFiles: SerializableFile[] = await Promise.all(
-                files.map(async (uploadedFile) => ({
-                    name: uploadedFile.file.name,
-                    type: uploadedFile.file.type,
-                    content: await fileToBase64(uploadedFile.file),
-                }))
+                files.map(async f => ({ name: f.file.name, type: f.file.type, content: await fileToBase64(f.file) }))
             );
-
             const now = new Date().toISOString();
             const isNewCase = activeCase.id.startsWith('new_');
-            
             const caseToSave: SavedCase = {
-                ...activeCase,
-                id: isNewCase ? now : activeCase.id,
-                createdAt: isNewCase ? now : activeCase.createdAt,
-                updatedAt: now,
-                name: newCaseName,
-                workflowType: 'consulting',
-                files: serializableFiles,
-                caseContent: disputeContent,
-                clientRequest: generationRequest,
-                query: '',
-                litigationType: consultingReport?.caseType !== 'unknown' ? consultingReport?.caseType || null : null,
-                litigationStage: 'consulting',
-                analysisReport: null,
-                consultingReport: consultingReport,
+                ...activeCase, id: isNewCase ? now : activeCase.id, createdAt: isNewCase ? now : activeCase.createdAt,
+                updatedAt: now, name: newCaseName, workflowType: 'consulting', files: serializableFiles, caseContent: disputeContent,
+                clientRequest, query: '', litigationType: consultingReport?.caseType !== 'unknown' ? consultingReport?.caseType || null : null,
+                litigationStage: 'consulting', analysisReport: null, consultingReport: consultingReport,
             };
-
             await saveCase(caseToSave);
-            onCasesUpdated(); 
+            onCasesUpdated();
             setCaseName(caseToSave.name);
             alert(`Nghiệp vụ "${newCaseName}" đã được lưu thành công!`);
-
         } catch (err) {
             console.error("Error saving consulting case:", err);
             alert("Đã xảy ra lỗi khi lưu nghiệp vụ.");
@@ -163,6 +132,210 @@ export const ConsultingWorkflow: React.FC<ConsultingWorkflowProps> = ({ onPrevie
         }
     };
 
+    const performAnalysis = useCallback(async (filesToAnalyze: UploadedFile[]) => {
+        setIsAnalyzing(true);
+        try {
+            const result = await analyzeConsultingCase(filesToAnalyze, disputeContent, clientRequest);
+            setConsultingReport(result);
+        } catch (err) {
+            setAnalysisError(err instanceof Error ? err.message : "Đã xảy ra lỗi không xác định khi phân tích.");
+        } finally {
+            setIsAnalyzing(false);
+        }
+    }, [disputeContent, clientRequest]);
+    
+    const handleAnalyzeClick = useCallback(async () => {
+        setAnalysisError(null);
+        setConsultingReport(null);
+        setGeneratedText('');
+
+        if (files.length > 0) {
+            setIsPreprocessingFinished(false);
+            setIsProcessing(true);
+            const filesToProcess = files.map(f => ({ ...f, status: 'pending' as const, error: undefined }));
+            setFiles(filesToProcess);
+
+            for (const file of filesToProcess) {
+                setFiles(prev => prev.map(f => f.id === file.id ? { ...f, status: 'processing' } : f));
+                try {
+                    const category = await categorizeFile(file.file);
+                    setFiles(prev => prev.map(f => f.id === file.id ? { ...f, status: 'completed', category } : f));
+                } catch (err) {
+                    const message = err instanceof Error ? err.message : 'Lỗi không xác định';
+                    setFiles(prev => prev.map(f => f.id === file.id ? { ...f, status: 'failed', error: message } : f));
+                }
+            }
+            setIsPreprocessingFinished(true);
+        } else {
+            if (!disputeContent.trim() && !clientRequest.trim()) {
+                setAnalysisError("Vui lòng tải tệp hoặc nhập nội dung để phân tích.");
+                return;
+            }
+            await performAnalysis([]);
+        }
+    }, [files, disputeContent, clientRequest, performAnalysis]);
+
+    
+    const handleContinueAnalysis = useCallback(async () => {
+        const successfulFiles = files.filter(f => f.status === 'completed');
+        setIsProcessing(false);
+        await performAnalysis(successfulFiles);
+    }, [files, performAnalysis]);
+
+    const handleRetryFile = useCallback(async (fileId: string) => {
+        const fileToRetry = files.find(f => f.id === fileId);
+        if (!fileToRetry) return;
+        setFiles(prev => prev.map(f => f.id === fileId ? { ...f, status: 'processing', error: undefined } : f));
+        try {
+            const category = await categorizeFile(fileToRetry.file);
+            setFiles(prev => prev.map(f => f.id === fileId ? { ...f, status: 'completed', category } : f));
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Lỗi không xác định';
+            setFiles(prev => prev.map(f => f.id === fileId ? { ...f, status: 'failed', error: message } : f));
+        }
+    }, [files]);
+    
+    const handleCancelProcessing = () => {
+        setIsProcessing(false);
+        setIsPreprocessingFinished(false);
+        setFiles(prev => prev.map(f => ({ ...f, status: 'pending', error: undefined })));
+    };
+
+    const handleGenerate = async (request: string) => {
+        if (!request.trim()) { setGenerationError("Vui lòng nhập yêu cầu."); return; }
+        setGenerationRequest(request);
+        setGenerationError(null);
+        setIsGenerating(true);
+        setGeneratedText('');
+        try {
+            const result = await generateConsultingDocument(consultingReport, disputeContent, request);
+            setGeneratedText(result);
+        } catch (err) {
+            setGenerationError(err instanceof Error ? err.message : "Lỗi không xác định.");
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+    
+    const isAnalyzeDisabled = isAnalyzing || isProcessing || (files.length === 0 && !disputeContent.trim() && !clientRequest.trim());
+
+    return (
+        <div className="animate-fade-in">
+             <div className="mb-6 flex justify-between items-center">
+                <button onClick={handleBackClick} className="flex items-center gap-2 text-sm text-slate-600 hover:text-blue-600 font-semibold transition-colors">
+                    <BackIcon className="w-5 h-5" /> Quay lại Chọn Nghiệp vụ
+                </button>
+                <button onClick={handleSave} disabled={isSaving} className="flex items-center justify-center gap-2 py-2 px-4 bg-slate-600 text-white text-sm font-semibold rounded-lg hover:bg-slate-700 disabled:bg-slate-300">
+                    {isSaving ? <Loader /> : <SaveCaseIcon className="w-4 h-4" />} Lưu Nghiệp vụ
+                </button>
+            </div>
+            
+            <div className="text-center mb-8">
+                <h2 className="text-2xl font-bold text-slate-900">Nghiệp vụ Tư vấn & Soạn thảo</h2>
+                <p className="text-slate-600 max-w-2xl mx-auto mt-2">Cung cấp thông tin, để AI phân tích và đề xuất các bước tiếp theo, sau đó soạn thảo văn bản.</p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+                <div className="space-y-6">
+                    <div>
+                        <h3 className="text-lg font-bold text-slate-800 mb-3">1. Cung cấp Thông tin</h3>
+                        <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
+                            <FileUpload files={files} setFiles={setFiles} onPreview={onPreview} />
+                             <textarea value={disputeContent} onChange={e => setDisputeContent(e.target.value)} placeholder="Tóm tắt bối cảnh, tình huống..." className="input-base w-full h-28 bg-white" />
+                             <textarea value={clientRequest} onChange={e => setClientRequest(e.target.value)} placeholder="Yêu cầu của khách hàng..." className="input-base w-full h-20 bg-white" />
+                        </div>
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-bold text-slate-800 mb-3">2. Phân tích Sơ bộ</h3>
+                        <button onClick={handleAnalyzeClick} disabled={isAnalyzeDisabled} className="btn btn-primary w-full !py-3 !text-base">
+                            {isAnalyzing || isProcessing ? <><Loader /> <span>Đang phân tích...</span></> : <><MagicIcon className="w-5 h-5" /> Phân tích Tư vấn</>}
+                        </button>
+                    </div>
+                </div>
+
+                <div className="space-y-6 min-h-[400px]">
+                     <h3 className="text-lg font-bold text-slate-800">3. Kết quả & Soạn thảo</h3>
+                    {isAnalyzing && (
+                        <div className="flex flex-col items-center justify-center h-full text-slate-500 bg-slate-50 rounded-lg border p-6">
+                            <Loader /><p className="mt-4">AI đang phân tích...</p>
+                        </div>
+                    )}
+                    {analysisError && <Alert message={analysisError} type="error" />}
+                    
+                    {!isAnalyzing && !consultingReport && !analysisError && (
+                        <div className="flex flex-col items-center justify-center text-center text-slate-400 bg-slate-50 rounded-lg border p-6 h-full">
+                            <MagicIcon className="w-16 h-16 mb-4 text-slate-300" />
+                            <p className="font-medium text-slate-600">Kết quả phân tích và soạn thảo sẽ xuất hiện ở đây.</p>
+                        </div>
+                    )}
+
+                    {consultingReport && (
+                        <div className="space-y-6 animate-fade-in">
+                            <AnalysisResultDisplay report={consultingReport} onGenerateRequest={handleGenerate} />
+                            <GenerationSection
+                                onGenerate={handleGenerate}
+                                isLoading={isGenerating}
+                                error={generationError}
+                                generatedText={generatedText}
+                                currentRequest={generationRequest}
+                                setCurrentRequest={setGenerationRequest}
+                            />
+                        </div>
+                    )}
+                </div>
+            </div>
+            {isProcessing && (<ProcessingProgress files={files} onRetry={handleRetryFile} onCancel={handleCancelProcessing} onContinue={handleContinueAnalysis} isFinished={isPreprocessingFinished} hasTextContent={disputeContent.trim().length > 0 || clientRequest.trim().length > 0} />)}
+        </div>
+    );
+};
+
+// --- Sub-components for ConsultingWorkflow ---
+
+const InfoCard: React.FC<{ icon: React.ReactNode; title: string; children: React.ReactNode; }> = ({ icon, title, children }) => (
+    <div className="bg-white p-4 rounded-lg border border-slate-200 soft-shadow">
+        <div className="flex items-center gap-3 mb-3">
+            <div className="flex-shrink-0 bg-blue-100 text-blue-600 p-2 rounded-full">{icon}</div>
+            <h4 className="font-bold text-slate-800">{title}</h4>
+        </div>
+        <div className="pl-12 text-sm text-slate-700">{children}</div>
+    </div>
+);
+
+const AnalysisResultDisplay: React.FC<{ report: ConsultingReport; onGenerateRequest: (req: string) => void; }> = ({ report, onGenerateRequest }) => {
+    const caseTypeLabel: Record<LitigationType | 'unknown', string> = {
+      civil: 'Dân sự', criminal: 'Hình sự', administrative: 'Hành chính', unknown: 'Chưa xác định'
+    };
+    return (
+        <div className="space-y-4">
+            <InfoCard icon={<DiscussionIcon className="w-5 h-5"/>} title="Điểm quan trọng cần trao đổi">
+                <ul className="list-disc list-inside space-y-1.5">{report.discussionPoints.map((p, i) => <li key={i}>{p}</li>)}</ul>
+            </InfoCard>
+            <InfoCard icon={<CaseInfoIcon className="w-5 h-5"/>} title="Thông tin Vụ việc">
+                <p><span className="font-semibold">Loại vụ việc:</span> {caseTypeLabel[report.caseType]}</p>
+                <p><span className="font-semibold">Giai đoạn sơ bộ:</span> {report.preliminaryStage}</p>
+            </InfoCard>
+            <InfoCard icon={<DocumentSuggestionIcon className="w-5 h-5"/>} title="Đề xuất Tiếp theo">
+                <div className="flex flex-col items-start gap-2">
+                    {report.suggestedDocuments.map((doc, i) => (
+                        <button key={i} onClick={() => onGenerateRequest(doc)} className="text-left w-full p-2 bg-blue-50 text-blue-800 font-medium rounded-md hover:bg-blue-100 text-sm flex items-center gap-2 transition-colors">
+                            <PlusIcon className="w-4 h-4 shrink-0" />{doc}
+                        </button>
+                    ))}
+                </div>
+            </InfoCard>
+        </div>
+    );
+};
+
+const GenerationSection: React.FC<{
+    onGenerate: (req: string) => void;
+    isLoading: boolean;
+    error: string | null;
+    generatedText: string;
+    currentRequest: string;
+    setCurrentRequest: (req: string) => void;
+}> = ({ onGenerate, isLoading, error, generatedText, currentRequest, setCurrentRequest }) => {
+    
     const handleCopyToClipboard = () => {
         if (generatedText) {
             navigator.clipboard.writeText(generatedText);
@@ -170,142 +343,34 @@ export const ConsultingWorkflow: React.FC<ConsultingWorkflowProps> = ({ onPrevie
         }
     };
     
-    const isAnalyzeDisabled = isAnalyzing || (files.length === 0 && !disputeContent.trim());
-    const isGenerateDisabled = isGenerating;
-    const caseTypeLabel: Record<LitigationType | 'unknown', string> = {
-      civil: 'Dân sự',
-      criminal: 'Hình sự',
-      administrative: 'Hành chính',
-      unknown: 'Chưa xác định'
-    }
-
     return (
-        <div className="animate-fade-in">
-            <div className="mb-6 flex justify-between items-center">
-                <button onClick={handleBackClick} className="flex items-center gap-2 text-sm text-slate-600 hover:text-blue-600 font-semibold transition-colors">
-                    <BackIcon className="w-5 h-5" />
-                    Quay lại Chọn Nghiệp vụ
-                </button>
-                <button onClick={handleSave} disabled={isSaving} className="flex items-center justify-center gap-2 py-2 px-4 bg-slate-600 text-white text-sm font-semibold rounded-lg hover:bg-slate-700 disabled:bg-slate-300 transition-colors">
-                    {isSaving ? <Loader /> : <SaveCaseIcon className="w-4 h-4" />}
-                    Lưu Nghiệp vụ
-                </button>
-            </div>
-            <div className="space-y-8">
-                <div>
-                    <h2 className="text-2xl font-bold text-slate-900 mb-2 text-center">Nghiệp vụ Tư vấn & Soạn thảo</h2>
-                    <p className="text-center text-slate-600 max-w-2xl mx-auto">
-                        Cung cấp thông tin, để AI phân tích và đề xuất các bước tiếp theo, sau đó soạn thảo văn bản.
-                    </p>
-                </div>
+        <div className="space-y-4 pt-6 border-t border-slate-200">
+            <textarea
+                value={currentRequest}
+                onChange={(e) => setCurrentRequest(e.target.value)}
+                placeholder="Nhập yêu cầu soạn thảo..."
+                className="input-base w-full h-24 bg-white"
+            />
+            <button
+                onClick={() => onGenerate(currentRequest)}
+                disabled={isLoading || !currentRequest.trim()}
+                className="w-full py-2 px-4 bg-slate-700 text-white font-semibold text-sm rounded-lg hover:bg-slate-800 disabled:bg-slate-300 transition-colors flex items-center justify-center gap-2"
+            >
+                {isLoading ? <><Loader /> <span>Đang soạn thảo...</span></> : 'Soạn thảo theo Yêu cầu'}
+            </button>
+            {error && <Alert message={error} type="error" />}
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    {/* Left Column: Inputs & Analysis */}
-                    <div className="space-y-6">
-                        <div>
-                            <h3 className="block text-lg font-bold text-slate-800 mb-3">1. Cung cấp Thông tin</h3>
-                             <div className="p-4 bg-gray-50 border border-slate-200 rounded-lg space-y-4">
-                                <FileUpload files={files} setFiles={setFiles} onPreview={onPreview} />
-                                <textarea
-                                    id="disputeContent"
-                                    value={disputeContent}
-                                    onChange={(e) => setDisputeContent(e.target.value)}
-                                    placeholder="Thêm bối cảnh, tình huống của khách hàng..."
-                                    className="w-full h-32 p-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 placeholder:text-slate-400"
-                                />
-                             </div>
-                        </div>
-
-                        <div>
-                             <h3 className="block text-lg font-bold text-slate-800 mb-3">2. Phân tích Sơ bộ</h3>
-                             <button
-                                onClick={handleAnalyze}
-                                disabled={isAnalyzeDisabled}
-                                className="w-full py-3 px-4 bg-blue-600 text-white font-bold text-base rounded-lg hover:bg-blue-700 disabled:bg-slate-300 transition-all flex items-center justify-center gap-2"
-                             >
-                                 {isAnalyzing ? <><Loader /> <span>Đang phân tích...</span></> : <><MagicIcon className="w-5 h-5" /> Phân tích Tư vấn</>}
-                             </button>
-                             {analysisError && <p className="text-red-500 text-sm mt-2 text-center">{analysisError}</p>}
-                        </div>
-
-                         {consultingReport && (
-                             <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-4 animate-fade-in-down">
-                                <h4 className="font-bold text-blue-800">Kết quả Phân tích:</h4>
-                                <div>
-                                    <p className="font-semibold text-sm mb-1">Điểm quan trọng cần trao đổi:</p>
-                                    <ul className="list-disc list-inside space-y-1 text-sm text-slate-800">
-                                        {consultingReport.discussionPoints.map((p, i) => <li key={i}>{p}</li>)}
-                                    </ul>
-                                </div>
-                                <div className="text-sm">
-                                    <p><span className="font-semibold">Loại vụ việc:</span> {caseTypeLabel[consultingReport.caseType]}</p>
-                                    <p><span className="font-semibold">Giai đoạn sơ bộ:</span> {consultingReport.preliminaryStage}</p>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                    
-                    {/* Right Column: Generation */}
-                    <div className="flex flex-col">
-                        <h3 className="text-lg font-bold text-slate-800 mb-3">3. Soạn thảo Văn bản</h3>
-                        <div className="flex-grow space-y-4">
-                            {consultingReport && consultingReport.suggestedDocuments.length > 0 && (
-                                <div className="p-4 bg-green-50 border border-green-200 rounded-lg animate-fade-in-down">
-                                    <h4 className="font-semibold text-green-800 mb-2">Văn bản đề xuất:</h4>
-                                    <div className="flex flex-col items-start gap-2">
-                                        {consultingReport.suggestedDocuments.map((doc, i) => (
-                                            <button 
-                                                key={i} 
-                                                onClick={() => handleGenerate(doc)}
-                                                className="text-left w-full p-2 bg-green-100 text-green-900 font-medium rounded-md hover:bg-green-200 text-sm flex items-center gap-2"
-                                            >
-                                                <PlusIcon className="w-4 h-4 shrink-0" />{doc}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                             <textarea
-                                id="generationRequest"
-                                value={generationRequest}
-                                onChange={(e) => setGenerationRequest(e.target.value)}
-                                placeholder="Hoặc nhập yêu cầu soạn thảo khác..."
-                                className="w-full h-28 p-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 placeholder:text-slate-400"
-                            />
-                            <button
-                                onClick={() => handleGenerate(generationRequest)}
-                                disabled={isGenerateDisabled || !generationRequest}
-                                className="w-full py-2.5 px-4 bg-slate-700 text-white font-semibold text-sm rounded-lg hover:bg-slate-800 disabled:bg-slate-300 transition-colors flex items-center justify-center gap-2"
-                            >
-                                {isGenerating ? <><Loader /> <span>AI đang soạn thảo...</span></> : 'Soạn thảo theo Yêu cầu'}
-                            </button>
-                            {generationError && <p className="text-red-500 text-center">{generationError}</p>}
-                            
-                            <div className="flex-grow rounded-xl bg-slate-50 border border-slate-200 p-4 overflow-y-auto min-h-[300px] relative shadow-inner">
-                                {generatedText && !isGenerating && (
-                                    <button onClick={handleCopyToClipboard} className="absolute top-3 right-3 bg-slate-200 text-slate-700 px-2.5 py-1 text-xs font-semibold rounded-md hover:bg-slate-300 transition-colors z-10">
-                                        Copy
-                                    </button>
-                                )}
-                                {isGenerating && (
-                                    <div className="flex flex-col items-center justify-center h-full text-slate-500">
-                                        <Loader />
-                                        <p className="mt-4">AI đang phân tích và soạn thảo...</p>
-                                    </div>
-                                )}
-                                {!isGenerating && !generatedText && (
-                                    <div className="flex items-center justify-center h-full text-slate-400 text-center">
-                                        <p>Văn bản do AI tạo sẽ xuất hiện ở đây.</p>
-                                    </div>
-                                )}
-                                {generatedText && (
-                                    <pre className="whitespace-pre-wrap break-words text-slate-800 font-sans">{generatedText}</pre>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            <div className="rounded-xl bg-white border border-slate-200 p-4 overflow-y-auto min-h-[250px] relative shadow-inner">
+                {generatedText && !isLoading && (
+                    <button onClick={handleCopyToClipboard} className="absolute top-3 right-3 bg-slate-200 text-slate-700 px-2.5 py-1 text-xs font-semibold rounded-md hover:bg-slate-300 z-10">Copy</button>
+                )}
+                {isLoading && (
+                    <div className="flex flex-col items-center justify-center h-full text-slate-500"><Loader /><p className="mt-4">AI đang tư duy...</p></div>
+                )}
+                {!isLoading && !generatedText && (
+                    <div className="flex items-center justify-center h-full text-slate-400 text-center"><p>Văn bản do AI tạo sẽ xuất hiện ở đây.</p></div>
+                )}
+                {generatedText && <pre className="whitespace-pre-wrap break-words text-slate-800 font-sans">{generatedText}</pre>}
             </div>
         </div>
     );
