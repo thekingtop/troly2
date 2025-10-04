@@ -60,6 +60,15 @@ export interface AnalysisReport {
   quickSummary?: string;
 }
 
+// --- New Consulting Report Structure ---
+export interface ConsultingReport {
+    discussionPoints: string[];
+    caseType: LitigationType | 'unknown';
+    preliminaryStage: string;
+    suggestedDocuments: string[];
+}
+
+
 // --- Types for Case Management ---
 
 export type LitigationType = 'civil' | 'criminal' | 'administrative';
@@ -86,6 +95,5 @@ export interface SavedCase {
     litigationStage: LitigationStage;
     analysisReport: AnalysisReport | null;
     // --- New fields for consulting workflow ---
-    extractedData?: Record<string, string> | null;
-    generatedText?: string;
+    consultingReport?: ConsultingReport | null;
 }

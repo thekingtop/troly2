@@ -1,15 +1,16 @@
 
 
+
 import React, { useState, useCallback, useEffect } from 'react';
 import { FileUpload } from './FileUpload';
 import { Loader } from './Loader';
 import { MagicIcon } from './icons/MagicIcon';
-import { FileImportIcon } from './icons/FileImportIcon';
-import { generateConsultingDocument, extractDataFromDocument, suggestCaseType } from '../services/geminiService';
-import type { UploadedFile, LitigationType, SavedCase, SerializableFile } from '../types';
+import { analyzeConsultingCase, generateConsultingDocument } from '../services/geminiService';
+import type { UploadedFile, SavedCase, SerializableFile, ConsultingReport, LitigationType } from '../types';
 import { BackIcon } from './icons/BackIcon';
 import { saveCase } from '../services/db';
 import { SaveCaseIcon } from './icons/SaveCaseIcon';
+import { PlusIcon } from './icons/PlusIcon';
 
 
 interface ConsultingWorkflowProps {
@@ -40,17 +41,12 @@ export const ConsultingWorkflow: React.FC<ConsultingWorkflowProps> = ({ onPrevie
     // State for inputs
     const [files, setFiles] = useState<UploadedFile[]>([]);
     const [disputeContent, setDisputeContent] = useState('');
-    const [clientRequest, setClientRequest] = useState('');
+    const [generationRequest, setGenerationRequest] = useState('');
     
-    // State for data extraction
-    const [extractedData, setExtractedData] = useState<Record<string, string> | null>(null);
-    const [isExtracting, setIsExtracting] = useState(false);
-    const [extractionError, setExtractionError] = useState<string | null>(null);
-
-    // State for case type suggestion
-    const [litigationType, setLitigationType] = useState<LitigationType | null>(null);
-    const [isSuggestingType, setIsSuggestingType] = useState(false);
-    const [suggestionError, setSuggestionError] = useState<string | null>(null);
+    // State for analysis
+    const [consultingReport, setConsultingReport] = useState<ConsultingReport | null>(null);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [analysisError, setAnalysisError] = useState<string | null>(null);
 
     // State for document generation
     const [generatedText, setGeneratedText] = useState('');
@@ -59,7 +55,6 @@ export const ConsultingWorkflow: React.FC<ConsultingWorkflowProps> = ({ onPrevie
 
     // State for saving
     const [isSaving, setIsSaving] = useState(false);
-    const [currentCaseId, setCurrentCaseId] = useState<string | null>(null);
     const [caseName, setCaseName] = useState('');
 
     useEffect(() => {
@@ -70,15 +65,11 @@ export const ConsultingWorkflow: React.FC<ConsultingWorkflowProps> = ({ onPrevie
             });
             setFiles(loadedFiles);
             setDisputeContent(activeCase.caseContent || '');
-            setClientRequest(activeCase.clientRequest || '');
-            setExtractedData(activeCase.extractedData || null);
-            setGeneratedText(activeCase.generatedText || '');
-            setLitigationType(activeCase.litigationType || null);
-            setCurrentCaseId(activeCase.id);
+            setGenerationRequest(activeCase.clientRequest || ''); // clientRequest maps to generationRequest
+            setConsultingReport(activeCase.consultingReport || null);
             setCaseName(activeCase.name);
         }
     }, [activeCase]);
-
 
     const handleBackClick = () => {
         if (window.confirm("Bạn có chắc chắn muốn quay lại? Mọi dữ liệu chưa lưu sẽ bị mất.")) {
@@ -86,57 +77,35 @@ export const ConsultingWorkflow: React.FC<ConsultingWorkflowProps> = ({ onPrevie
         }
     };
 
-    const handleExtract = useCallback(async () => {
-        if (files.length === 0) {
-            setExtractionError("Vui lòng tải lên ít nhất một tệp để trích xuất.");
+    const handleAnalyze = useCallback(async () => {
+        if (files.length === 0 && !disputeContent.trim()) {
+            setAnalysisError("Vui lòng tải lên tệp hoặc nhập nội dung vụ việc để phân tích.");
             return;
         }
-        const fileToProcess = files[0];
-
-        setExtractionError(null);
-        setIsExtracting(true);
-        setExtractedData(null);
+        setAnalysisError(null);
+        setConsultingReport(null);
+        setIsAnalyzing(true);
         try {
-            const result = await extractDataFromDocument(fileToProcess);
-            if (Object.keys(result).length === 0) {
-                setExtractionError("Không tìm thấy thông tin quan trọng nào trong tài liệu.");
-            } else {
-                setExtractedData(result);
-            }
+            const result = await analyzeConsultingCase(files, disputeContent, generationRequest);
+            setConsultingReport(result);
         } catch (err) {
-            setExtractionError(err instanceof Error ? err.message : "Đã xảy ra lỗi không xác định khi trích xuất.");
+            setAnalysisError(err instanceof Error ? err.message : "Đã xảy ra lỗi không xác định khi phân tích.");
         } finally {
-            setIsExtracting(false);
+            setIsAnalyzing(false);
         }
-    }, [files]);
+    }, [files, disputeContent, generationRequest]);
 
-     const handleSuggestCaseType = useCallback(async () => {
-        if (files.length === 0 && !disputeContent.trim() && !clientRequest.trim()) {
-            setSuggestionError("Vui lòng tải tệp hoặc nhập nội dung để AI đề xuất.");
+    const handleGenerate = async (requestText: string) => {
+        if (!requestText.trim()) {
+            setGenerationError("Vui lòng nhập yêu cầu hoặc chọn một gợi ý.");
             return;
         }
-        setIsSuggestingType(true);
-        setSuggestionError(null);
-        try {
-            const suggestedType = await suggestCaseType(files, disputeContent, clientRequest);
-            setLitigationType(suggestedType);
-        } catch (err) {
-            setSuggestionError(err instanceof Error ? err.message : "Lỗi khi đề xuất loại vụ việc.");
-        } finally {
-            setIsSuggestingType(false);
-        }
-    }, [files, disputeContent, clientRequest]);
-    
-    const handleGenerate = async () => {
-        if (!disputeContent.trim() && !clientRequest.trim() && !extractedData && files.length === 0) {
-            setGenerationError("Vui lòng cung cấp thông tin, yêu cầu hoặc trích xuất dữ liệu từ tệp.");
-            return;
-        }
+        setGenerationRequest(requestText);
         setGenerationError(null);
         setIsGenerating(true);
         setGeneratedText('');
         try {
-            const result = await generateConsultingDocument(disputeContent, clientRequest, extractedData, litigationType);
+            const result = await generateConsultingDocument(consultingReport, disputeContent, requestText);
             setGeneratedText(result);
         } catch (err) {
             setGenerationError(err instanceof Error ? err.message : "Đã xảy ra lỗi không xác định.");
@@ -147,7 +116,7 @@ export const ConsultingWorkflow: React.FC<ConsultingWorkflowProps> = ({ onPrevie
     
     const handleSave = async () => {
         if (!activeCase) return;
-        const defaultName = caseName || clientRequest || `Tư vấn ngày ${new Date().toLocaleDateString('vi-VN')}`;
+        const defaultName = caseName || generationRequest || `Tư vấn ngày ${new Date().toLocaleDateString('vi-VN')}`;
         const newCaseName = window.prompt("Nhập tên để lưu nghiệp vụ:", defaultName);
         if (!newCaseName) return;
 
@@ -173,18 +142,16 @@ export const ConsultingWorkflow: React.FC<ConsultingWorkflowProps> = ({ onPrevie
                 workflowType: 'consulting',
                 files: serializableFiles,
                 caseContent: disputeContent,
-                clientRequest: clientRequest,
-                query: '', // Not used in consulting
-                litigationType: litigationType,
-                litigationStage: 'consulting', // Default stage for this type
-                analysisReport: null, // Not used in consulting
-                extractedData: extractedData,
-                generatedText: generatedText,
+                clientRequest: generationRequest,
+                query: '',
+                litigationType: consultingReport?.caseType !== 'unknown' ? consultingReport?.caseType || null : null,
+                litigationStage: 'consulting',
+                analysisReport: null,
+                consultingReport: consultingReport,
             };
 
             await saveCase(caseToSave);
-            onCasesUpdated(); // Notify parent to refresh the case list
-            setCurrentCaseId(caseToSave.id); // Update current ID to the real one
+            onCasesUpdated(); 
             setCaseName(caseToSave.name);
             alert(`Nghiệp vụ "${newCaseName}" đã được lưu thành công!`);
 
@@ -196,7 +163,6 @@ export const ConsultingWorkflow: React.FC<ConsultingWorkflowProps> = ({ onPrevie
         }
     };
 
-
     const handleCopyToClipboard = () => {
         if (generatedText) {
             navigator.clipboard.writeText(generatedText);
@@ -204,9 +170,14 @@ export const ConsultingWorkflow: React.FC<ConsultingWorkflowProps> = ({ onPrevie
         }
     };
     
-    const isGenerateDisabled = isGenerating || (!disputeContent.trim() && !clientRequest.trim() && !extractedData && files.length === 0);
-    const isSuggestionDisabled = isSuggestingType || (files.length === 0 && !disputeContent.trim() && !clientRequest.trim());
-
+    const isAnalyzeDisabled = isAnalyzing || (files.length === 0 && !disputeContent.trim());
+    const isGenerateDisabled = isGenerating;
+    const caseTypeLabel: Record<LitigationType | 'unknown', string> = {
+      civil: 'Dân sự',
+      criminal: 'Hình sự',
+      administrative: 'Hành chính',
+      unknown: 'Chưa xác định'
+    }
 
     return (
         <div className="animate-fade-in">
@@ -224,119 +195,114 @@ export const ConsultingWorkflow: React.FC<ConsultingWorkflowProps> = ({ onPrevie
                 <div>
                     <h2 className="text-2xl font-bold text-slate-900 mb-2 text-center">Nghiệp vụ Tư vấn & Soạn thảo</h2>
                     <p className="text-center text-slate-600 max-w-2xl mx-auto">
-                        Tải lên tài liệu, trích xuất dữ liệu tự động, và yêu cầu AI soạn thảo văn bản.
+                        Cung cấp thông tin, để AI phân tích và đề xuất các bước tiếp theo, sau đó soạn thảo văn bản.
                     </p>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    {/* Left Column: Inputs */}
+                    {/* Left Column: Inputs & Analysis */}
                     <div className="space-y-6">
                         <div>
-                            <h3 className="block text-lg font-bold text-slate-800 mb-3">1. Cung cấp Tài liệu & Dữ liệu</h3>
-                            <div className="p-4 bg-gray-50 border border-slate-200 rounded-lg space-y-4">
+                            <h3 className="block text-lg font-bold text-slate-800 mb-3">1. Cung cấp Thông tin</h3>
+                             <div className="p-4 bg-gray-50 border border-slate-200 rounded-lg space-y-4">
                                 <FileUpload files={files} setFiles={setFiles} onPreview={onPreview} />
-                                <button
-                                    onClick={handleExtract}
-                                    disabled={isExtracting || files.length === 0}
-                                    className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-slate-700 text-white font-semibold text-sm rounded-lg hover:bg-slate-800 disabled:bg-slate-300 transition-colors"
-                                >
-                                    {isExtracting ? <><Loader /> <span>Đang trích xuất...</span></> : <><FileImportIcon className="w-5 h-5" /> Trích xuất Thông tin từ Tệp</>}
-                                </button>
-                                {extractionError && <p className="text-red-500 text-sm mt-2 text-center">{extractionError}</p>}
-                            </div>
+                                <textarea
+                                    id="disputeContent"
+                                    value={disputeContent}
+                                    onChange={(e) => setDisputeContent(e.target.value)}
+                                    placeholder="Thêm bối cảnh, tình huống của khách hàng..."
+                                    className="w-full h-32 p-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 placeholder:text-slate-400"
+                                />
+                             </div>
                         </div>
-                         {extractedData && (
-                             <div className="animate-fade-in-down">
-                                <h4 className="font-semibold text-slate-800 mb-2">Thông tin đã trích xuất:</h4>
-                                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg max-h-48 overflow-y-auto">
-                                    <ul className="space-y-1.5 text-sm">
-                                        {Object.entries(extractedData).map(([key, value]) => (
-                                            <li key={key} className="grid grid-cols-3 gap-2">
-                                                <strong className="text-slate-600 truncate col-span-1">{key}:</strong>
-                                                <span className="text-slate-800 col-span-2">{value}</span>
-                                            </li>
-                                        ))}
+
+                        <div>
+                             <h3 className="block text-lg font-bold text-slate-800 mb-3">2. Phân tích Sơ bộ</h3>
+                             <button
+                                onClick={handleAnalyze}
+                                disabled={isAnalyzeDisabled}
+                                className="w-full py-3 px-4 bg-blue-600 text-white font-bold text-base rounded-lg hover:bg-blue-700 disabled:bg-slate-300 transition-all flex items-center justify-center gap-2"
+                             >
+                                 {isAnalyzing ? <><Loader /> <span>Đang phân tích...</span></> : <><MagicIcon className="w-5 h-5" /> Phân tích Tư vấn</>}
+                             </button>
+                             {analysisError && <p className="text-red-500 text-sm mt-2 text-center">{analysisError}</p>}
+                        </div>
+
+                         {consultingReport && (
+                             <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-4 animate-fade-in-down">
+                                <h4 className="font-bold text-blue-800">Kết quả Phân tích:</h4>
+                                <div>
+                                    <p className="font-semibold text-sm mb-1">Điểm quan trọng cần trao đổi:</p>
+                                    <ul className="list-disc list-inside space-y-1 text-sm text-slate-800">
+                                        {consultingReport.discussionPoints.map((p, i) => <li key={i}>{p}</li>)}
                                     </ul>
+                                </div>
+                                <div className="text-sm">
+                                    <p><span className="font-semibold">Loại vụ việc:</span> {caseTypeLabel[consultingReport.caseType]}</p>
+                                    <p><span className="font-semibold">Giai đoạn sơ bộ:</span> {consultingReport.preliminaryStage}</p>
                                 </div>
                             </div>
                         )}
-
-                        <div>
-                            <div className="flex justify-between items-center mb-3">
-                                <h3 className="block text-lg font-bold text-slate-800">2. Phân loại Vụ việc (Tùy chọn)</h3>
-                                <button 
-                                    onClick={handleSuggestCaseType}
-                                    disabled={isSuggestionDisabled}
-                                    className="flex items-center gap-1.5 px-2.5 py-1 text-xs bg-blue-50 text-blue-700 font-semibold rounded-md hover:bg-blue-100 disabled:opacity-50 transition-colors"
-                                >
-                                    {isSuggestingType ? <Loader/> : <MagicIcon className="w-4 h-4"/>}
-                                    AI Đề xuất
-                                </button>
-                            </div>
-                             <div className="p-4 bg-gray-50 border border-slate-200 rounded-lg space-y-3">
-                                 <div className="flex gap-2">
-                                    {(['civil', 'criminal', 'administrative'] as LitigationType[]).map(type => (
-                                        <button key={type} onClick={() => setLitigationType(type)} className={`flex-1 text-sm py-2 px-2 rounded-md border transition-colors ${litigationType === type ? 'bg-blue-600 text-white font-semibold border-blue-600' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'}`}>
-                                            {type === 'civil' ? 'Dân sự' : type === 'criminal' ? 'Hình sự' : 'Hành chính'}
-                                        </button>
-                                    ))}
-                                </div>
-                                 {suggestionError && <p className="text-red-500 text-sm text-center">{suggestionError}</p>}
-                            </div>
-                        </div>
-                        
-                        <div>
-                            <label htmlFor="disputeContent" className="block text-lg font-bold text-slate-800 mb-3">3. Bối cảnh & Yêu cầu</label>
-                            <textarea
-                                id="disputeContent"
-                                value={disputeContent}
-                                onChange={(e) => setDisputeContent(e.target.value)}
-                                placeholder="Thêm bối cảnh, tình huống của khách hàng (nếu cần)..."
-                                className="w-full h-28 p-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 placeholder:text-slate-400"
-                            />
-                        </div>
-                        <div>
-                            <textarea
-                                id="clientRequest"
-                                value={clientRequest}
-                                onChange={(e) => setClientRequest(e.target.value)}
-                                placeholder="Yêu cầu AI soạn thảo (ví dụ: Soạn thư tư vấn phân tích rủi ro, Soạn thư yêu cầu đòi tiền cọc...)"
-                                className="w-full h-28 p-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 placeholder:text-slate-400"
-                            />
-                        </div>
-                        <button
-                            onClick={handleGenerate}
-                            disabled={isGenerateDisabled}
-                            className="w-full py-3 px-4 bg-blue-600 text-white font-bold text-base rounded-lg hover:bg-blue-700 disabled:bg-slate-300 transition-all flex items-center justify-center gap-2"
-                        >
-                            {isGenerating ? <><Loader /><span>AI đang soạn thảo...</span></> : <><MagicIcon className="w-5 h-5" /> Soạn thảo Văn bản</>}
-                        </button>
-                        {generationError && <p className="text-red-500 text-center mt-2">{generationError}</p>}
                     </div>
-
-                    {/* Right Column: Output */}
+                    
+                    {/* Right Column: Generation */}
                     <div className="flex flex-col">
-                        <h3 className="text-lg font-bold text-slate-800 mb-3">3. Kết quả</h3>
-                        <div className="flex-grow rounded-xl bg-slate-50 border border-slate-200 p-4 overflow-y-auto min-h-[400px] relative shadow-inner">
-                            {generatedText && !isGenerating && (
-                                <button onClick={handleCopyToClipboard} className="absolute top-3 right-3 bg-slate-200 text-slate-700 px-2.5 py-1 text-xs font-semibold rounded-md hover:bg-slate-300 transition-colors z-10">
-                                    Copy
-                                </button>
-                            )}
-                            {isGenerating && (
-                                <div className="flex flex-col items-center justify-center h-full text-slate-500">
-                                    <Loader />
-                                    <p className="mt-4">AI đang phân tích và soạn thảo...</p>
+                        <h3 className="text-lg font-bold text-slate-800 mb-3">3. Soạn thảo Văn bản</h3>
+                        <div className="flex-grow space-y-4">
+                            {consultingReport && consultingReport.suggestedDocuments.length > 0 && (
+                                <div className="p-4 bg-green-50 border border-green-200 rounded-lg animate-fade-in-down">
+                                    <h4 className="font-semibold text-green-800 mb-2">Văn bản đề xuất:</h4>
+                                    <div className="flex flex-col items-start gap-2">
+                                        {consultingReport.suggestedDocuments.map((doc, i) => (
+                                            <button 
+                                                key={i} 
+                                                onClick={() => handleGenerate(doc)}
+                                                className="text-left w-full p-2 bg-green-100 text-green-900 font-medium rounded-md hover:bg-green-200 text-sm flex items-center gap-2"
+                                            >
+                                                <PlusIcon className="w-4 h-4 shrink-0" />{doc}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
-                            {!isGenerating && !generatedText && (
-                                <div className="flex items-center justify-center h-full text-slate-400 text-center">
-                                    <p>Văn bản do AI tạo sẽ xuất hiện ở đây.</p>
-                                </div>
-                            )}
-                            {generatedText && (
-                                <pre className="whitespace-pre-wrap break-words text-slate-800 font-sans">{generatedText}</pre>
-                            )}
+
+                             <textarea
+                                id="generationRequest"
+                                value={generationRequest}
+                                onChange={(e) => setGenerationRequest(e.target.value)}
+                                placeholder="Hoặc nhập yêu cầu soạn thảo khác..."
+                                className="w-full h-28 p-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 transition-all text-slate-800 placeholder:text-slate-400"
+                            />
+                            <button
+                                onClick={() => handleGenerate(generationRequest)}
+                                disabled={isGenerateDisabled || !generationRequest}
+                                className="w-full py-2.5 px-4 bg-slate-700 text-white font-semibold text-sm rounded-lg hover:bg-slate-800 disabled:bg-slate-300 transition-colors flex items-center justify-center gap-2"
+                            >
+                                {isGenerating ? <><Loader /> <span>AI đang soạn thảo...</span></> : 'Soạn thảo theo Yêu cầu'}
+                            </button>
+                            {generationError && <p className="text-red-500 text-center">{generationError}</p>}
+                            
+                            <div className="flex-grow rounded-xl bg-slate-50 border border-slate-200 p-4 overflow-y-auto min-h-[300px] relative shadow-inner">
+                                {generatedText && !isGenerating && (
+                                    <button onClick={handleCopyToClipboard} className="absolute top-3 right-3 bg-slate-200 text-slate-700 px-2.5 py-1 text-xs font-semibold rounded-md hover:bg-slate-300 transition-colors z-10">
+                                        Copy
+                                    </button>
+                                )}
+                                {isGenerating && (
+                                    <div className="flex flex-col items-center justify-center h-full text-slate-500">
+                                        <Loader />
+                                        <p className="mt-4">AI đang phân tích và soạn thảo...</p>
+                                    </div>
+                                )}
+                                {!isGenerating && !generatedText && (
+                                    <div className="flex items-center justify-center h-full text-slate-400 text-center">
+                                        <p>Văn bản do AI tạo sẽ xuất hiện ở đây.</p>
+                                    </div>
+                                )}
+                                {generatedText && (
+                                    <pre className="whitespace-pre-wrap break-words text-slate-800 font-sans">{generatedText}</pre>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>

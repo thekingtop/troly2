@@ -1,7 +1,9 @@
 
+
+
 import { GoogleGenAI, Part, Type } from "@google/genai";
-import type { AnalysisReport, FileCategory, UploadedFile, DocType, FormData, LitigationStage, LitigationType } from '../types';
-import { SYSTEM_INSTRUCTION, ANALYSIS_UPDATE_SYSTEM_INSTRUCTION, REPORT_SCHEMA, DOCUMENT_GENERATION_SYSTEM_INSTRUCTION, fileCategoryLabels, DOC_TYPE_FIELDS } from '../constants';
+import type { AnalysisReport, FileCategory, UploadedFile, DocType, FormData, LitigationStage, LitigationType, ConsultingReport } from '../types';
+import { SYSTEM_INSTRUCTION, ANALYSIS_UPDATE_SYSTEM_INSTRUCTION, REPORT_SCHEMA, DOCUMENT_GENERATION_SYSTEM_INSTRUCTION, fileCategoryLabels, DOC_TYPE_FIELDS, CONSULTING_SYSTEM_INSTRUCTION, CONSULTING_REPORT_SCHEMA } from '../constants';
 
 const API_KEY = import.meta.env.VITE_API_KEY;
 
@@ -226,17 +228,47 @@ export const analyzeCaseFiles = async (
   }
 };
 
+export const analyzeConsultingCase = async (
+    files: UploadedFile[],
+    disputeContent: string,
+    clientRequest: string
+): Promise<ConsultingReport> => {
+    try {
+        const { fileContentParts, imageParts } = await getFileContentParts(files);
+        const filesContent = fileContentParts.length > 0 ? fileContentParts.join('\n\n') : 'Không có tệp.';
+        
+        const prompt = `Vui lòng phân tích thông tin dưới đây và trả về báo cáo JSON.\n\nBỐI CẢNH VỤ VIỆC:\n---\n${disputeContent}\n---\n\nYÊU CẦU CỦA KHÁCH HÀNG:\n---\n${clientRequest}\n---\n\nTÀI LIỆU ĐÍNH KÈM:\n---\n${filesContent}\n---`;
+
+        const allParts: Part[] = [...imageParts, { text: prompt }];
+        
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: { parts: allParts },
+            config: {
+                systemInstruction: CONSULTING_SYSTEM_INSTRUCTION,
+                responseMimeType: "application/json",
+                responseSchema: CONSULTING_REPORT_SCHEMA,
+                temperature: 0.3,
+            }
+        });
+        const jsonText = response.text.trim().replace(/^```json\s*|```$/g, '');
+        return JSON.parse(jsonText);
+    } catch (error) {
+        throw handleGeminiError(error, 'phân tích nghiệp vụ tư vấn');
+    }
+};
+
+
 export const generateConsultingDocument = async (
+    report: ConsultingReport | null,
     disputeContent: string, 
-    request: string,
-    extractedData: Record<string, string> | null,
-    litigationType: LitigationType | null
+    request: string
 ): Promise<string> => {
     try {
         const systemInstruction = `Bạn là một luật sư tư vấn AI tại Việt Nam, chuyên soạn thảo văn bản pháp lý (thư tư vấn, thư yêu cầu). Văn bản phải chuyên nghiệp, rõ ràng, chính xác.`;
-        const extractedDataSection = extractedData ? `\nDỮ LIỆU ĐÃ TRÍCH XUẤT:\n---\n${Object.entries(extractedData).map(([k, v]) => `${k}: ${v}`).join('\n')}\n---` : '';
-        const litigationTypeSection = litigationType ? `\nPHÂN LOẠI SƠ BỘ: ${litigationType === 'civil' ? 'Dân sự' : litigationType === 'criminal' ? 'Hình sự' : 'Hành chính'}` : '';
-        const prompt = `${litigationTypeSection}${extractedDataSection}\nBỐI CẢNH VỤ VIỆC:\n---\n${disputeContent}\n---\n\nYÊU CẦU SOẠN THẢO:\n---\n${request}\n---\n\nDỰA VÀO CÁC THÔNG TIN TRÊN, HÃY SOẠN THẢO VĂN BẢN HOÀN CHỈNH.`;
+        const reportContext = report ? `\n\nBỐI CẢNH ĐÃ PHÂN TÍCH:\n\`\`\`json\n${JSON.stringify(report, null, 2)}\n\`\`\`` : '';
+        
+        const prompt = `DỰA TRÊN THÔNG TIN SAU:\n\nBỐI CẢNH CHUNG:\n---\n${disputeContent}\n---${reportContext}\n\nYÊU CẦU SOẠN THẢO CỤ THỂ:\n---\n${request}\n---\n\nHÃY SOẠN THẢO VĂN BẢN HOÀN CHỈNH.`;
         
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
@@ -396,67 +428,5 @@ export const explainLaw = async (lawText: string): Promise<string> => {
         return response.text.trim();
     } catch (error) {
         throw handleGeminiError(error, `giải thích điều luật "${lawText}"`);
-    }
-};
-
-export const extractDataFromDocument = async (file: UploadedFile): Promise<Record<string, string>> => {
-    let contentPart: Part;
-    if (isMimeTypeSupported(file.file.type) && file.file.type.startsWith('image/')) {
-        contentPart = await fileToGenerativePart(file.file);
-    } else if (file.file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' && typeof mammoth !== 'undefined') {
-        try {
-            const result = await mammoth.extractRawText({ arrayBuffer: await file.file.arrayBuffer() });
-            contentPart = { text: `Nội dung tài liệu:\n${result.value}` };
-        } catch (err) {
-             throw new Error(`Không thể đọc nội dung từ tệp DOCX "${file.file.name}".`);
-        }
-    } else {
-        try {
-            contentPart = { text: `Nội dung tài liệu:\n${await file.file.text()}` };
-        } catch (err) {
-            throw new Error(`Không thể đọc nội dung từ tệp "${file.file.name}".`);
-        }
-    }
-
-    try {
-        const systemInstruction = `Bạn là trợ lý AI chuyên trích xuất thông tin từ văn bản pháp lý Việt Nam vào một đối tượng JSON.`;
-        const prompt = `Từ nội dung tài liệu, hãy trích xuất các thông tin quan trọng (tên các bên, MST/CCCD, địa chỉ, ngày ký, giá trị hợp đồng, thời hạn, mốc thời gian). Trả về một đối tượng JSON. Nếu không tìm thấy, trả về JSON trống.`;
-        const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: { parts: [contentPart, { text: prompt }] },
-            config: {
-                systemInstruction,
-                responseMimeType: "application/json",
-                responseSchema: { type: Type.OBJECT, additionalProperties: { type: Type.STRING } },
-                temperature: 0.0,
-            },
-        });
-        return JSON.parse(response.text.trim().replace(/^```json\s*|```$/g, ''));
-    } catch (error) {
-        throw handleGeminiError(error, `trích xuất thông tin từ tệp`);
-    }
-};
-
-export const suggestCaseType = async (files: UploadedFile[], disputeContent: string, clientRequest: string): Promise<LitigationType> => {
-    try {
-        const { fileContentParts, imageParts } = await getFileContentParts(files);
-        const filesContent = fileContentParts.length > 0 ? fileContentParts.join('\n\n') : 'Không có tệp.';
-        const systemInstruction = `Bạn là trợ lý luật sư AI tại Việt Nam. Phân loại vụ việc vào một trong ba loại: 'civil', 'criminal', hoặc 'administrative'. Trả về CHỈ MỘT TỪ DUY NHẤT.`;
-        const prompt = `Dựa trên thông tin dưới đây, hãy xác định đây là vụ việc dân sự, hình sự, hay hành chính.\n\nTài liệu: ${filesContent}\n\nBối cảnh: ${disputeContent}\n\nYêu cầu KH: ${clientRequest}`;
-        const allParts: Part[] = [...imageParts, { text: prompt }];
-        const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: { parts: allParts },
-            config: {
-                systemInstruction,
-                temperature: 0.0,
-                responseSchema: { type: Type.STRING, description: "Chỉ là 'civil', 'criminal', hoặc 'administrative'" }
-            },
-        });
-        const result = response.text.trim() as LitigationType;
-        if (['civil', 'criminal', 'administrative'].includes(result)) return result;
-        throw new Error("AI đã trả về một loại vụ việc không hợp lệ.");
-    } catch (error) {
-        throw handleGeminiError(error, 'đề xuất loại vụ việc');
     }
 };

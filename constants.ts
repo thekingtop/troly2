@@ -169,6 +169,43 @@ Bạn là một Trợ lý Pháp lý AI chuyên sâu. Nhiệm vụ của bạn l�
 3.  Dựa vào toàn bộ bối cảnh từ báo cáo phân tích, hãy soạn thảo văn bản được yêu cầu một cách chuyên nghiệp, đầy đủ và chính xác theo văn phong pháp lý Việt Nam.
 `;
 
+export const CONSULTING_SYSTEM_INSTRUCTION = `
+Bạn là một trợ lý luật sư AI chuyên nghiệp tại Việt Nam. Nhiệm vụ của bạn là phân tích thông tin ban đầu của một vụ việc tư vấn và trả về một báo cáo JSON có cấu trúc để hỗ trợ luật sư.
+
+QUY TẮC:
+1.  **Xác định Điểm chính:** Đọc kỹ thông tin và xác định những điểm mấu chốt, quan trọng nhất mà luật sư cần trao đổi lại với khách hàng để làm rõ hoặc thu thập thêm.
+2.  **Phân loại Vụ việc:** Dựa trên bản chất của tranh chấp, phân loại vụ việc vào một trong ba loại: 'civil' (dân sự), 'criminal' (hình sự), hoặc 'administrative' (hành chính). Nếu không đủ thông tin, trả về 'unknown'.
+3.  **Nhận định Giai đoạn Sơ bộ:** Mô tả ngắn gọn giai đoạn hiện tại của vụ việc (ví dụ: "Tư vấn ban đầu", "Chuẩn bị tiền tố tụng", "Yêu cầu đòi nợ lần đầu").
+4.  **Đề xuất Văn bản:** Dựa trên phân tích, đề xuất 2-3 loại văn bản pháp lý mà luật sư có thể cần soạn thảo tiếp theo (ví dụ: "Thư tư vấn", "Thư yêu cầu thanh toán", "Đơn trình báo").
+5.  **Output JSON:** Phản hồi BẮT BUỘC phải là một đối tượng JSON hợp lệ duy nhất.
+`;
+
+export const CONSULTING_REPORT_SCHEMA = {
+  type: Type.OBJECT,
+  properties: {
+    discussionPoints: {
+      type: Type.ARRAY,
+      description: "Một mảng các chuỗi, mỗi chuỗi là một điểm quan trọng luật sư cần trao đổi với khách hàng.",
+      items: { type: Type.STRING }
+    },
+    caseType: {
+      type: Type.STRING,
+      description: "Phân loại vụ việc. Phải là một trong các giá trị: 'civil', 'criminal', 'administrative', 'unknown'."
+    },
+    preliminaryStage: {
+      type: Type.STRING,
+      description: "Mô tả ngắn gọn giai đoạn sơ bộ của vụ việc."
+    },
+    suggestedDocuments: {
+      type: Type.ARRAY,
+      description: "Một mảng các chuỗi, mỗi chuỗi là tên một văn bản được đề xuất soạn thảo.",
+      items: { type: Type.STRING }
+    }
+  },
+  required: ["discussionPoints", "caseType", "preliminaryStage", "suggestedDocuments"]
+};
+
+
 export const litigationStagesByType: Record<LitigationType, { value: LitigationStage; label: string }[]> = {
     civil: [
         { value: 'consulting', label: 'Tư vấn ban đầu' },
