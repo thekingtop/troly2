@@ -46,9 +46,46 @@ QUY TẮC BẮT BUỘC:
 1.  **Xác định Giai đoạn Tố tụng:** Dựa vào các tài liệu (bản án, đơn kháng cáo, quyết định thi hành án...), hãy xác định vụ việc đang ở giai đoạn tố tụng nào và điền giá trị (key) tương ứng vào trường 'litigationStage'. Ví dụ: nếu có bản án sơ thẩm và đơn kháng cáo, giai đoạn là 'appeal'. Nếu chỉ có yêu cầu tư vấn, giai đoạn là 'consulting'.
 2.  **Tư duy như luật sư:** Phân tích logic, xác định đúng quan hệ pháp luật và các vấn đề pháp lý cốt lõi.
 3.  **Tổng hợp thông tin:** Xâu chuỗi các sự kiện, dữ liệu từ nhiều tài liệu khác nhau để tạo ra một bối cảnh vụ việc hoàn chỉnh. Hãy đặc biệt chú ý đến các mâu thuẫn.
-4.  **Tìm kiếm Lỗ hổng Pháp lý:** Chủ động tìm kiếm các 'lỗ hổng' pháp lý — không chỉ là thông tin thiếu, mà là các điểm yếu trong lập luận, các quy định mâu thuẫn, hoặc các kẽ hở trong hợp đồng/tài liệu mà đối phương có thể khai thác.
+4.  **TÌM KIẾM LỖ HỔNG PHÁP LÝ (CỰC KỲ QUAN TRỌNG):**
+    Chủ động phân tích và xác định các "lỗ hổng pháp lý tiềm ẩn" theo các loại và ví dụ chi tiết sau đây. Đây là phần quan trọng nhất trong phân tích của bạn, và phải được điền vào mục 'legalLoopholes'.
+    
+    **4.1. Lỗ hổng trong Hợp đồng và các Thỏa thuận:**
+    - **Điều khoản mơ hồ, đa nghĩa:**
+      - AI cần tìm: Các thuật ngữ quan trọng, định nghĩa chuyên ngành (ví dụ: "hoàn thành", "chất lượng đạt chuẩn", "thời gian hợp lý", "bên liên quan", "thực hiện tốt nhất") được sử dụng nhưng không có định nghĩa rõ ràng đi kèm trong phần "Giải thích từ ngữ" hoặc điều khoản định nghĩa.
+      - Các cụm từ mang tính định tính, chủ quan mà không có tiêu chí đo lường hoặc tham chiếu cụ thể.
+      - Ví dụ gợi ý cho AI: Nếu thấy "thanh toán trong vòng 10 ngày sau khi dự án hoàn thành" mà không có định nghĩa "hoàn thành", AI cần gắn cờ.
+    - **Thiếu sót các điều khoản quan trọng:**
+      - AI cần tìm: Kiểm tra sự vắng mặt của các điều khoản tiêu chuẩn và tối quan trọng tùy theo loại hợp đồng. Các điều khoản cần kiểm tra: Bất khả kháng (Force Majeure), Bảo mật (Confidentiality), Phạt vi phạm, Chấm dứt hợp đồng, Giải quyết tranh chấp, Luật áp dụng, Thẩm quyền giải quyết tranh chấp (đặc biệt trong hợp đồng quốc tế), Điều khoản về quyền sở hữu trí tuệ, Chuyển giao quyền và nghĩa vụ, Bảo hành/Bảo trì.
+      - Ví dụ gợi ý cho AI: Nếu là hợp đồng mua bán quốc tế mà thiếu điều khoản "Luật áp dụng" và "Cơ quan giải quyết tranh chấp", AI cần báo cáo.
+    - **Xung đột, mâu thuẫn giữa các điều khoản:**
+      - AI cần tìm: So sánh các quy định về cùng một vấn đề nhưng lại đưa ra các nghĩa vụ, con số, thời hạn, hoặc điều kiện khác nhau ở các điều khoản, phụ lục, hoặc tài liệu đính kèm khác nhau.
+      - Tìm kiếm các từ khóa chỉ sự mâu thuẫn như "tuy nhiên", "ngoại trừ", "trái với" nếu chúng dẫn đến sự không rõ ràng thay vì làm rõ.
+      - Ví dụ gợi ý cho AI: Điều 5 ghi bảo hành 12 tháng, Phụ lục 01 ghi 24 tháng.
+
+    **4.2. Lỗ hổng trong Luật và các Văn bản Quy phạm Pháp luật:**
+    - **"Sự im lặng của pháp luật":**
+      - AI cần tìm: Khi được yêu cầu phân tích một vấn đề hoặc một hoạt động mới/chuyên biệt, AI cần xác định xem có các quy định pháp luật trực tiếp điều chỉnh hay không.
+      - Báo cáo khi không tìm thấy các điều khoản, nghị định, thông tư cụ thể về một chủ đề được đưa ra.
+      - Ví dụ gợi ý cho AI: Nếu người dùng hỏi về "quy định đánh thuế cryptocurrency", AI cần báo cáo "chưa có quy định pháp luật trực tiếp điều chỉnh".
+    - **Quy định mâu thuẫn, chồng chéo:**
+      - AI cần tìm: So sánh các quy định liên quan đến cùng một vấn đề từ các văn bản pháp luật có cấp hiệu lực khác nhau (Luật vs. Nghị định, Nghị định vs. Thông tư).
+      - Xác định các trường hợp mà quy định cấp dưới trái với quy định cấp trên hoặc hai văn bản cùng cấp lại mâu thuẫn nhau.
+      - Ví dụ gợi ý cho AI: Nghị định quy định hướng A, Thông tư hướng B cho cùng điều kiện kinh doanh.
+    - **Định nghĩa không rõ ràng:**
+      - AI cần tìm: Các thuật ngữ pháp lý quan trọng, có tính định tính cao (ví dụ: "gây ảnh hưởng xấu đến trật tự xã hội", "trái với thuần phong mỹ tục", "thiệt hại đáng kể", "vì lợi ích công cộng") không được định nghĩa hoặc giải thích rõ ràng trong phần "Giải thích từ ngữ" của văn bản.
+      - Các thuật ngữ có thể có nhiều cách hiểu khác nhau mà không có tiêu chí cụ thể để áp dụng.
+
+    **4.3. Lỗ hổng trong Quy trình và Thủ tục Tố tụng:**
+    - **Vi phạm về thời hiệu:**
+      - AI cần tìm: Xác định "Ngày xảy ra sự kiện" (phát sinh tranh chấp, vi phạm hợp đồng, v.v.) và "Ngày nộp đơn khởi kiện/yêu cầu".
+      - Đối chiếu với các quy định về "Thời hiệu khởi kiện" hoặc "Thời hiệu yêu cầu giải quyết vụ việc" trong các luật tương ứng (ví dụ: Bộ luật Dân sự, Bộ luật Tố tụng Dân sự, Luật Thương mại).
+      - Báo cáo nếu thời gian từ ngày xảy ra sự kiện đến ngày nộp đơn vượt quá thời hiệu quy định.
+    - **Sai sót trong tố tụng:**
+      - AI cần tìm: Phân tích các tài liệu tố tụng (biên bản, thông báo, quyết định) để kiểm tra tính hợp lệ của các thủ tục quan trọng: Tống đạt, Triệu tập, Thu thập chứng cứ, Thành phần Hội đồng xét xử/Thủ tục hòa giải.
+      - Ví dụ gợi ý cho AI: Tòa án không tống đạt hợp lệ quyết định xét xử cho một bên.
+
 5.  **Tư duy Chiến lược:** Không chỉ tóm tắt. Phải xây dựng một chiến lược hành động chi tiết trong mục "proposedStrategy". Chiến lược này BẮT BUỘC phải: a) Tận dụng các "strengths" (điểm mạnh); b) Đề xuất giải pháp giảm thiểu "weaknesses" (điểm yếu) và "risks" (rủi ro); c) Khai thác các "legalLoopholes" (lỗ hổng pháp lý) đã được xác định để tạo lợi thế hoặc tấn công lập luận của đối phương.
-6.  **Hiệu lực văn bản:** Khi viện dẫn cơ sở pháp lý, phải kiểm tra và đảm bảo văn bản đó có hiệu lực tại thời điểm xảy ra vụ việc. Luôn ưu tiên áp dụng văn bản pháp luật chuyên ngành trước, sau đó mới đến các văn bản chung.
+6.  **Phân tích Cơ sở pháp lý SÂU:** Khi viện dẫn cơ sở pháp lý, phải kiểm tra hiệu lực văn bản. Đối với mỗi văn bản, BẮT BUỘC phải giải thích rõ 2 điểm: 1) Vấn đề pháp lý cốt lõi mà văn bản đó giải quyết (điền vào 'coreIssueAddressed') và 2) Sự liên quan trực tiếp của nó đến các vấn đề pháp lý trong vụ việc này (điền vào 'relevanceToCase').
 7.  **Bám sát dữ liệu:** Mọi phân tích và nhận định phải dựa hoàn toàn vào các thông tin, tài liệu được cung cấp. Nếu thông tin không đủ, hãy chỉ ra đó là "lỗ hổng thông tin".
 8.  **Chú ý đến loại tài liệu:** Phân tích nội dung của mỗi tài liệu trong bối cảnh loại tài liệu đó (ví dụ: 'Hợp đồng' có giá trị pháp lý cao hơn 'Email trao đổi').
 9.  **JSON Output:** Phản hồi của bạn BẮT BUỘC phải là một đối tượng JSON hợp lệ, không chứa bất kỳ văn bản nào khác bên ngoài đối tượng JSON đó.
@@ -85,6 +122,14 @@ export const REPORT_SCHEMA = {
         type: Type.OBJECT,
         properties: {
           documentName: { type: Type.STRING, description: "Tên văn bản pháp luật (ví dụ: Bộ luật Dân sự 2015)" },
+          coreIssueAddressed: {
+              type: Type.STRING,
+              description: "Mô tả ngắn gọn vấn đề pháp lý cốt lõi mà văn bản này giải quyết (ví dụ: 'Quy định về đặt cọc và phạt cọc')."
+          },
+          relevanceToCase: {
+              type: Type.STRING,
+              description: "Giải thích rõ ràng tại sao văn bản này và các điều luật trích dẫn lại liên quan trực tiếp đến các vấn đề pháp lý cốt lõi của vụ việc hiện tại."
+          },
           articles: {
             type: Type.ARRAY,
             description: "Danh sách các điều luật áp dụng từ văn bản trên.",
@@ -98,7 +143,7 @@ export const REPORT_SCHEMA = {
             }
           }
         },
-        required: ['documentName', 'articles']
+        required: ['documentName', 'coreIssueAddressed', 'relevanceToCase', 'articles']
       }
     },
     gapAnalysis: {
@@ -116,10 +161,35 @@ export const REPORT_SCHEMA = {
           items: { type: Type.STRING }
         },
         legalLoopholes: {
-          type: Type.ARRAY,
-          description: "Một mảng các chuỗi mô tả các lỗ hổng pháp lý tiềm ẩn, điểm yếu trong lập luận, hoặc các quy định mâu thuẫn có thể bị đối phương khai thác.",
-          items: { type: Type.STRING }
-        }
+            type: Type.ARRAY,
+            description: "Một mảng các đối tượng mô tả các lỗ hổng pháp lý được phát hiện. Đây là một trong những phần quan trọng nhất của báo cáo.",
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                classification: {
+                  type: Type.STRING,
+                  description: "Phân loại lỗ hổng. Phải là một trong các giá trị: 'Hợp đồng', 'Quy phạm Pháp luật', 'Tố tụng', 'Khác'."
+                },
+                description: {
+                  type: Type.STRING,
+                  description: "Mô tả ngắn gọn, cụ thể về lỗ hổng được phát hiện."
+                },
+                severity: {
+                  type: Type.STRING,
+                  description: "Đánh giá mức độ nghiêm trọng của lỗ hổng. Phải là một trong các giá trị: 'Cao', 'Trung bình', 'Thấp'."
+                },
+                suggestion: {
+                  type: Type.STRING,
+                  description: "Gợi ý hành động hoặc tư vấn cụ thể để khắc phục hoặc tận dụng lỗ hổng."
+                },
+                evidence: {
+                  type: Type.STRING,
+                  description: "Trích dẫn đoạn văn bản gốc làm bằng chứng cho việc phát hiện lỗ hổng."
+                }
+              },
+              required: ['classification', 'description', 'severity', 'suggestion', 'evidence']
+            }
+          }
       },
       required: ['missingInformation', 'recommendedActions', 'legalLoopholes']
     },
@@ -177,7 +247,12 @@ QUY TẮC:
 2.  **Phân loại Vụ việc:** Dựa trên bản chất của tranh chấp, phân loại vụ việc vào một trong ba loại: 'civil' (dân sự), 'criminal' (hình sự), hoặc 'administrative' (hành chính). Nếu không đủ thông tin, trả về 'unknown'.
 3.  **Nhận định Giai đoạn Sơ bộ:** Mô tả ngắn gọn giai đoạn hiện tại của vụ việc (ví dụ: "Tư vấn ban đầu", "Chuẩn bị tiền tố tụng", "Yêu cầu đòi nợ lần đầu").
 4.  **Đề xuất Văn bản:** Dựa trên phân tích, đề xuất 2-3 loại văn bản pháp lý mà luật sư có thể cần soạn thảo tiếp theo (ví dụ: "Thư tư vấn", "Thư yêu cầu thanh toán", "Đơn trình báo").
-5.  **Output JSON:** Phản hồi BẮT BUỘC phải là một đối tượng JSON hợp lệ duy nhất.
+5.  **PHÁT HIỆN LỖ HỔNG SƠ BỘ (QUAN TRỌNG):** Dựa trên thông tin được cung cấp, hãy chủ động phân tích và xác định bất kỳ dấu hiệu ban đầu nào về "lỗ hổng pháp lý tiềm ẩn" theo các loại sau:
+    - **Lỗ hổng Hợp đồng:** Điều khoản mơ hồ, đa nghĩa; Thiếu sót các điều khoản quan trọng (Bất khả kháng, Luật áp dụng, Giải quyết tranh chấp...); Xung đột giữa các điều khoản.
+    - **Lỗ hổng Quy phạm:** "Sự im lặng của pháp luật" (vấn đề chưa có luật điều chỉnh); Quy định mâu thuẫn, chồng chéo; Định nghĩa không rõ ràng.
+    - **Lỗ hổng Tố tụng:** Dấu hiệu vi phạm về thời hiệu; Sai sót trong các thủ tục đã diễn ra (nếu có thông tin).
+    Liệt kê các lỗ hổng phát hiện được vào trường 'legalLoopholes'. Nếu không có, trả về một mảng rỗng.
+6.  **Output JSON:** Phản hồi BẮT BUỘC phải là một đối tượng JSON hợp lệ duy nhất.
 `;
 
 export const CONSULTING_REPORT_SCHEMA = {
@@ -200,7 +275,37 @@ export const CONSULTING_REPORT_SCHEMA = {
       type: Type.ARRAY,
       description: "Một mảng các chuỗi, mỗi chuỗi là tên một văn bản được đề xuất soạn thảo.",
       items: { type: Type.STRING }
-    }
+    },
+    legalLoopholes: {
+        type: Type.ARRAY,
+        description: "Một mảng các đối tượng mô tả các lỗ hổng pháp lý được phát hiện ở giai đoạn sơ bộ.",
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            classification: {
+              type: Type.STRING,
+              description: "Phân loại lỗ hổng. Phải là một trong các giá trị: 'Hợp đồng', 'Quy phạm Pháp luật', 'Tố tụng', 'Khác'."
+            },
+            description: {
+              type: Type.STRING,
+              description: "Mô tả ngắn gọn, cụ thể về lỗ hổng được phát hiện."
+            },
+            severity: {
+              type: Type.STRING,
+              description: "Đánh giá mức độ nghiêm trọng của lỗ hổng. Phải là một trong các giá trị: 'Cao', 'Trung bình', 'Thấp'."
+            },
+            suggestion: {
+              type: Type.STRING,
+              description: "Gợi ý hành động hoặc tư vấn cụ thể để khắc phục hoặc tận dụng lỗ hổng."
+            },
+            evidence: {
+              type: Type.STRING,
+              description: "Trích dẫn đoạn văn bản gốc (nếu có) làm bằng chứng cho việc phát hiện lỗ hổng."
+            }
+          },
+          required: ['classification', 'description', 'severity', 'suggestion', 'evidence']
+        }
+      }
   },
   required: ["discussionPoints", "caseType", "preliminaryStage", "suggestedDocuments"]
 };

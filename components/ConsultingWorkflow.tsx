@@ -1,11 +1,12 @@
 
 
+
 import React, { useState, useCallback, useEffect } from 'react';
 import { FileUpload } from './FileUpload';
 import { Loader } from './Loader';
 import { MagicIcon } from './icons/MagicIcon';
 import { analyzeConsultingCase, generateConsultingDocument, categorizeMultipleFiles } from '../services/geminiService';
-import type { UploadedFile, SavedCase, SerializableFile, ConsultingReport, LitigationType } from '../types';
+import type { UploadedFile, SavedCase, SerializableFile, ConsultingReport, LitigationType, LegalLoophole } from '../types';
 import { BackIcon } from './icons/BackIcon';
 import { saveCase } from '../services/db';
 import { SaveCaseIcon } from './icons/SaveCaseIcon';
@@ -26,6 +27,11 @@ const CaseInfoIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 const DocumentSuggestionIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m3.75 9h7.5m-7.5 3h7.5m-11.25-3h.008v.008h-.008V12Zm0 3h.008v.008h-.008V15Zm-3.75-3h.008v.008h-.008V12Zm0 3h.008v.008h-.008V15Zm-3.75-3h.008v.008h-.008V12Zm0 3h.008v.008h-.008V15Z" />
+    </svg>
+);
+const ExclamationTriangleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
     </svg>
 );
 
@@ -295,6 +301,14 @@ const AnalysisResultDisplay: React.FC<{ report: ConsultingReport; onGenerateRequ
     const caseTypeLabel: Record<LitigationType | 'unknown', string> = {
       civil: 'Dân sự', criminal: 'Hình sự', administrative: 'Hành chính', unknown: 'Chưa xác định'
     };
+    const getSeverityClasses = (severity: LegalLoophole['severity']) => {
+        switch (severity) {
+            case 'Cao': return 'text-red-700';
+            case 'Trung bình': return 'text-amber-700';
+            case 'Thấp': return 'text-green-700';
+            default: return 'text-slate-700';
+        }
+    };
     return (
         <div className="space-y-4">
             <InfoCard icon={<DiscussionIcon className="w-5 h-5"/>} title="Điểm quan trọng cần trao đổi">
@@ -304,6 +318,25 @@ const AnalysisResultDisplay: React.FC<{ report: ConsultingReport; onGenerateRequ
                 <p><span className="font-semibold">Loại vụ việc:</span> {caseTypeLabel[report.caseType]}</p>
                 <p><span className="font-semibold">Giai đoạn sơ bộ:</span> {report.preliminaryStage}</p>
             </InfoCard>
+            {report.legalLoopholes && report.legalLoopholes.length > 0 && (
+                <InfoCard icon={<ExclamationTriangleIcon className="w-5 h-5"/>} title="Lỗ hổng Pháp lý Tiềm ẩn">
+                    <ul className="space-y-3">
+                        {report.legalLoopholes.map((loophole, index) => (
+                            <li key={index} className="border-t border-slate-100 pt-2 first:border-t-0 first:pt-0">
+                                <p className="font-semibold">
+                                    {loophole.classification} (<span className={`${getSeverityClasses(loophole.severity)} font-bold`}>{loophole.severity}</span>)
+                                </p>
+                                <p className="text-slate-600">{loophole.description}</p>
+                                {loophole.suggestion && (
+                                     <p className="mt-1 text-xs text-blue-700 bg-blue-50 p-1 rounded-md">
+                                        <span className="font-semibold">Gợi ý:</span> {loophole.suggestion}
+                                    </p>
+                                )}
+                            </li>
+                        ))}
+                    </ul>
+                </InfoCard>
+            )}
             <InfoCard icon={<DocumentSuggestionIcon className="w-5 h-5"/>} title="Đề xuất Tiếp theo">
                 <div className="flex flex-col items-start gap-2">
                     {report.suggestedDocuments.map((doc, i) => (

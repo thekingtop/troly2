@@ -1,6 +1,5 @@
 
 
-
 export type FileCategory = 'Uncategorized' | 'Contract' | 'Correspondence' | 'Minutes' | 'Evidence' | 'Image';
 
 export interface UploadedFile {
@@ -28,13 +27,23 @@ export interface LawArticle {
 
 export interface ApplicableLaw {
     documentName: string;
+    coreIssueAddressed?: string; // Analysis of the main issue the law covers.
+    relevanceToCase?: string;    // How this law applies to the current case.
     articles: LawArticle[];
+}
+
+export interface LegalLoophole {
+    classification: 'Hợp đồng' | 'Quy phạm Pháp luật' | 'Tố tụng' | 'Khác';
+    description: string;
+    severity: 'Cao' | 'Trung bình' | 'Thấp';
+    suggestion: string;
+    evidence: string; // The text snippet from the document
 }
 
 export interface GapAnalysis {
     missingInformation: string[];
     recommendedActions: string[];
-    legalLoopholes: string[];
+    legalLoopholes: LegalLoophole[];
 }
 
 export interface CaseProspects {
@@ -58,6 +67,7 @@ export interface AnalysisReport {
   proposedStrategy: ProposedStrategy;
   customNotes?: string;
   quickSummary?: string;
+  userAddedLaws?: ApplicableLaw[]; // Field for user-added legal bases
 }
 
 // --- New Consulting Report Structure ---
@@ -66,6 +76,7 @@ export interface ConsultingReport {
     caseType: LitigationType | 'unknown';
     preliminaryStage: string;
     suggestedDocuments: string[];
+    legalLoopholes?: LegalLoophole[];
 }
 
 

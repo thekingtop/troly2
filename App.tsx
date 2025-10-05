@@ -1,20 +1,17 @@
 
-
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { FileUpload } from './components/FileUpload';
 import { ReportDisplay } from './components/ReportDisplay';
 import { Loader } from './components/Loader';
 import { analyzeCaseFiles, generateContextualDocument, refineText, generateReportSummary, categorizeMultipleFiles } from './services/geminiService';
 import { db, getAllCasesSorted, saveCase, deleteCaseById } from './services/db';
-import type { AnalysisReport, UploadedFile, SavedCase, SerializableFile, LitigationStage, LitigationType, FileCategory } from './types';
+import type { AnalysisReport, UploadedFile, SavedCase, SerializableFile, LitigationStage, LitigationType, FileCategory, ApplicableLaw, LegalLoophole } from './types';
 import { ConsultingWorkflow } from './components/ConsultingWorkflow';
 import { AnalysisIcon } from './components/icons/AnalysisIcon';
 import { PreviewModal } from './components/PreviewModal';
 import { MagicIcon } from './components/icons/MagicIcon';
 import { ExportIcon } from './components/icons/ExportIcon';
 import { TrashIcon } from './components/icons/TrashIcon';
-import { PanelCollapseIcon } from './components/icons/PanelCollapseIcon';
-import { PanelExpandIcon } from './components/icons/PanelExpandIcon';
 import { SaveCaseIcon } from './components/icons/SaveCaseIcon';
 import { FolderIcon } from './components/icons/FolderIcon';
 import { PlusIcon } from './components/icons/PlusIcon';
@@ -22,6 +19,9 @@ import { CustomizeReportModal, ReportSection } from './components/CustomizeRepor
 import { BackIcon } from './components/icons/BackIcon';
 import { litigationStagesByType, getStageLabel, litigationStageSuggestions } from './constants';
 import { ProcessingProgress } from './components/ProcessingProgress';
+import { AppLogo } from './components/icons/AppLogo';
+import { PanelCollapseIcon } from './components/icons/PanelCollapseIcon';
+import { PanelExpandIcon } from './components/icons/PanelExpandIcon';
 
 
 // Declare global variables from CDN scripts to satisfy TypeScript
@@ -33,6 +33,8 @@ declare var html2canvas: any;
 type RefineField = 'caseContent' | 'clientRequest';
 type RefineMode = 'concise' | 'detailed';
 type MainActionType = 'analyze' | 'update' | 'none';
+type View = 'caseInfo' | 'dashboard' | 'fileManagement' | 'calendar' | 'caseAnalysis' | 'client';
+
 
 interface MainAction {
     text: string;
@@ -41,10 +43,32 @@ interface MainAction {
     loadingText: string;
 }
 
-type StageSuggestions = {
-  actions: string[];
-  documents: string[];
-};
+// --- New Icon Components for Sidebar ---
+const HomeIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 12 8.954-8.955a1.5 1.5 0 0 1 2.122 0l8.954 8.955M3 10.5v.75A2.25 2.25 0 0 0 5.25 13.5h13.5A2.25 2.25 0 0 0 21 11.25v-.75M4.5 13.5V21A2.25 2.25 0 0 0 6.75 23.25h10.5A2.25 2.25 0 0 0 19.5 21V13.5" />
+  </svg>
+);
+const DashboardIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
+  </svg>
+);
+const FileManagementIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9.75h16.5m-16.5 0A2.25 2.25 0 0 1 5.25 7.5h13.5a2.25 2.25 0 0 1 2.25 2.25m-16.5 0v6.75a2.25 2.25 0 0 0 2.25 2.25h12a2.25 2.25 0 0 0 2.25-2.25v-6.75m-16.5 0H3.75" />
+  </svg>
+);
+const CalendarIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0h18M12 12.75h.008v.008H12v-.008Zm0 3h.008v.008H12v-.008Zm-3-3h.008v.008H9v-.008Zm0 3h.008v.008H9v-.008Zm-3-3h.008v.008H6v-.008Zm0 3h.008v.008H6v-.008Zm9-3h.008v.008H15v-.008Zm0 3h.008v.008H15v-.008Zm3-3h.008v.008H18v-.008Zm0 3h.008v.008H18v-.008Z" />
+  </svg>
+);
+const ClientIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m-7.5-2.962A3.75 3.75 0 1 0 9.75 6.25a3.75 3.75 0 0 0-3.75 3.75M10.5 13.5a7.5 7.5 0 0 0-7.5 7.5v.75c0 .414.336.75.75.75h15a.75.75 0 0 0 .75-.75v-.75a7.5 7.5 0 0 0-7.5-7.5h-1.5Z" />
+  </svg>
+);
 
 
 // --- Helper Functions & Types ---
@@ -65,8 +89,44 @@ const base64ToFile = (base64: string, filename: string, mimeType: string): File 
     return new File([byteArray], filename, { type: mimeType });
 };
   
+const navItems = [
+    { id: 'caseInfo', icon: HomeIcon, label: 'Thông tin vụ việc' },
+    { id: 'dashboard', icon: DashboardIcon, label: 'Bảng điều khiển' },
+    { id: 'fileManagement', icon: FileManagementIcon, label: 'Quản lý tài liệu' },
+    { id: 'calendar', icon: CalendarIcon, label: 'Lịch họp & Deadline' },
+    { id: 'caseAnalysis', icon: AnalysisIcon, label: 'Phân tích Vụ việc' },
+    { id: 'client', icon: ClientIcon, label: 'Khách hàng' }
+] as const;
 
-// --- UI Components (Defined within App.tsx for simplicity) ---
+
+// --- UI Components ---
+const Sidebar: React.FC<{ activeView: View; onNavigate: (view: View) => void }> = ({ activeView, onNavigate }) => {
+    return (
+        <aside className="w-64 bg-[var(--sidebar-bg)] text-[var(--sidebar-text)] p-4 flex flex-col rounded-l-xl h-full">
+            <nav className="flex-grow">
+                <ul>
+                    {navItems.map(item => {
+                        const Icon = item.icon;
+                        const isActive = activeView === item.id;
+                        const classes = `flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                            isActive 
+                                ? 'bg-[var(--sidebar-active-bg)] text-[var(--sidebar-active-text)] font-semibold'
+                                : 'hover:bg-[var(--sidebar-active-bg)] hover:text-[var(--sidebar-text-hover)]'
+                        }`;
+                        return (
+                            <li key={item.label} className="mb-2">
+                                <a href="#" className={classes} onClick={e => { e.preventDefault(); onNavigate(item.id); }}>
+                                    <Icon className="w-5 h-5" />
+                                    <span>{item.label}</span>
+                                </a>
+                            </li>
+                        );
+                    })}
+                </ul>
+            </nav>
+        </aside>
+    );
+}
 
 const Alert: React.FC<{ message: string; type: 'error' | 'warning' | 'info' }> = ({ message, type }) => {
   const baseClasses = "p-4 text-sm rounded-lg animate-fade-in";
@@ -75,7 +135,6 @@ const Alert: React.FC<{ message: string; type: 'error' | 'warning' | 'info' }> =
     warning: "bg-amber-50 text-amber-800",
     info: "bg-blue-50 text-blue-800",
   };
-  // Split message to bold the first part if it contains a colon
   const messageParts = message.split(/:(.*)/s);
   const hasTitle = messageParts.length > 1;
 
@@ -93,6 +152,13 @@ const Alert: React.FC<{ message: string; type: 'error' | 'warning' | 'info' }> =
   );
 };
 
+const PlaceholderView: React.FC<{ viewName: string }> = ({ viewName }) => (
+    <div className="flex flex-col items-center justify-center h-full text-center text-slate-500 bg-slate-50 rounded-lg border">
+        <h2 className="text-2xl font-bold text-slate-700">Chức năng: {viewName}</h2>
+        <p className="mt-2">Chức năng này đang được phát triển và sẽ sớm được cập nhật.</p>
+    </div>
+);
+
 
 const App: React.FC = () => {
   // --- Core State ---
@@ -104,7 +170,6 @@ const App: React.FC = () => {
   const [originalReport, setOriginalReport] = useState<AnalysisReport | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [isInputCollapsed, setIsInputCollapsed] = useState(false);
   
   // --- Case Management State ---
   const [savedCases, setSavedCases] = useState<SavedCase[]>([]);
@@ -129,12 +194,14 @@ const App: React.FC = () => {
   const [suggestedDocRequest, setSuggestedDocRequest] = useState('');
 
   // --- UI State ---
+  const [activeView, setActiveView] = useState<View>('caseAnalysis');
   const [previewingFile, setPreviewingFile] = useState<UploadedFile | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isCustomizeModalOpen, setIsCustomizeModalOpen] = useState(false);
   const [libsReady, setLibsReady] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isPreprocessingFinished, setIsPreprocessingFinished] = useState(false);
+  const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
 
   const resetAnalysisState = useCallback(() => {
     setFiles([]);
@@ -149,6 +216,7 @@ const App: React.FC = () => {
     setGeneratedDocument(null);
     setCaseDocRequest('');
     setSuggestedDocRequest('');
+    setActiveView('caseAnalysis');
     const defaultLitigationType: LitigationType = 'civil';
     const defaultStage = litigationStagesByType[defaultLitigationType]?.[0]?.value || 'consulting';
     setCurrentLitigationType(defaultLitigationType);
@@ -194,7 +262,7 @@ const App: React.FC = () => {
     const stageLabel = getStageLabel(currentLitigationType, currentLitigationStage);
 
     if (!report) {
-        setMainAction({ text: 'Phân tích Vụ việc', disabled: !isReadyForAnalysis || isLoading || isProcessing, action: 'analyze', loadingText: 'Đang xử lý...' });
+        setMainAction({ text: 'Bắt đầu Phân tích', disabled: !isReadyForAnalysis || isLoading || isProcessing, action: 'analyze', loadingText: 'Đang xử lý...' });
     } else {
         const isUpdatableStage = currentLitigationStage !== 'consulting' && currentLitigationStage !== 'closed';
         if (isUpdatableStage) {
@@ -214,6 +282,7 @@ const App: React.FC = () => {
       setIsLoading(true);
       try {
           const analysisResult = await analyzeCaseFiles(filesToAnalyze, query, caseContent, clientRequest);
+          analysisResult.userAddedLaws = analysisResult.userAddedLaws || []; // Initialize user added laws
           setReport(analysisResult);
           setOriginalReport(analysisResult);
           
@@ -292,6 +361,7 @@ const App: React.FC = () => {
         report: originalReport,
         stage: getStageLabel(currentLitigationType, currentLitigationStage)
       });
+      updatedReport.userAddedLaws = originalReport.userAddedLaws || []; // Preserve user-added laws on update
       setReport(updatedReport); setOriginalReport(updatedReport);
       alert(`Đã cập nhật thành công cho giai đoạn: ${getStageLabel(currentLitigationType, currentLitigationStage)}`);
     } catch (err) {
@@ -306,6 +376,15 @@ const App: React.FC = () => {
     else if (mainAction.action === 'update') handleUpdateAnalysis();
   };
   
+  const handleUpdateUserLaws = (updatedLaws: ApplicableLaw[]) => {
+    const updateLaws = (prevReport: AnalysisReport | null) => {
+        if (!prevReport) return null;
+        return { ...prevReport, userAddedLaws: updatedLaws };
+    };
+    setReport(updateLaws);
+    setOriginalReport(updateLaws);
+  };
+
   // --- Case Management Logic ---
   const startNewWorkflow = (type: 'consulting' | 'litigation') => {
         resetAnalysisState();
@@ -315,7 +394,6 @@ const App: React.FC = () => {
           files: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
           litigationType: 'civil', litigationStage: 'consulting', analysisReport: null,
         });
-        setIsInputCollapsed(false);
         setIsWorkflowSelectorOpen(false);
   };
 
@@ -353,14 +431,19 @@ const App: React.FC = () => {
     setCaseContent(caseToLoad.caseContent);
     setClientRequest(caseToLoad.clientRequest);
     setQuery(caseToLoad.query);
-    setReport(caseToLoad.analysisReport);
-    setOriginalReport(caseToLoad.analysisReport);
+    
+    const reportToLoad = caseToLoad.analysisReport;
+    if (reportToLoad) {
+        reportToLoad.userAddedLaws = reportToLoad.userAddedLaws || []; // Ensure userAddedLaws exists
+    }
+    setReport(reportToLoad);
+    setOriginalReport(reportToLoad);
+
     setCurrentLitigationType(caseToLoad.litigationType || 'civil');
     setCurrentLitigationStage(caseToLoad.litigationStage || 'consulting');
     const loadedFiles: UploadedFile[] = caseToLoad.files.map(sf => ({ id: `${sf.name}-${Math.random()}`, file: base64ToFile(sf.content, sf.name, sf.type), preview: null, category: 'Uncategorized', status: 'pending' }));
     setFiles(loadedFiles);
     setIsCaseListOpen(false);
-    setIsInputCollapsed(false);
     alert(`Đã tải vụ việc "${caseToLoad.name}".`);
   };
 
@@ -412,7 +495,20 @@ const App: React.FC = () => {
             case 'legalRelationship': if (reportData.legalRelationship) docSections.push(createHeading(section.title), createParagraph(reportData.legalRelationship)); break;
             case 'coreLegalIssues': if (reportData.coreLegalIssues?.length) docSections.push(createHeading(section.title), ...reportData.coreLegalIssues.map(issue => createListItem(issue))); break;
             case 'applicableLaws': if (reportData.applicableLaws?.length) { docSections.push(createHeading(section.title)); reportData.applicableLaws.forEach(law => { docSections.push(createSubHeading(law.documentName)); law.articles.forEach(article => { docSections.push(createListItem(`${article.articleNumber}: ${article.summary}`)); }); }); } break;
-            case 'gapAnalysis': if (reportData.gapAnalysis) docSections.push( createHeading(section.title), createSubHeading("Thông tin / Chứng cứ còn thiếu:"), ...reportData.gapAnalysis.missingInformation.map(item => createListItem(item)), createSubHeading("Hành động đề xuất:"), ...reportData.gapAnalysis.recommendedActions.map(item => createListItem(item)) ); break;
+            case 'gapAnalysis':
+                if (reportData.gapAnalysis) {
+                    docSections.push(
+                        createHeading(section.title),
+                        createSubHeading("Thông tin / Chứng cứ còn thiếu:"),
+                        ...reportData.gapAnalysis.missingInformation.map(item => createListItem(item)),
+                        createSubHeading("Hành động đề xuất:"),
+                        ...reportData.gapAnalysis.recommendedActions.map(item => createListItem(item)),
+                        createSubHeading("Lỗ hổng pháp lý tiềm ẩn:"),
+                        // FIX: Convert LegalLoophole object to a descriptive string.
+                        ...(reportData.gapAnalysis.legalLoopholes || []).map((item: LegalLoophole) => createListItem(`[${item.classification} - Mức độ: ${item.severity}] ${item.description}`))
+                    );
+                }
+                break;
             case 'caseProspects': if (reportData.caseProspects) docSections.push( createHeading(section.title), createSubHeading("Điểm mạnh:"), ...reportData.caseProspects.strengths.map(item => createListItem(item)), createSubHeading("Điểm yếu:"), ...reportData.caseProspects.weaknesses.map(item => createListItem(item)), createSubHeading("Rủi ro:"), ...reportData.caseProspects.risks.map(item => createListItem(item)) ); break;
             case 'proposedStrategy': if (reportData.proposedStrategy) docSections.push( createHeading(section.title), createSubHeading("Giai đoạn Tiền tố tụng:"), ...reportData.proposedStrategy.preLitigation.map(item => createListItem(item)), createSubHeading("Giai đoạn Tố tụng:"), ...reportData.proposedStrategy.litigation.map(item => createListItem(item)) ); break;
         }
@@ -427,7 +523,21 @@ const App: React.FC = () => {
     if (reportData.customNotes) appendSheet("Ghi chú", [["Ghi chú Tùy chỉnh"], [reportData.customNotes]]);
     if (reportData.legalRelationship) appendSheet("Tổng quan", [["Quan hệ pháp luật", reportData.legalRelationship],["Vấn đề pháp lý cốt lõi", (reportData.coreLegalIssues || []).join('\n')]]);
     if (reportData.applicableLaws?.length) { const d = [["Văn bản", "Điều luật", "Nội dung"]]; reportData.applicableLaws.forEach(l => l.articles.forEach(a => d.push([l.documentName, a.articleNumber, a.summary]))); appendSheet("Cơ sở pháp lý", d); }
-    if (reportData.gapAnalysis) { const d = [["Lỗ hổng thông tin", "Hành động đề xuất"]]; const max = Math.max(reportData.gapAnalysis.missingInformation.length, reportData.gapAnalysis.recommendedActions.length); for (let i = 0; i < max; i++) d.push([reportData.gapAnalysis.missingInformation[i] || '', reportData.gapAnalysis.recommendedActions[i] || '']); appendSheet("Phân tích Lỗ hổng", d); }
+    // FIX: Convert LegalLoophole object to a descriptive string for the XLSX cell.
+    if (reportData.gapAnalysis) {
+        const d = [["Lỗ hổng thông tin", "Hành động đề xuất", "Lỗ hổng pháp lý"]];
+        const max = Math.max(reportData.gapAnalysis.missingInformation.length, reportData.gapAnalysis.recommendedActions.length, (reportData.gapAnalysis.legalLoopholes || []).length);
+        for (let i = 0; i < max; i++) {
+            const loophole = (reportData.gapAnalysis.legalLoopholes || [])[i];
+            const loopholeText = loophole ? `[${loophole.classification} - Mức độ: ${loophole.severity}] ${loophole.description}` : '';
+            d.push([
+                reportData.gapAnalysis.missingInformation[i] || '',
+                reportData.gapAnalysis.recommendedActions[i] || '',
+                loopholeText
+            ]);
+        }
+        appendSheet("Phân tích Lỗ hổng", d);
+    }
     if (reportData.caseProspects) { const d = [["Điểm mạnh", "Điểm yếu", "Rủi ro"]]; const max = Math.max(reportData.caseProspects.strengths.length, reportData.caseProspects.weaknesses.length, reportData.caseProspects.risks.length); for (let i = 0; i < max; i++) d.push([reportData.caseProspects.strengths[i] || '', reportData.caseProspects.weaknesses[i] || '', reportData.caseProspects.risks[i] || '']); appendSheet("Triển vọng Vụ việc", d); }
     if (reportData.proposedStrategy) { const d = [["Chiến lược Tiền tố tụng", "Chiến lược Tố tụng"]]; const max = Math.max(reportData.proposedStrategy.preLitigation.length, reportData.proposedStrategy.litigation.length); for (let i = 0; i < max; i++) d.push([reportData.proposedStrategy.preLitigation[i] || '', reportData.proposedStrategy.litigation[i] || '']); appendSheet("Chiến lược Đề xuất", d); }
     XLSX.writeFile(wb, fileName);
@@ -487,162 +597,151 @@ const App: React.FC = () => {
   };
 
   const renderLitigationWorkflow = () => {
-    const gridLayout = report ? isInputCollapsed ? 'lg:grid-cols-12' : 'lg:grid-cols-4' : 'lg:grid-cols-2';
-    const inputColSpan = report ? isInputCollapsed ? 'lg:col-span-1' : 'lg:col-span-1' : 'lg:col-span-1';
-    const outputColSpan = report ? isInputCollapsed ? 'lg:col-span-11' : 'lg:col-span-3' : 'lg:col-span-1';
-    const currentStageOptions = litigationStagesByType[currentLitigationType] || [];
     const currentStageSuggestions = litigationStageSuggestions[currentLitigationStage];
     const showStageSuggestions = report && currentStageSuggestions && (currentStageSuggestions.actions.length > 0 || currentStageSuggestions.documents.length > 0);
 
-    const handleTypeChange = (newType: LitigationType) => {
-        setCurrentLitigationType(newType);
-        setCurrentLitigationStage(litigationStagesByType[newType]?.[0]?.value || 'consulting');
-    }
-
     const RefineButton: React.FC<{field: RefineField, mode: RefineMode, text: string}> = ({ field, mode, text }) => {
         const isLoading = refiningField?.field === field && refiningField?.mode === mode;
-        return (<button onClick={() => handleRefineText(field, mode)} disabled={!!refiningField} className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-slate-100 text-blue-700 font-semibold rounded-full hover:bg-blue-100 hover:text-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all" title={text}>
-            {isLoading ? <Loader /> : <MagicIcon className="w-4 h-4" />}
-            <span>{text}</span>
+        return (<button onClick={() => handleRefineText(field, mode)} disabled={!!refiningField} className="text-xs px-2 py-1 bg-slate-100 text-blue-700 font-semibold rounded-md hover:bg-blue-100 hover:text-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all" title={text}>
+            {isLoading ? <Loader /> : <span>{text}</span>}
         </button>);
     };
 
     return (
-      <div className="animate-fade-in">
-        <div className="mb-6">
-            <button onClick={() => { if (window.confirm("Bạn có chắc chắn muốn quay lại? Mọi dữ liệu chưa lưu sẽ bị mất.")) { handleGoBackToSelection(); } }} className="flex items-center gap-2 text-sm text-slate-600 hover:text-blue-600 font-semibold transition-colors">
-                <BackIcon className="w-5 h-5" /> Quay lại Chọn Nghiệp vụ
-            </button>
+      <div className="flex w-full bg-white rounded-xl soft-shadow animate-fade-in h-[calc(100vh-6.5rem)]">
+        <div className={`flex-shrink-0 transition-all duration-300 ease-in-out ${isPanelCollapsed ? 'w-0' : 'w-64'}`}>
+            <div className={`w-64 h-full transition-opacity duration-200 ${isPanelCollapsed ? 'opacity-0' : 'opacity-100'}`}>
+                <Sidebar activeView={activeView} onNavigate={setActiveView} />
+            </div>
         </div>
-        <div className={`grid grid-cols-1 ${gridLayout} gap-6 transition-all duration-500`}>
-          <div className={`${inputColSpan} ${isInputCollapsed ? 'input-panel-collapsed' : 'input-panel-expanded'} border border-slate-200 rounded-xl bg-white soft-shadow`}>
-            <div className="flex justify-between items-center p-3 bg-slate-50 border-b border-slate-200 rounded-t-xl">
-              <h3 className="text-sm font-bold text-slate-700 truncate" title={activeCase?.name || 'Nhập liệu Vụ việc'}>{activeCase?.name ? `Vụ việc: ${activeCase.name}` : 'Nhập liệu Vụ việc'}</h3>
-              <button onClick={() => setIsInputCollapsed(!isInputCollapsed)} className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-slate-200 rounded-full ml-auto" title={isInputCollapsed ? "Mở rộng" : "Thu gọn"}>
-                  {isInputCollapsed ? <PanelExpandIcon className="w-5 h-5" /> : <PanelCollapseIcon className="w-5 h-5" />}
-              </button>
-            </div>
-            <div className="space-y-5 p-4">
-              {activeCase && (
-                  <div className="space-y-3 pb-5 border-b border-slate-200">
-                      <div>
-                          <label className="text-xs font-medium text-slate-600 mb-1.5 block">Loại vụ việc:</label>
-                          <div className="flex gap-2">
-                              {(Object.keys(litigationStagesByType) as LitigationType[]).map(type => (
-                                  <button key={type} onClick={() => handleTypeChange(type)} className={`flex-1 text-xs py-1.5 px-2 rounded-md border transition-colors ${currentLitigationType === type ? 'bg-blue-600 text-white font-semibold border-blue-600' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'}`}>
-                                      {type === 'civil' ? 'Dân sự' : type === 'criminal' ? 'Hình sự' : 'Hành chính'}
-                                  </button>
-                              ))}
-                          </div>
-                      </div>
-                       <div>
-                          <label htmlFor="stage-select" className="text-xs font-medium text-slate-600 mb-1.5 block">Giai đoạn:</label>
-                          <select id="stage-select" value={currentLitigationStage} onChange={(e) => setCurrentLitigationStage(e.target.value as LitigationStage)} className="w-full text-xs p-2 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
-                              {currentStageOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                          </select>
-                      </div>
-                  </div>
-              )}
-              
-              <div>
-                <label className="block text-base font-semibold text-slate-800 mb-2">Tải lên Hồ sơ</label>
-                <FileUpload files={files} setFiles={setFiles} onPreview={setPreviewingFile} />
-              </div>
-
-              <div className="space-y-2 p-4 rounded-lg bg-slate-50 border border-slate-200">
-                <div className="flex justify-between items-center">
-                  <label htmlFor="caseContent" className="block text-base font-semibold text-slate-800">Tóm tắt Nội dung</label>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <RefineButton field="caseContent" mode="concise" text="Làm gọn" />
-                    <RefineButton field="caseContent" mode="detailed" text="Chi tiết hóa" />
-                  </div>
-                </div>
-                <textarea id="caseContent" value={caseContent} onChange={(e) => setCaseContent(e.target.value)} placeholder="Tóm tắt diễn biến, sự việc, các mốc thời gian quan trọng..." className="input-base w-full min-h-[120px] bg-white" rows={5}/>
-                {refineError?.field === 'caseContent' && <p className="text-red-500 text-sm mt-1">{refineError.message}</p>}
-              </div>
-
-              <div className="space-y-2 p-4 rounded-lg bg-slate-50 border border-slate-200">
-                <div className="flex justify-between items-center">
-                    <label htmlFor="clientRequest" className="block text-base font-semibold text-slate-800">Yêu cầu Khách hàng</label>
-                     <div className="flex items-center gap-2 flex-shrink-0">
-                        <RefineButton field="clientRequest" mode="concise" text="Làm gọn" />
-                        <RefineButton field="clientRequest" mode="detailed" text="Chi tiết hóa" />
+        <main className="flex-1 p-6 overflow-y-auto" style={{maxHeight: 'calc(100vh - 6.5rem)'}}>
+            {activeView === 'caseAnalysis' ? (
+                <>
+                    <div className="flex justify-between items-center mb-6">
+                        <button onClick={() => { if (window.confirm("Bạn có chắc chắn muốn quay lại? Mọi dữ liệu chưa lưu sẽ bị mất.")) { handleGoBackToSelection(); } }} className="flex items-center gap-2 text-sm text-slate-500 hover:text-blue-600 font-semibold transition-colors">
+                            <BackIcon className="w-4 h-4" /> Quay lại Chọn Nghiệp vụ
+                        </button>
                     </div>
-                </div>
-                <textarea id="clientRequest" value={clientRequest} onChange={(e) => setClientRequest(e.target.value)} placeholder="Khách hàng mong muốn đạt được điều gì? Ví dụ: Đòi lại tiền cọc..." className="input-base w-full min-h-[90px] bg-white" rows={3} />
-                {refineError?.field === 'clientRequest' && <p className="text-red-500 text-sm mt-1">{refineError.message}</p>}
-              </div>
-
-              <div className="!mt-6 bg-blue-50 p-4 rounded-xl border-2 border-dashed border-blue-200 shadow-inner">
-                <label htmlFor="mainQuery" className="block text-base font-bold text-blue-900 mb-2">Yêu cầu Chính cho AI</label>
-                <p className="text-xs text-blue-800/80 mb-3">Đây là yêu cầu quan trọng nhất, quyết định hướng phân tích của AI.</p>
-                <input id="mainQuery" type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Ví dụ: Phân tích và đề xuất chiến lược khởi kiện" className="input-base w-full !p-3.5 !text-base !font-semibold !bg-white focus:!ring-blue-500" />
-              </div>
-              
-              <div className="space-y-3 pt-5 border-t border-slate-200">
-                  <div title={mainAction.disabled ? "Vui lòng tải lên hồ sơ hoặc tóm tắt nội dung, và nhập Yêu cầu Chính." : mainAction.text}>
-                    <button onClick={handleMainActionClick} disabled={mainAction.disabled} className="btn btn-primary !text-xl !font-extrabold !py-4 w-full group !from-blue-500 !to-indigo-600 hover:!from-blue-600 hover:!to-indigo-700 !shadow-lg !shadow-blue-500/40 hover:!shadow-xl hover:!shadow-blue-500/50 !gap-3">
-                      {isLoading ? <><Loader /><span>{mainAction.loadingText}</span></> : <><MagicIcon className="w-7 h-7 transition-transform group-hover:scale-110"/> <span>{mainAction.text}</span></>}
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                      <button onClick={handleSaveCase} disabled={isSaving} className="w-full flex items-center justify-center gap-2 py-2.5 px-2 bg-slate-600 text-white text-sm font-semibold rounded-lg hover:bg-slate-700 disabled:bg-slate-300 transition-colors">{isSaving ? <Loader /> : <SaveCaseIcon className="w-4 h-4" />}Lưu Vụ việc</button>
-                      <button onClick={() => setIsCaseListOpen(true)} className="w-full flex items-center justify-center gap-2 py-2.5 px-2 bg-slate-100 text-slate-800 text-sm font-semibold rounded-lg hover:bg-slate-200 transition-colors"><FolderIcon className="w-4 h-4" />Mở danh sách</button>
-                  </div>
-              </div>
-              {error && <div className="mt-2"><Alert message={error} type="error" /></div>}
-            </div>
-          </div>
-
-          <div className={`flex flex-col ${outputColSpan}`}>
-            <div className="flex justify-between items-center mb-3">
-                <h3 className="text-lg font-bold text-slate-800">Kết quả Phân tích</h3>
-                {report && !isLoading && (<div className="flex items-center gap-2">
-                    <button onClick={handleGenerateSummary} disabled={isSummarizing} className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 disabled:bg-slate-200">{isSummarizing ? <Loader /> : <MagicIcon className="w-4 h-4" />}Tóm tắt</button>
-                    <button onClick={() => setIsCustomizeModalOpen(true)} disabled={isExporting || !libsReady} className="flex items-center gap-2 px-3 py-1.5 text-sm bg-slate-700 text-white rounded-lg hover:bg-slate-800 disabled:bg-slate-400">{!libsReady ? <Loader /> : <ExportIcon className="w-4 h-4" />}{!libsReady ? "Tải..." : "Xuất"}</button>
-                </div>)}
-            </div>
-            {summaryError && <Alert message={summaryError} type="error" />}
-            <div className="flex-grow rounded-xl bg-white border border-slate-200 p-6 overflow-y-auto min-h-[85vh] soft-shadow">
-              {isLoading && (<div className="flex flex-col items-center justify-center h-full text-slate-500"><Loader /><p className="mt-4 text-base">{mainAction.loadingText}</p></div>)}
-              {!isLoading && !report && !generatedDocument && (<div className="flex flex-col items-center justify-center h-full text-center text-slate-400"><AnalysisIcon className="w-20 h-20 mb-4 text-slate-300" /><p className="text-lg font-medium text-slate-600">Báo cáo phân tích sẽ xuất hiện ở đây.</p></div>)}
-              {report && (<div className="animate-fade-in">
-                  <ReportDisplay 
-                    report={report} 
-                    files={files} 
-                    onPreview={setPreviewingFile} 
-                    onClearSummary={handleClearSummary}
-                    litigationType={currentLitigationType}
-                  />
-                  {showStageSuggestions && (
-                    <div className="mt-8 pt-6 border-t-2 border-slate-100">
-                      <h3 className="text-xl font-bold text-slate-800 mb-4">Gợi ý cho GĐ: {getStageLabel(currentLitigationType, currentLitigationStage)}</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-4 rounded-lg border">
-                        <div>
-                          <h4 className="font-semibold mb-2">Hành động đề xuất:</h4>
-                          <ul className="list-disc list-inside space-y-1.5 text-sm">{currentStageSuggestions.actions.map((a, i) => <li key={i}>{a}</li>)}</ul>
+                    <div className="grid grid-cols-12 gap-6">
+                        <div className={`space-y-4 transition-all duration-300 ease-in-out ${isPanelCollapsed ? 'hidden' : 'col-span-5'}`}>
+                            <div className="p-4 border border-slate-200 rounded-lg">
+                                <FileUpload files={files} setFiles={setFiles} onPreview={setPreviewingFile} />
+                            </div>
+                            <div className="p-4 border border-slate-200 rounded-lg space-y-2">
+                                <div className="flex justify-between items-center">
+                                    <label htmlFor="caseContent" className="block text-sm font-semibold text-slate-800">Tóm tắt diễn biến, sự việc, các mốc thời gian quan trọng...</label>
+                                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                                        <RefineButton field="caseContent" mode="concise" text="Làm gọn" />
+                                        <RefineButton field="caseContent" mode="detailed" text="Chi tiết hóa" />
+                                    </div>
+                                </div>
+                                <textarea id="caseContent" value={caseContent} onChange={(e) => setCaseContent(e.target.value)} className="w-full min-h-[100px] bg-white p-2 border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500" rows={4}/>
+                                {refineError?.field === 'caseContent' && <p className="text-red-500 text-xs mt-1">{refineError.message}</p>}
+                            </div>
+                            <div className="p-4 border border-slate-200 rounded-lg space-y-2">
+                                <div className="flex justify-between items-center">
+                                    <label htmlFor="clientRequest" className="block text-sm font-semibold text-slate-800">Tóm tắt Thách hàng</label>
+                                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                                        <RefineButton field="clientRequest" mode="concise" text="Làm gọn" />
+                                        <RefineButton field="clientRequest" mode="detailed" text="Chi tiết hóa" />
+                                    </div>
+                                </div>
+                                <textarea id="clientRequest" value={clientRequest} onChange={(e) => setClientRequest(e.target.value)} placeholder="khách hàng mong muốn đạt được điều gì? ví dụ: đòi lại tiền cọc..." className="w-full min-h-[80px] bg-white p-2 border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500" rows={3} />
+                                {refineError?.field === 'clientRequest' && <p className="text-red-500 text-xs mt-1">{refineError.message}</p>}
+                            </div>
+                            <div className="p-4 rounded-lg bg-blue-50 border border-blue-200">
+                                <label htmlFor="mainQuery" className="block text-sm font-bold text-blue-900 mb-1">Yêu cầu chính cho AI</label>
+                                <p className="text-xs text-blue-800/80 mb-2">Đây là yêu cầu quan trọng nhất, quyết định hướng phân tích của AI.</p>
+                                <textarea id="mainQuery" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Ví dụ: Phân tích và đề xuất chiến lược khởi kiện" className="w-full bg-white p-2 border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500" rows={2} />
+                            </div>
+                            <div className="flex items-center gap-3 pt-2">
+                                 <button onClick={handleMainActionClick} disabled={mainAction.disabled} className="py-2.5 px-4 font-semibold text-sm rounded-lg transition-all duration-200 flex items-center justify-center gap-2 flex-1 bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 disabled:bg-slate-300">
+                                    {isLoading ? <><Loader /><span>{mainAction.loadingText}</span></> : <span>{mainAction.text}</span>}
+                                </button>
+                                 <button onClick={() => {}} disabled={isSaving} className="py-2.5 px-4 font-semibold text-sm rounded-lg transition-all duration-200 flex items-center justify-center gap-2 flex-1 bg-slate-100 text-slate-800 hover:bg-slate-200 focus:ring-slate-400 border border-slate-300">
+                                    {isSaving ? <Loader /> : <span>Lưu nháp</span>}
+                                </button>
+                            </div>
+                            {error && <div className="mt-2"><Alert message={error} type="error" /></div>}
                         </div>
-                        <div>
-                          <h4 className="font-semibold mb-2">Văn bản cần soạn thảo:</h4>
-                          <div className="flex flex-col items-start gap-2">{currentStageSuggestions.documents.map((d, i) => (<button key={i} onClick={() => handleDocSuggestionClick(d)} className="text-left w-full p-2 bg-blue-100 text-blue-800 font-medium rounded-md hover:bg-blue-200 text-sm flex items-center gap-2"><PlusIcon className="w-4 h-4 shrink-0" />{d}</button>))}</div>
+                         <div className={`relative border border-slate-200 rounded-lg p-6 flex flex-col transition-all duration-300 ease-in-out ${isPanelCollapsed ? 'col-span-12' : 'col-span-7'}`}>
+                            <button 
+                                onClick={() => setIsPanelCollapsed(!isPanelCollapsed)}
+                                className="absolute top-1/2 -translate-y-1/2 z-20 bg-white border border-slate-300 rounded-full p-1.5 hover:bg-slate-100 shadow-md transition-all -left-4"
+                                title={isPanelCollapsed ? 'Mở rộng' : 'Thu gọn'}
+                                aria-label={isPanelCollapsed ? 'Mở rộng bảng điều khiển' : 'Thu gọn bảng điều khiển'}
+                            >
+                                {isPanelCollapsed ? <PanelExpandIcon className="w-5 h-5 text-slate-600" /> : <PanelCollapseIcon className="w-5 h-5 text-slate-600" />}
+                            </button>
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-lg font-bold text-slate-800">Kết quả Phân tích</h3>
+                                {report && !isLoading && (<div className="flex items-center gap-2">
+                                    <button onClick={handleGenerateSummary} disabled={isSummarizing} className="flex items-center gap-2 px-3 py-1.5 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 disabled:bg-slate-200">{isSummarizing ? <Loader /> : <MagicIcon className="w-4 h-4" />}Tóm tắt</button>
+                                    <button onClick={() => setIsCustomizeModalOpen(true)} disabled={isExporting || !libsReady} className="flex items-center gap-2 px-3 py-1.5 text-xs bg-slate-700 text-white rounded-lg hover:bg-slate-800 disabled:bg-slate-400">{!libsReady ? <Loader /> : <ExportIcon className="w-4 h-4" />}{!libsReady ? "Tải..." : "Xuất"}</button>
+                                </div>)}
+                            </div>
+                            {summaryError && <Alert message={summaryError} type="error" />}
+                            <div className="flex-grow rounded-lg bg-slate-50/50 p-1 min-h-[60vh]">
+                                {isLoading && (
+                                    <div className="loading-bar-container">
+                                        <div className="loading-bars">
+                                            <div className="loading-bar"></div>
+                                            <div className="loading-bar"></div>
+                                            <div className="loading-bar"></div>
+                                        </div>
+                                        <p className="mt-4 text-sm text-slate-500">{mainAction.loadingText}</p>
+                                    </div>
+                                )}
+                                {!isLoading && !report && !generatedDocument && (
+                                    <div className="flex flex-col items-center justify-center h-full text-center text-slate-400">
+                                        <p className="text-sm font-medium text-slate-500">Chờ cao phân tích và soạn thảo ở đây...</p>
+                                    </div>
+                                )}
+                                {report && (
+                                    <div className="animate-fade-in h-full overflow-y-auto p-4">
+                                        <ReportDisplay 
+                                            report={report} 
+                                            files={files} 
+                                            onPreview={setPreviewingFile} 
+                                            onClearSummary={handleClearSummary}
+                                            litigationType={currentLitigationType}
+                                            onUpdateUserLaws={handleUpdateUserLaws}
+                                        />
+                                        {showStageSuggestions && (
+                                            <div className="mt-8 pt-6 border-t-2 border-slate-100">
+                                            <h3 className="text-xl font-bold text-slate-800 mb-4">Gợi ý cho GĐ: {getStageLabel(currentLitigationType, currentLitigationStage)}</h3>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-4 rounded-lg border">
+                                                <div>
+                                                <h4 className="font-semibold mb-2">Hành động đề xuất:</h4>
+                                                <ul className="list-disc list-inside space-y-1.5 text-sm">{currentStageSuggestions.actions.map((a, i) => <li key={i}>{a}</li>)}</ul>
+                                                </div>
+                                                <div>
+                                                <h4 className="font-semibold mb-2">Văn bản cần soạn thảo:</h4>
+                                                <div className="flex flex-col items-start gap-2">{currentStageSuggestions.documents.map((d, i) => (<button key={i} onClick={() => handleDocSuggestionClick(d)} className="text-left w-full p-2 bg-blue-100 text-blue-800 font-medium rounded-md hover:bg-blue-200 text-sm flex items-center gap-2"><PlusIcon className="w-4 h-4 shrink-0" />{d}</button>))}</div>
+                                                </div>
+                                            </div>
+                                            </div>
+                                        )}
+                                        <div id="generation-section" className="mt-8 pt-6 border-t-2 border-slate-100">
+                                            <h3 className="text-xl font-bold text-slate-800 mb-4">Soạn thảo Văn bản theo Bối cảnh</h3>
+                                            {suggestedDocRequest && (<div className="mb-4"><button onClick={() => handleGenerateCaseDocument(true)} disabled={isGeneratingDocument} className="w-full text-left p-3 bg-blue-50 border-2 border-dashed border-blue-200 text-blue-800 font-semibold rounded-lg hover:bg-blue-100 flex items-center justify-between"><span className="flex items-center gap-2"><MagicIcon className="w-5 h-5"/><span>{`Gợi ý: "${suggestedDocRequest}"`}</span></span>{isGeneratingDocument && caseDocRequest === '' && <Loader />}</button></div>)}
+                                            <div className="flex gap-2">
+                                            <input type="text" value={caseDocRequest} onChange={(e) => setCaseDocRequest(e.target.value)} placeholder="Ví dụ: Soạn Đơn khởi kiện" className="w-full p-2 bg-white border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex-grow" />
+                                            <button onClick={() => handleGenerateCaseDocument(false)} disabled={isGeneratingDocument || !caseDocRequest} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-slate-300 text-sm">{isGeneratingDocument && caseDocRequest !== '' ? 'Soạn...' : "Soạn thảo"}</button>
+                                            </div>
+                                            {generationError && <div className="mt-2"><Alert message={generationError} type="error" /></div>}
+                                        </div>
+                                    </div>
+                                )}
+                                {generatedDocument && (<div className="mt-4 animate-fade-in p-4"><h4 className="text-lg font-semibold mb-2">Văn bản đã soạn:</h4><pre className="whitespace-pre-wrap font-sans bg-slate-50 p-4 rounded-lg border">{generatedDocument}</pre></div>)}
+                            </div>
                         </div>
-                      </div>
                     </div>
-                  )}
-                  <div id="generation-section" className="mt-8 pt-6 border-t-2 border-slate-100">
-                    <h3 className="text-xl font-bold text-slate-800 mb-4">Soạn thảo Văn bản theo Bối cảnh</h3>
-                    {suggestedDocRequest && (<div className="mb-4"><button onClick={() => handleGenerateCaseDocument(true)} disabled={isGeneratingDocument} className="w-full text-left p-3 bg-blue-50 border-2 border-dashed border-blue-200 text-blue-800 font-semibold rounded-lg hover:bg-blue-100 flex items-center justify-between"><span className="flex items-center gap-2"><MagicIcon className="w-5 h-5"/><span>{`Gợi ý: "${suggestedDocRequest}"`}</span></span>{isGeneratingDocument && caseDocRequest === '' && <Loader />}</button></div>)}
-                    <div className="flex gap-2">
-                      <input type="text" value={caseDocRequest} onChange={(e) => setCaseDocRequest(e.target.value)} placeholder="Ví dụ: Soạn Đơn khởi kiện" className="input-base flex-grow" />
-                      <button onClick={() => handleGenerateCaseDocument(false)} disabled={isGeneratingDocument || !caseDocRequest} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-slate-300">{isGeneratingDocument && caseDocRequest !== '' ? 'Soạn...' : "Soạn thảo"}</button>
-                    </div>
-                    {generationError && <div className="mt-2"><Alert message={generationError} type="error" /></div>}
-                  </div>
-              </div>)}
-              {generatedDocument && (<div className="mt-4 animate-fade-in"><h4 className="text-lg font-semibold mb-2">Văn bản đã soạn:</h4><pre className="whitespace-pre-wrap font-sans bg-slate-50 p-4 rounded-lg border">{generatedDocument}</pre></div>)}
-            </div>
-          </div>
-        </div>
+                </>
+            ) : (
+                <PlaceholderView viewName={navItems.find(item => item.id === activeView)?.label || ''} />
+            )}
+        </main>
       </div>
     );
   };
@@ -661,11 +760,14 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen text-slate-800">
       <div className="container mx-auto px-4 py-8">
-        <header className="text-center mb-8 pb-4 border-b border-slate-200">
-          <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight">Trợ lý của LS Hồng Vân</h1>
-          <p className="mt-3 text-slate-600 max-w-2xl mx-auto">Phân tích hồ sơ, xây dựng chiến lược, soạn thảo văn bản và quản lý vụ việc.</p>
+        <header className="mb-8 flex items-center gap-4">
+          <AppLogo className="w-12 h-12" />
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">Trợ lý của LS Hồng Vân</h1>
+            <p className="text-sm text-slate-500">Phân tích hồ sơ, xây dựng chiến lược, soạn thảo văn bản và quản lý vụ việc.</p>
+          </div>
         </header>
-        <main className="mt-0 p-6 sm:p-8 bg-white rounded-xl border border-slate-200 soft-shadow-lg">
+        <main>
             {!activeCase && renderWelcomeScreen()}
             {activeCase?.workflowType === 'litigation' && renderLitigationWorkflow()}
             {activeCase?.workflowType === 'consulting' && <ConsultingWorkflow onPreview={setPreviewingFile} onGoBack={handleGoBackToSelection} activeCase={activeCase} onCasesUpdated={loadData} />}
@@ -703,7 +805,7 @@ const App: React.FC = () => {
                         <h3 className="text-xl font-bold">Danh sách Vụ việc đã lưu</h3>
                         <button onClick={() => setIsCaseListOpen(false)} className="text-slate-400 hover:text-red-600 text-3xl p-1 leading-none">&times;</button>
                     </div>
-                    <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Tìm kiếm..." className="input-base w-full p-2.5 my-4" />
+                    <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Tìm kiếm..." className="w-full p-2.5 my-4 border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
                     <div className="flex-grow overflow-y-auto space-y-3 pr-2 -mr-2">
                        {filteredCases.length > 0 ? filteredCases.map(c => (
                            <div key={c.id} className="p-3 bg-white border rounded-lg flex justify-between items-center gap-4 hover:border-blue-400 hover:bg-slate-50/50">

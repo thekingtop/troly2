@@ -8,7 +8,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
     <!-- Libraries for Exporting & File Processing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -24,7 +24,6 @@
       :root {
         --color-background: #f8fafc; /* slate-50 */
         --color-surface: #ffffff;
-        --color-surface-raised: #f1f5f9; /* slate-100 for light hover */
         --color-border: #e2e8f0;    /* slate-200 */
         --color-primary: #2563eb;   /* blue-600 */
         --color-primary-hover: #1d4ed8; /* blue-700 */
@@ -32,32 +31,30 @@
         --color-text-primary: #0f172a; /* slate-900 */
         --color-text-secondary: #475569; /* slate-600 */
         --color-text-tertiary: #94a3b8; /* slate-400 */
-        --color-success: #16a34a; /* green-600 */
-        --color-success-bg: #f0fdf4; /* green-50 */
-        --color-warning: #f59e0b; /* amber-500 */
-        --color-warning-bg: #fffbeb; /* amber-50 */
-        --color-danger: #dc2626;  /* red-600 */
-        --color-danger-bg: #fef2f2;  /* red-50 */
+        --sidebar-bg: #111827; /* gray-900 */
+        --sidebar-text: #9ca3af; /* gray-400 */
+        --sidebar-text-hover: #ffffff;
+        --sidebar-active-bg: #1f2937; /* gray-800 */
+        --sidebar-active-text: #ffffff;
       }
 
       body {
-        font-family: 'Lexend', sans-serif;
+        font-family: 'Poppins', sans-serif;
         background-color: var(--color-background);
         color: var(--color-text-primary);
       }
       
       /* Custom scrollbar */
       ::-webkit-scrollbar {
-        width: 10px;
-        height: 10px;
+        width: 8px;
+        height: 8px;
       }
       ::-webkit-scrollbar-track {
-        background: var(--color-background);
+        background: transparent;
       }
       ::-webkit-scrollbar-thumb {
         background: #cbd5e1; /* slate-300 */
-        border-radius: 5px;
-        border: 2px solid var(--color-background);
+        border-radius: 4px;
       }
       ::-webkit-scrollbar-thumb:hover {
         background: #94a3b8; /* slate-400 */
@@ -66,79 +63,37 @@
       /* Animations */
       @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
       .animate-fade-in { animation: fadeIn 0.5s ease-in-out; }
-       @keyframes fadeInDown {
-        from { opacity: 0; transform: translateY(-10px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
-      .animate-fade-in-down { animation: fadeInDown 0.3s ease-out; }
       
-      @keyframes progress-animation {
-        0% { background-position: 2rem 0; }
-        100% { background-position: 0 0; }
+      /* New loading animation for results panel */
+      @keyframes bar-wave {
+        0%, 40%, 100% { transform: scaleY(0.4); }
+        20% { transform: scaleY(1.0); }
       }
-      .animate-progress-stripes {
-        background-image: linear-gradient(45deg, rgba(255, 255, 255, .15) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, .15) 50%, rgba(255, 255, 255, .15) 75%, transparent 75%, transparent);
-        background-size: 2rem 2rem;
-        animation: progress-animation 1s linear infinite;
+      .loading-bar-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100%;
+        flex-direction: column;
       }
+      .loading-bars {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+      .loading-bar {
+        background-color: var(--color-primary);
+        height: 40px;
+        width: 6px;
+        margin: 0 4px;
+        border-radius: 2px;
+        animation: bar-wave 1.2s infinite ease-in-out;
+      }
+      .loading-bar:nth-child(2) { animation-delay: 0.1s; }
+      .loading-bar:nth-child(3) { animation-delay: 0.2s; }
       
-      /* Component Styles */
       .soft-shadow {
          box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
-      }
-      .soft-shadow-lg {
-        box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.05), 0 4px 6px -4px rgb(0 0 0 / 0.05);
-      }
-
-      /* Base button and input styles for consistency */
-      .input-base {
-        @apply w-full p-3 bg-slate-50 border border-slate-300 rounded-lg transition-all duration-200;
-        @apply focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 focus:bg-white;
-      }
-      .btn {
-        @apply w-full py-3 px-4 font-bold text-base rounded-lg transition-all duration-200 flex items-center justify-center gap-2;
-        @apply focus:outline-none focus:ring-2 focus:ring-offset-2;
-        transform-origin: center;
-      }
-      .btn-primary {
-        @apply bg-gradient-to-br from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 focus:ring-blue-500;
-        @apply disabled:bg-slate-300 disabled:from-slate-300 disabled:to-slate-300;
-        box-shadow: 0 4px 14px 0 rgb(0 118 255 / 30%);
-      }
-      .btn-primary:hover:not(:disabled) {
-        box-shadow: 0 6px 20px 0 rgb(0 118 255 / 35%);
-        transform: translateY(-1px);
-      }
-      .btn-primary:active:not(:disabled) {
-         transform: translateY(0px) scale(0.98);
-         box-shadow: 0 2px 8px 0 rgb(0 118 255 / 30%);
-      }
-      .btn-secondary {
-        @apply bg-slate-600 text-white hover:bg-slate-700 focus:ring-slate-500;
-      }
-       .btn-light {
-        @apply bg-slate-100 text-slate-800 hover:bg-slate-200 focus:ring-slate-400;
-      }
-
-      /* Drag & Drop Placeholders */
-      .drag-placeholder {
-        background-color: var(--color-primary-light);
-        border: 2px dashed var(--color-primary);
-        transform: scale(1.02);
-      }
-      .dragging {
-        opacity: 0.5;
-        transform: scale(0.98);
-      }
-      
-      .input-panel-collapsed {
-        max-height: 56px; /* Adjust based on header height */
-        overflow: hidden;
-        transition: max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-      }
-       .input-panel-expanded {
-        max-height: 2000px; /* Large enough value */
-        transition: max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
       }
     </style>
   <script type="importmap">
