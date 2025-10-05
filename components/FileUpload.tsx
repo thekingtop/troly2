@@ -1,7 +1,6 @@
 import React, { useCallback, useRef, useState, useEffect } from 'react';
 import type { UploadedFile, FileCategory } from '../types';
 import { fileCategoryLabels } from '../constants';
-import { categorizeFile } from '../services/geminiService';
 import { FileIcon } from './icons/FileIcon';
 import { PdfIcon } from './icons/PdfIcon';
 import { ImageIcon } from './icons/ImageIcon';

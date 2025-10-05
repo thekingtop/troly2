@@ -1,8 +1,8 @@
 
+
 import React from 'react';
 import type { UploadedFile } from '../types';
 import { Loader } from './Loader';
-import { RefreshIcon } from './icons/RefreshIcon';
 import { WordIcon } from './icons/WordIcon';
 import { ExcelIcon } from './icons/ExcelIcon';
 import { PdfIcon } from './icons/PdfIcon';
@@ -21,12 +21,11 @@ const getFileIcon = (fileType: string, fileName: string) => {
 
 export const ProcessingProgress: React.FC<{
     files: UploadedFile[];
-    onRetry: (fileId: string) => void;
     onContinue: () => void;
     onCancel: () => void;
     isFinished: boolean;
     hasTextContent: boolean;
-}> = ({ files, onRetry, onContinue, onCancel, isFinished, hasTextContent }) => {
+}> = ({ files, onContinue, onCancel, isFinished, hasTextContent }) => {
     const completedCount = files.filter(f => f.status === 'completed' || f.status === 'failed').length;
     const successfulCount = files.filter(f => f.status === 'completed').length;
     const failedCount = files.filter(f => f.status === 'failed').length;
@@ -50,7 +49,7 @@ export const ProcessingProgress: React.FC<{
         >
             <div className="bg-white rounded-xl shadow-2xl p-6 w-11/12 max-w-2xl flex flex-col max-h-[90vh] soft-shadow-lg">
                 <h3 id="progress-dialog-title" className="text-xl font-bold text-slate-900 mb-2">Tiền xử lý & Phân loại Hồ sơ</h3>
-                <p className="text-sm text-slate-600 mb-4">AI đang đọc và phân loại từng tài liệu để chuẩn bị phân tích.</p>
+                <p className="text-sm text-slate-600 mb-4">AI đang đọc và phân loại tài liệu để chuẩn bị phân tích. Vui lòng đợi trong giây lát.</p>
                 <div
                     className="w-full bg-slate-200 rounded-full h-3 mb-1"
                     role="progressbar" aria-valuenow={overallProgress} aria-valuemin={0} aria-valuemax={100}
@@ -70,11 +69,6 @@ export const ProcessingProgress: React.FC<{
                             </div>
                             <div className="flex-shrink-0 flex items-center gap-2">
                                 {getStatusPill(file.status)}
-                                {file.status === 'failed' && (
-                                    <button onClick={() => onRetry(file.id)} className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-slate-200 rounded-full" title="Thử lại">
-                                        <RefreshIcon className="w-4 h-4" />
-                                    </button>
-                                )}
                             </div>
                         </div>
                     ))}
@@ -82,7 +76,7 @@ export const ProcessingProgress: React.FC<{
                 <div className="pt-4 space-y-2">
                     {isFinished && failedCount > 0 && (
                         <div className="p-3 text-center text-sm text-amber-800 bg-amber-100 rounded-md" role="alert">
-                           Có {failedCount} tệp xử lý thất bại. Bạn có thể thử lại hoặc tiếp tục với các tệp thành công.
+                           Có {failedCount} tệp xử lý thất bại. Vui lòng thử lại toàn bộ quá trình.
                         </div>
                     )}
                     <div className="flex justify-end gap-3">

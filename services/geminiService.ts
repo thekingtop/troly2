@@ -62,11 +62,13 @@ const handleGeminiError = (error: any, context: string): Error => {
 
 const supportedMimeTypesForContentAnalysis = [
     'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif',
+    'application/pdf', // Add PDF support for direct analysis
     'text/plain', 'text/html', 'text/css', 'text/javascript', 'application/json',
 ];
 
-const isMimeTypeSupported = (mimeType: string): boolean => {
-    return supportedMimeTypesForContentAnalysis.some(supportedType => mimeType.startsWith(supportedType));
+const isMimeTypeSupportedForDirectAnalysis = (mimeType: string): boolean => {
+    return ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf']
+        .some(supportedType => mimeType.startsWith(supportedType));
 };
 
 const fileToGenerativePart = async (file: File): Promise<Part> => {
@@ -109,7 +111,14 @@ const summarizeDocumentContent = async (fileName: string, content: string): Prom
             }
         });
 
-        return response.text.trim();
+        // FIX: Add a check to prevent '.trim()' on undefined
+        if (response && typeof response.text === 'string') {
+            return response.text.trim();
+        }
+        
+        console.warn(`AI did not return text for summarization of ${fileName}. Proceeding with original content.`);
+        throw new Error("AI response was empty.");
+
     } catch (error) {
         console.error(`Lỗi khi tóm tắt nội dung cho ${fileName}:`, error);
         const truncatedContent = content.length > 15000 ? content.substring(0, 15000) : content;
@@ -117,19 +126,23 @@ const summarizeDocumentContent = async (fileName: string, content: string): Prom
     }
 };
 
-const getFileContentParts = async (files: UploadedFile[]): Promise<{ fileContentParts: string[], imageParts: Part[] }> => {
+const getFileContentParts = async (files: UploadedFile[]): Promise<{ fileContentParts: string[], multimodalParts: Part[] }> => {
     const fileContentParts: string[] = [];
-    const imageParts: Part[] = [];
+    const multimodalParts: Part[] = [];
 
     for (const f of files) {
       const categoryLabel = fileCategoryLabels[f.category] || f.category;
       let rawFileText = '';
 
-      if (isMimeTypeSupported(f.file.type) && f.file.type.startsWith('image/')) {
-        imageParts.push(await fileToGenerativePart(f.file));
-        fileContentParts.push(`Tệp hình ảnh: ${f.file.name} (Loại: ${categoryLabel}).`);
+      // Handle multimodal files (images, PDFs) directly
+      if (isMimeTypeSupportedForDirectAnalysis(f.file.type)) {
+        multimodalParts.push(await fileToGenerativePart(f.file));
+        const fileTypeLabel = f.file.type.startsWith('image/') ? 'Tệp hình ảnh' : 'Tệp PDF';
+        fileContentParts.push(`${fileTypeLabel}: ${f.file.name} (Loại: ${categoryLabel}).`);
         continue;
-      } else if (f.file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' && typeof mammoth !== 'undefined') {
+      } 
+      // Handle DOCX files
+      else if (f.file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' && typeof mammoth !== 'undefined') {
         try {
           const arrayBuffer = await f.file.arrayBuffer();
           const result = await mammoth.extractRawText({ arrayBuffer });
@@ -138,11 +151,14 @@ const getFileContentParts = async (files: UploadedFile[]): Promise<{ fileContent
           fileContentParts.push(`--- LỖI TỆP: ${f.file.name} (KHÔNG THỂ ĐỌC NỘI DUNG) ---`);
           continue;
         }
-      } else {
+      } 
+      // Handle other text-based files
+      else {
          try {
             rawFileText = await f.file.text();
         } catch (err) {
-            fileContentParts.push(`--- TỆP KHÔNG HỖ TRỢ: ${f.file.name} ---`);
+            // This will now correctly skip binary files like PDFs that failed the direct analysis check
+            fileContentParts.push(`--- TỆP KHÔNG HỖ TRỢ ĐỌC NỘI DUNG: ${f.file.name} ---`);
             continue;
         }
       }
@@ -151,33 +167,71 @@ const getFileContentParts = async (files: UploadedFile[]): Promise<{ fileContent
       const prefix = rawFileText.length > 2000 ? "TÀI LIỆU (Tóm tắt)" : "TÀI LIỆU";
       fileContentParts.push(`--- ${prefix}: ${f.file.name} (Loại: ${categoryLabel}) ---\n${processedContent}\n--- HẾT TÀI LIỆU ---`);
     }
-    return { fileContentParts, imageParts };
+    return { fileContentParts, multimodalParts };
 }
 
 
 // --- API Service Functions ---
 
-export const categorizeFile = async (file: File): Promise<FileCategory> => {
+export const categorizeMultipleFiles = async (files: File[]): Promise<Record<string, FileCategory>> => {
+    if (files.length === 0) {
+        return {};
+    }
     try {
         const categories = Object.keys(fileCategoryLabels).join(', ');
-        const prompt = `Dựa vào tên tệp "${file.name}", hãy phân loại nó vào một trong các danh mục sau: ${categories}. Trả về CHỈ MỘT TỪ là tên danh mục (ví dụ: 'Contract').`;
+        const fileNames = files.map(f => f.name);
+        
+        const prompt = `Dựa vào danh sách tên tệp sau đây, hãy phân loại mỗi tệp vào một trong các danh mục sau: ${categories}. Trả về một đối tượng JSON trong đó key là tên tệp và value là danh mục tương ứng.\n\nDanh sách tệp:\n${fileNames.join('\n')}`;
+
+        const schema = {
+            type: Type.OBJECT,
+            properties: {
+                classifications: {
+                    type: Type.ARRAY,
+                    description: "An array of file classification objects.",
+                    items: {
+                        type: Type.OBJECT,
+                        properties: {
+                            fileName: { type: Type.STRING, description: "The name of the file." },
+                            category: { type: Type.STRING, description: `The category of the file. Must be one of: ${categories}` }
+                        },
+                        required: ['fileName', 'category']
+                    }
+                }
+            },
+            required: ['classifications']
+        };
 
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
             config: {
                 temperature: 0,
-                responseSchema: { type: Type.STRING, description: `Chỉ một trong các giá trị sau: ${categories}` }
+                responseMimeType: "application/json",
+                responseSchema: schema,
             }
         });
         
-        const category = response.text.trim() as FileCategory;
-        if (Object.keys(fileCategoryLabels).includes(category)) {
-            return category;
+        const jsonText = response.text.trim().replace(/^```json\s*|```$/g, '');
+        const parsedResponse = JSON.parse(jsonText);
+
+        const categoryMap: Record<string, FileCategory> = {};
+        for (const item of parsedResponse.classifications) {
+            if (fileNames.includes(item.fileName) && Object.keys(fileCategoryLabels).includes(item.category)) {
+                categoryMap[item.fileName] = item.category as FileCategory;
+            }
         }
-        return 'Uncategorized';
+        
+        // Ensure all files get a category, even if the model misses some.
+        for (const name of fileNames) {
+            if (!categoryMap[name]) {
+                categoryMap[name] = 'Uncategorized';
+            }
+        }
+        
+        return categoryMap;
     } catch (error) {
-        throw handleGeminiError(error, `phân loại tệp ${file.name}`);
+        throw handleGeminiError(error, `phân loại hàng loạt tệp`);
     }
 };
 
@@ -194,7 +248,7 @@ export const analyzeCaseFiles = async (
   updateContext?: AnalysisUpdateContext
 ): Promise<AnalysisReport> => {
   try {
-    const { fileContentParts, imageParts } = await getFileContentParts(files);
+    const { fileContentParts, multimodalParts } = await getFileContentParts(files);
     const filesContent = fileContentParts.length > 0 ? fileContentParts.join('\n\n') : 'Không có tài liệu mới nào được cung cấp.';
     const currentDate = new Date().toLocaleDateString('vi-VN');
     let promptText: string;
@@ -207,7 +261,7 @@ export const analyzeCaseFiles = async (
       promptText = `Phân tích thông tin vụ việc và trả về báo cáo JSON.\n\n**THÔNG TIN VỤ VIỆC:**\n\n**A. Bối cảnh & Yêu cầu:**\n- Ngày hiện tại: ${currentDate}.\n- Tóm tắt nội dung: ${caseContent.trim() ? caseContent : 'Chưa cung cấp.'}\n- Yêu cầu của khách hàng: ${clientRequest.trim() ? clientRequest : 'Chưa cung cấp.'}\n- Yêu cầu của luật sư (Mục tiêu phân tích): **${query}**\n\n**B. Hồ sơ tài liệu đính kèm:**\n${effectiveFilesContent}\n\n**YÊU CẦU ĐẦU RA:**\nTrả về báo cáo dưới dạng một đối tượng JSON duy nhất, hợp lệ, tuân thủ cấu trúc đã định nghĩa.`;
     }
 
-    const allParts: Part[] = [...imageParts, { text: promptText }];
+    const allParts: Part[] = [...multimodalParts, { text: promptText }];
 
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
@@ -234,12 +288,12 @@ export const analyzeConsultingCase = async (
     clientRequest: string
 ): Promise<ConsultingReport> => {
     try {
-        const { fileContentParts, imageParts } = await getFileContentParts(files);
+        const { fileContentParts, multimodalParts } = await getFileContentParts(files);
         const filesContent = fileContentParts.length > 0 ? fileContentParts.join('\n\n') : 'Không có tệp.';
         
         const prompt = `Vui lòng phân tích thông tin dưới đây và trả về báo cáo JSON.\n\nBỐI CẢNH VỤ VIỆC:\n---\n${disputeContent}\n---\n\nYÊU CẦU CỦA KHÁCH HÀNG:\n---\n${clientRequest}\n---\n\nTÀI LIỆU ĐÍNH KÈM:\n---\n${filesContent}\n---`;
 
-        const allParts: Part[] = [...imageParts, { text: prompt }];
+        const allParts: Part[] = [...multimodalParts, { text: prompt }];
         
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
@@ -367,7 +421,7 @@ export const extractInfoFromFile = async (file: UploadedFile, docType: DocType):
     const fieldsToExtract = DOC_TYPE_FIELDS[docType];
     if (!fieldsToExtract || fieldsToExtract.length === 0) return {};
     let contentPart: Part;
-    if (isMimeTypeSupported(file.file.type)) {
+    if (isMimeTypeSupportedForDirectAnalysis(file.file.type)) {
         contentPart = await fileToGenerativePart(file.file);
     } else if (file.file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' && typeof mammoth !== 'undefined') {
         try {

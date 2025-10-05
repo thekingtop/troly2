@@ -1,9 +1,10 @@
 
+
 import React, { useState, useCallback, useEffect } from 'react';
 import { FileUpload } from './FileUpload';
 import { Loader } from './Loader';
 import { MagicIcon } from './icons/MagicIcon';
-import { analyzeConsultingCase, generateConsultingDocument, categorizeFile } from '../services/geminiService';
+import { analyzeConsultingCase, generateConsultingDocument, categorizeMultipleFiles } from '../services/geminiService';
 import type { UploadedFile, SavedCase, SerializableFile, ConsultingReport, LitigationType } from '../types';
 import { BackIcon } from './icons/BackIcon';
 import { saveCase } from '../services/db';
@@ -152,20 +153,22 @@ export const ConsultingWorkflow: React.FC<ConsultingWorkflowProps> = ({ onPrevie
         if (files.length > 0) {
             setIsPreprocessingFinished(false);
             setIsProcessing(true);
-            const filesToProcess = files.map(f => ({ ...f, status: 'pending' as const, error: undefined }));
-            setFiles(filesToProcess);
+            setFiles(prev => prev.map(f => ({ ...f, status: 'processing' as const, error: undefined })));
 
-            for (const file of filesToProcess) {
-                setFiles(prev => prev.map(f => f.id === file.id ? { ...f, status: 'processing' } : f));
-                try {
-                    const category = await categorizeFile(file.file);
-                    setFiles(prev => prev.map(f => f.id === file.id ? { ...f, status: 'completed', category } : f));
-                } catch (err) {
-                    const message = err instanceof Error ? err.message : 'Lỗi không xác định';
-                    setFiles(prev => prev.map(f => f.id === file.id ? { ...f, status: 'failed', error: message } : f));
-                }
+            try {
+                const fileObjects = files.map(f => f.file);
+                const categoryMap = await categorizeMultipleFiles(fileObjects);
+                setFiles(prev => prev.map(f => ({
+                    ...f,
+                    status: 'completed',
+                    category: categoryMap[f.file.name] || 'Uncategorized'
+                })));
+            } catch (err) {
+                const message = err instanceof Error ? err.message : 'Lỗi không xác định';
+                setFiles(prev => prev.map(f => ({ ...f, status: 'failed', error: message })));
+            } finally {
+                setIsPreprocessingFinished(true);
             }
-            setIsPreprocessingFinished(true);
         } else {
             if (!disputeContent.trim() && !clientRequest.trim()) {
                 setAnalysisError("Vui lòng tải tệp hoặc nhập nội dung để phân tích.");
@@ -181,19 +184,6 @@ export const ConsultingWorkflow: React.FC<ConsultingWorkflowProps> = ({ onPrevie
         setIsProcessing(false);
         await performAnalysis(successfulFiles);
     }, [files, performAnalysis]);
-
-    const handleRetryFile = useCallback(async (fileId: string) => {
-        const fileToRetry = files.find(f => f.id === fileId);
-        if (!fileToRetry) return;
-        setFiles(prev => prev.map(f => f.id === fileId ? { ...f, status: 'processing', error: undefined } : f));
-        try {
-            const category = await categorizeFile(fileToRetry.file);
-            setFiles(prev => prev.map(f => f.id === fileId ? { ...f, status: 'completed', category } : f));
-        } catch (err) {
-            const message = err instanceof Error ? err.message : 'Lỗi không xác định';
-            setFiles(prev => prev.map(f => f.id === fileId ? { ...f, status: 'failed', error: message } : f));
-        }
-    }, [files]);
     
     const handleCancelProcessing = () => {
         setIsProcessing(false);
@@ -284,7 +274,7 @@ export const ConsultingWorkflow: React.FC<ConsultingWorkflowProps> = ({ onPrevie
                     )}
                 </div>
             </div>
-            {isProcessing && (<ProcessingProgress files={files} onRetry={handleRetryFile} onCancel={handleCancelProcessing} onContinue={handleContinueAnalysis} isFinished={isPreprocessingFinished} hasTextContent={disputeContent.trim().length > 0 || clientRequest.trim().length > 0} />)}
+            {isProcessing && (<ProcessingProgress files={files} onContinue={handleContinueAnalysis} onCancel={handleCancelProcessing} isFinished={isPreprocessingFinished} hasTextContent={disputeContent.trim().length > 0 || clientRequest.trim().length > 0} />)}
         </div>
     );
 };

@@ -1,9 +1,10 @@
 
+
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { FileUpload } from './components/FileUpload';
 import { ReportDisplay } from './components/ReportDisplay';
 import { Loader } from './components/Loader';
-import { analyzeCaseFiles, generateContextualDocument, refineText, generateReportSummary, categorizeFile } from './services/geminiService';
+import { analyzeCaseFiles, generateContextualDocument, refineText, generateReportSummary, categorizeMultipleFiles } from './services/geminiService';
 import { db, getAllCasesSorted, saveCase, deleteCaseById } from './services/db';
 import type { AnalysisReport, UploadedFile, SavedCase, SerializableFile, LitigationStage, LitigationType, FileCategory } from './types';
 import { ConsultingWorkflow } from './components/ConsultingWorkflow';
@@ -250,43 +251,32 @@ const App: React.FC = () => {
     if (files.length > 0) {
         setIsPreprocessingFinished(false);
         setIsProcessing(true);
-        const filesToProcess = files.map(f => ({ ...f, status: 'pending' as const, error: undefined }));
-        setFiles(filesToProcess);
+        setFiles(prev => prev.map(f => ({ ...f, status: 'processing' as const, error: undefined })));
 
-        for (const file of filesToProcess) {
-            try {
-                setFiles(prev => prev.map(f => f.id === file.id ? { ...f, status: 'processing' } : f));
-                const category = await categorizeFile(file.file);
-                setFiles(prev => prev.map(f => f.id === file.id ? { ...f, status: 'completed', category } : f));
-            } catch (err) {
-                const message = err instanceof Error ? err.message : 'Lỗi không xác định';
-                setFiles(prev => prev.map(f => f.id === file.id ? { ...f, status: 'failed', error: message } : f));
-            }
+        try {
+            const fileObjects = files.map(f => f.file);
+            const categoryMap = await categorizeMultipleFiles(fileObjects);
+            setFiles(prev => prev.map(f => ({
+                ...f,
+                status: 'completed',
+                category: categoryMap[f.file.name] || 'Uncategorized'
+            })));
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Lỗi không xác định';
+            setFiles(prev => prev.map(f => ({ ...f, status: 'failed', error: message })));
+        } finally {
+            setIsPreprocessingFinished(true);
         }
-        setIsPreprocessingFinished(true);
     } else {
         await performAnalysis([]);
     }
-  }, [files, query, caseContent, clientRequest]);
+}, [files, query, caseContent, clientRequest]);
   
   const handleContinueAnalysis = useCallback(async () => {
     const successfulFiles = files.filter(f => f.status === 'completed');
     setIsProcessing(false);
     await performAnalysis(successfulFiles);
   }, [files, query, caseContent, clientRequest]);
-
-  const handleRetryFile = useCallback(async (fileId: string) => {
-    const fileToRetry = files.find(f => f.id === fileId);
-    if (!fileToRetry) return;
-    setFiles(prev => prev.map(f => f.id === fileId ? { ...f, status: 'processing', error: undefined } : f));
-    try {
-        const category = await categorizeFile(fileToRetry.file);
-        setFiles(prev => prev.map(f => f.id === fileId ? { ...f, status: 'completed', category } : f));
-    } catch (err) {
-        const message = err instanceof Error ? err.message : 'Lỗi không xác định';
-        setFiles(prev => prev.map(f => f.id === fileId ? { ...f, status: 'failed', error: message } : f));
-    }
-  }, [files]);
   
   const handleCancelProcessing = () => {
       setIsProcessing(false);
@@ -684,7 +674,7 @@ const App: React.FC = () => {
 
        <PreviewModal file={previewingFile} onClose={() => setPreviewingFile(null)} />
 
-       {isProcessing && activeCase?.workflowType === 'litigation' && (<ProcessingProgress files={files} onRetry={handleRetryFile} onCancel={handleCancelProcessing} onContinue={handleContinueAnalysis} isFinished={isPreprocessingFinished} hasTextContent={caseContent.trim().length > 0 || clientRequest.trim().length > 0}/>)}
+       {isProcessing && activeCase?.workflowType === 'litigation' && (<ProcessingProgress files={files} onContinue={handleContinueAnalysis} onCancel={handleCancelProcessing} isFinished={isPreprocessingFinished} hasTextContent={caseContent.trim().length > 0 || clientRequest.trim().length > 0}/>)}
        
        {isWorkflowSelectorOpen && (
            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">

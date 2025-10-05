@@ -3,16 +3,12 @@ import type { SavedCase } from '../types';
 // Declare global Dexie to satisfy TypeScript since it's loaded from CDN
 declare var Dexie: any;
 
-// Fix: Declare the Dexie namespace to allow using Dexie.Table as a type.
-// We use `any` here as full type definitions for the CDN-loaded library are not available.
-declare namespace Dexie {
-  type Table<T, TKey> = any;
-}
-
 class LegalAssistantDB extends Dexie {
   // 'cases' is the name of our table.
-  // The type parameter defines the shape of the data, and the second the type of the primary key.
-  cases!: Dexie.Table<SavedCase, string>; 
+  // We use `any` here for simplicity and to avoid potential conflicts with the
+  // global Dexie object provided by the CDN script. The public methods of this
+  // service will still provide type safety to the rest of the application.
+  cases: any; 
 
   constructor() {
     super('LegalAssistantDB');
@@ -21,6 +17,8 @@ class LegalAssistantDB extends Dexie {
       // The other strings are indexes, which will speed up queries on these properties.
       cases: 'id, name, updatedAt, workflowType' 
     });
+    // Explicitly initialize the table property for clarity and correctness.
+    this.cases = this.table('cases');
   }
 }
 
