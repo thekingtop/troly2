@@ -732,133 +732,140 @@ const App: React.FC = () => {
                 isActionInProgress={isBackingUp || isRestoring}
             />
         </div>
-        <main className="flex-1 p-6 overflow-y-auto" style={{maxHeight: 'calc(100vh - 6.5rem)'}}>
-            {activeView === 'caseAnalysis' ? (
+        <main className="flex-1 p-6 flex gap-6 overflow-hidden">
+             {activeView === 'caseAnalysis' ? (
                 <>
-                    <div className="grid grid-cols-12 gap-6">
-                        {!isInputPanelCollapsed && (
-                            <div className="col-span-5 space-y-4 animate-fade-in">
+                    {/* Input Panel */}
+                    {!isInputPanelCollapsed && (
+                        <div className="w-5/12 flex-shrink-0 overflow-y-auto pr-2 -mr-2 space-y-4 animate-fade-in">
+                            <div className="flex justify-between items-center">
+                                <button onClick={() => { if (window.confirm("Bạn có chắc chắn muốn quay lại? Mọi dữ liệu chưa lưu sẽ bị mất.")) { handleGoBackToSelection(); } }} className="flex items-center gap-2 text-sm text-slate-500 hover:text-blue-600 font-semibold transition-colors">
+                                    <BackIcon className="w-4 h-4" /> Quay lại Chọn Nghiệp vụ
+                                </button>
+                            </div>
+                            <div className="p-4 border border-slate-200 rounded-lg">
+                                <FileUpload files={files} setFiles={setFiles} onPreview={setPreviewingFile} />
+                            </div>
+                            <div className="p-4 border border-slate-200 rounded-lg space-y-2">
                                 <div className="flex justify-between items-center">
-                                    <button onClick={() => { if (window.confirm("Bạn có chắc chắn muốn quay lại? Mọi dữ liệu chưa lưu sẽ bị mất.")) { handleGoBackToSelection(); } }} className="flex items-center gap-2 text-sm text-slate-500 hover:text-blue-600 font-semibold transition-colors">
-                                        <BackIcon className="w-4 h-4" /> Quay lại Chọn Nghiệp vụ
-                                    </button>
-                                </div>
-                                <div className="p-4 border border-slate-200 rounded-lg">
-                                    <FileUpload files={files} setFiles={setFiles} onPreview={setPreviewingFile} />
-                                </div>
-                                <div className="p-4 border border-slate-200 rounded-lg space-y-2">
-                                    <div className="flex justify-between items-center">
-                                        <label htmlFor="caseContent" className="block text-sm font-semibold text-slate-800">Tóm tắt diễn biến, sự việc, các mốc thời gian quan trọng...</label>
-                                        <div className="flex items-center gap-1.5 flex-shrink-0">
-                                            <RefineButton field="caseContent" mode="concise" text="Làm gọn" />
-                                            <RefineButton field="caseContent" mode="detailed" text="Chi tiết hóa" />
-                                        </div>
+                                    <label htmlFor="caseContent" className="block text-sm font-semibold text-slate-800">Tóm tắt diễn biến, sự việc, các mốc thời gian quan trọng...</label>
+                                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                                        <RefineButton field="caseContent" mode="concise" text="Làm gọn" />
+                                        <RefineButton field="caseContent" mode="detailed" text="Chi tiết hóa" />
                                     </div>
-                                    <textarea id="caseContent" value={caseContent} onChange={(e) => setCaseContent(e.target.value)} className="w-full min-h-[100px] bg-white p-2 border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500" rows={4}/>
-                                    {refineError?.field === 'caseContent' && <p className="text-red-500 text-xs mt-1">{refineError.message}</p>}
                                 </div>
-                                <div className="p-4 border border-slate-200 rounded-lg space-y-2">
-                                    <div className="flex justify-between items-center">
-                                        <label htmlFor="clientRequest" className="block text-sm font-semibold text-slate-800">Tóm tắt Thách hàng</label>
-                                        <div className="flex items-center gap-1.5 flex-shrink-0">
-                                            <RefineButton field="clientRequest" mode="concise" text="Làm gọn" />
-                                            <RefineButton field="clientRequest" mode="detailed" text="Chi tiết hóa" />
-                                        </div>
-                                    </div>
-                                    <textarea id="clientRequest" value={clientRequest} onChange={(e) => setClientRequest(e.target.value)} placeholder="khách hàng mong muốn đạt được điều gì? ví dụ: đòi lại tiền cọc..." className="w-full min-h-[80px] bg-white p-2 border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500" rows={3} />
-                                    {refineError?.field === 'clientRequest' && <p className="text-red-500 text-xs mt-1">{refineError.message}</p>}
-                                </div>
-                                <div className="p-4 rounded-lg bg-blue-50 border border-blue-200">
-                                    <label htmlFor="mainQuery" className="block text-sm font-bold text-blue-900 mb-1">Yêu cầu chính cho AI</label>
-                                    <p className="text-xs text-blue-800/80 mb-2">Đây là yêu cầu quan trọng nhất, quyết định hướng phân tích của AI.</p>
-                                    <textarea id="mainQuery" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Ví dụ: Phân tích và đề xuất chiến lược khởi kiện" className="w-full bg-white p-2 border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500" rows={2} />
-                                </div>
-                                <div className="flex items-center gap-3 pt-2">
-                                    <button onClick={handleMainActionClick} disabled={mainAction.disabled} className="py-2.5 px-4 font-semibold text-sm rounded-lg transition-all duration-200 flex items-center justify-center gap-2 flex-1 bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 disabled:bg-slate-300">
-                                        {isLoading ? <><Loader /><span>{mainAction.loadingText}</span></> : <span>{mainAction.text}</span>}
-                                    </button>
-                                    <button onClick={handleSaveCase} disabled={isSaving} className="py-2.5 px-4 font-semibold text-sm rounded-lg transition-all duration-200 flex items-center justify-center gap-2 flex-1 bg-slate-100 text-slate-800 hover:bg-slate-200 focus:ring-slate-400 border border-slate-300">
-                                        {isSaving ? <Loader /> : <><SaveCaseIcon className="w-4 h-4" /><span>Lưu vụ việc</span></>}
-                                    </button>
-                                </div>
-                                {error && <div className="mt-2"><Alert message={error} type="error" /></div>}
+                                <textarea id="caseContent" value={caseContent} onChange={(e) => setCaseContent(e.target.value)} className="w-full min-h-[100px] bg-white p-2 border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500" rows={4}/>
+                                {refineError?.field === 'caseContent' && <p className="text-red-500 text-xs mt-1">{refineError.message}</p>}
                             </div>
-                        )}
-                         <div className={`${isInputPanelCollapsed ? 'col-span-12' : 'col-span-7'} border border-slate-200 rounded-lg p-6 flex flex-col relative transition-all duration-300`}>
-                            <button
-                                onClick={() => setIsInputPanelCollapsed(p => !p)}
-                                className="absolute -left-4 top-1/2 -translate-y-1/2 z-30 p-1.5 bg-white border border-slate-300 rounded-full shadow-md hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors"
-                                title={isInputPanelCollapsed ? "Hiện bảng nhập liệu" : "Ẩn bảng nhập liệu"}
-                            >
-                                {isInputPanelCollapsed ? <PanelExpandIcon className="w-5 h-5" /> : <PanelCollapseIcon className="w-5 h-5" />}
-                            </button>
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-lg font-bold text-slate-800">Kết quả Phân tích</h3>
-                                {report && !isLoading && (<div className="flex items-center gap-2">
-                                    <button onClick={handleGenerateSummary} disabled={isSummarizing} className="flex items-center gap-2 px-3 py-1.5 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 disabled:bg-slate-200">{isSummarizing ? <Loader /> : <MagicIcon className="w-4 h-4" />}Tóm tắt</button>
-                                    <button onClick={() => setIsCustomizeModalOpen(true)} disabled={isExporting || !libsReady} className="flex items-center gap-2 px-3 py-1.5 text-xs bg-slate-700 text-white rounded-lg hover:bg-slate-800 disabled:bg-slate-400">{!libsReady ? <Loader /> : <ExportIcon className="w-4 h-4" />}{!libsReady ? "Tải..." : "Xuất"}</button>
-                                </div>)}
+                            <div className="p-4 border border-slate-200 rounded-lg space-y-2">
+                                <div className="flex justify-between items-center">
+                                    <label htmlFor="clientRequest" className="block text-sm font-semibold text-slate-800">Tóm tắt Thách hàng</label>
+                                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                                        <RefineButton field="clientRequest" mode="concise" text="Làm gọn" />
+                                        <RefineButton field="clientRequest" mode="detailed" text="Chi tiết hóa" />
+                                    </div>
+                                </div>
+                                <textarea id="clientRequest" value={clientRequest} onChange={(e) => setClientRequest(e.target.value)} placeholder="khách hàng mong muốn đạt được điều gì? ví dụ: đòi lại tiền cọc..." className="w-full min-h-[80px] bg-white p-2 border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500" rows={3} />
+                                {refineError?.field === 'clientRequest' && <p className="text-red-500 text-xs mt-1">{refineError.message}</p>}
                             </div>
-                            {summaryError && <Alert message={summaryError} type="error" />}
-                            <div className="flex-grow rounded-lg bg-slate-50/50 p-1 min-h-[60vh]">
-                                {isLoading && (
-                                    <div className="loading-bar-container">
-                                        <div className="loading-bars">
-                                            <div className="loading-bar"></div>
-                                            <div className="loading-bar"></div>
-                                            <div className="loading-bar"></div>
-                                        </div>
-                                        <p className="mt-4 text-sm text-slate-500">{mainAction.loadingText}</p>
-                                    </div>
-                                )}
-                                {!isLoading && !report && !generatedDocument && (
-                                    <div className="flex flex-col items-center justify-center h-full text-center text-slate-400">
-                                        <p className="text-sm font-medium text-slate-500">Chờ cao phân tích và soạn thảo ở đây...</p>
-                                    </div>
-                                )}
-                                {report && (
-                                    <div className="animate-fade-in h-full overflow-y-auto p-4">
-                                        <ReportDisplay 
-                                            report={report} 
-                                            files={files} 
-                                            onPreview={setPreviewingFile} 
-                                            onClearSummary={handleClearSummary}
-                                            litigationType={currentLitigationType}
-                                            onUpdateUserLaws={handleUpdateUserLaws}
-                                        />
-                                        {showStageSuggestions && (
-                                            <div className="mt-8 pt-6 border-t-2 border-slate-100">
-                                            <h3 className="text-xl font-bold text-slate-800 mb-4">Gợi ý cho GĐ: {getStageLabel(currentLitigationType, currentLitigationStage)}</h3>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-4 rounded-lg border">
-                                                <div>
-                                                <h4 className="font-semibold mb-2">Hành động đề xuất:</h4>
-                                                <ul className="list-disc list-inside space-y-1.5 text-sm">{currentStageSuggestions.actions.map((a, i) => <li key={i}>{a}</li>)}</ul>
-                                                </div>
-                                                <div>
-                                                <h4 className="font-semibold mb-2">Văn bản cần soạn thảo:</h4>
-                                                <div className="flex flex-col items-start gap-2">{currentStageSuggestions.documents.map((d, i) => (<button key={i} onClick={() => handleDocSuggestionClick(d)} className="text-left w-full p-2 bg-blue-100 text-blue-800 font-medium rounded-md hover:bg-blue-200 text-sm flex items-center gap-2"><PlusIcon className="w-4 h-4 shrink-0" />{d}</button>))}</div>
-                                                </div>
-                                            </div>
-                                            </div>
-                                        )}
-                                        <div id="generation-section" className="mt-8 pt-6 border-t-2 border-slate-100">
-                                            <h3 className="text-xl font-bold text-slate-800 mb-4">Soạn thảo Văn bản theo Bối cảnh</h3>
-                                            {suggestedDocRequest && (<div className="mb-4"><button onClick={() => handleGenerateCaseDocument(true)} disabled={isGeneratingDocument} className="w-full text-left p-3 bg-blue-50 border-2 border-dashed border-blue-200 text-blue-800 font-semibold rounded-lg hover:bg-blue-100 flex items-center justify-between"><span className="flex items-center gap-2"><MagicIcon className="w-5 h-5"/><span>{`Gợi ý: "${suggestedDocRequest}"`}</span></span>{isGeneratingDocument && caseDocRequest === '' && <Loader />}</button></div>)}
-                                            <div className="flex gap-2">
-                                            <input type="text" value={caseDocRequest} onChange={(e) => setCaseDocRequest(e.target.value)} placeholder="Ví dụ: Soạn Đơn khởi kiện" className="w-full p-2 bg-white border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex-grow" />
-                                            <button onClick={() => handleGenerateCaseDocument(false)} disabled={isGeneratingDocument || !caseDocRequest} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-slate-300 text-sm">{isGeneratingDocument && caseDocRequest !== '' ? 'Soạn...' : "Soạn thảo"}</button>
-                                            </div>
-                                            {generationError && <div className="mt-2"><Alert message={generationError} type="error" /></div>}
-                                        </div>
-                                    </div>
-                                )}
-                                {generatedDocument && (<div className="mt-4 animate-fade-in p-4"><h4 className="text-lg font-semibold mb-2">Văn bản đã soạn:</h4><pre className="whitespace-pre-wrap font-sans bg-slate-50 p-4 rounded-lg border">{generatedDocument}</pre></div>)}
+                            <div className="p-4 rounded-lg bg-blue-50 border border-blue-200">
+                                <label htmlFor="mainQuery" className="block text-sm font-bold text-blue-900 mb-1">Yêu cầu chính cho AI</label>
+                                <p className="text-xs text-blue-800/80 mb-2">Đây là yêu cầu quan trọng nhất, quyết định hướng phân tích của AI.</p>
+                                <textarea id="mainQuery" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Ví dụ: Phân tích và đề xuất chiến lược khởi kiện" className="w-full bg-white p-2 border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500" rows={2} />
                             </div>
+                            <div className="flex items-center gap-3 pt-2">
+                                <button onClick={handleMainActionClick} disabled={mainAction.disabled} className="py-2.5 px-4 font-semibold text-sm rounded-lg transition-all duration-200 flex items-center justify-center gap-2 flex-1 bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 disabled:bg-slate-300">
+                                    {isLoading ? <><Loader /><span>{mainAction.loadingText}</span></> : <span>{mainAction.text}</span>}
+                                </button>
+                                <button onClick={handleSaveCase} disabled={isSaving} className="py-2.5 px-4 font-semibold text-sm rounded-lg transition-all duration-200 flex items-center justify-center gap-2 flex-1 bg-slate-100 text-slate-800 hover:bg-slate-200 focus:ring-slate-400 border border-slate-300">
+                                    {isSaving ? <Loader /> : <><SaveCaseIcon className="w-4 h-4" /><span>Lưu vụ việc</span></>}
+                                </button>
+                            </div>
+                            {error && <div className="mt-2"><Alert message={error} type="error" /></div>}
+                        </div>
+                    )}
+                    
+                    {/* Separator / Button */}
+                    <div className="flex-shrink-0 flex items-center justify-center -mx-3">
+                        <button
+                            onClick={() => setIsInputPanelCollapsed(p => !p)}
+                            className="z-10 p-1.5 bg-white border border-slate-300 rounded-full shadow-md hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors"
+                            title={isInputPanelCollapsed ? "Hiện bảng nhập liệu" : "Ẩn bảng nhập liệu"}
+                        >
+                            {isInputPanelCollapsed ? <PanelExpandIcon className="w-5 h-5" /> : <PanelCollapseIcon className="w-5 h-5" />}
+                        </button>
+                    </div>
+
+                    {/* Results Panel */}
+                    <div className="flex-1 overflow-y-auto border border-slate-200 rounded-lg p-6 flex flex-col">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-bold text-slate-800">Kết quả Phân tích</h3>
+                            {report && !isLoading && (<div className="flex items-center gap-2">
+                                <button onClick={handleGenerateSummary} disabled={isSummarizing} className="flex items-center gap-2 px-3 py-1.5 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 disabled:bg-slate-200">{isSummarizing ? <Loader /> : <MagicIcon className="w-4 h-4" />}Tóm tắt</button>
+                                <button onClick={() => setIsCustomizeModalOpen(true)} disabled={isExporting || !libsReady} className="flex items-center gap-2 px-3 py-1.5 text-xs bg-slate-700 text-white rounded-lg hover:bg-slate-800 disabled:bg-slate-400">{!libsReady ? <Loader /> : <ExportIcon className="w-4 h-4" />}{!libsReady ? "Tải..." : "Xuất"}</button>
+                            </div>)}
+                        </div>
+                        {summaryError && <Alert message={summaryError} type="error" />}
+                        <div className="flex-grow rounded-lg bg-slate-50/50 p-1 min-h-[60vh]">
+                            {isLoading && (
+                                <div className="loading-bar-container">
+                                    <div className="loading-bars">
+                                        <div className="loading-bar"></div>
+                                        <div className="loading-bar"></div>
+                                        <div className="loading-bar"></div>
+                                    </div>
+                                    <p className="mt-4 text-sm text-slate-500">{mainAction.loadingText}</p>
+                                </div>
+                            )}
+                            {!isLoading && !report && !generatedDocument && (
+                                <div className="flex flex-col items-center justify-center h-full text-center text-slate-400">
+                                    <p className="text-sm font-medium text-slate-500">Chờ cao phân tích và soạn thảo ở đây...</p>
+                                </div>
+                            )}
+                            {report && (
+                                <div className="animate-fade-in h-full overflow-y-auto p-4">
+                                    <ReportDisplay 
+                                        report={report} 
+                                        files={files} 
+                                        onPreview={setPreviewingFile} 
+                                        onClearSummary={handleClearSummary}
+                                        litigationType={currentLitigationType}
+                                        onUpdateUserLaws={handleUpdateUserLaws}
+                                    />
+                                    {showStageSuggestions && (
+                                        <div className="mt-8 pt-6 border-t-2 border-slate-100">
+                                        <h3 className="text-xl font-bold text-slate-800 mb-4">Gợi ý cho GĐ: {getStageLabel(currentLitigationType, currentLitigationStage)}</h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-4 rounded-lg border">
+                                            <div>
+                                            <h4 className="font-semibold mb-2">Hành động đề xuất:</h4>
+                                            <ul className="list-disc list-inside space-y-1.5 text-sm">{currentStageSuggestions.actions.map((a, i) => <li key={i}>{a}</li>)}</ul>
+                                            </div>
+                                            <div>
+                                            <h4 className="font-semibold mb-2">Văn bản cần soạn thảo:</h4>
+                                            <div className="flex flex-col items-start gap-2">{currentStageSuggestions.documents.map((d, i) => (<button key={i} onClick={() => handleDocSuggestionClick(d)} className="text-left w-full p-2 bg-blue-100 text-blue-800 font-medium rounded-md hover:bg-blue-200 text-sm flex items-center gap-2"><PlusIcon className="w-4 h-4 shrink-0" />{d}</button>))}</div>
+                                            </div>
+                                        </div>
+                                        </div>
+                                    )}
+                                    <div id="generation-section" className="mt-8 pt-6 border-t-2 border-slate-100">
+                                        <h3 className="text-xl font-bold text-slate-800 mb-4">Soạn thảo Văn bản theo Bối cảnh</h3>
+                                        {suggestedDocRequest && (<div className="mb-4"><button onClick={() => handleGenerateCaseDocument(true)} disabled={isGeneratingDocument} className="w-full text-left p-3 bg-blue-50 border-2 border-dashed border-blue-200 text-blue-800 font-semibold rounded-lg hover:bg-blue-100 flex items-center justify-between"><span className="flex items-center gap-2"><MagicIcon className="w-5 h-5"/><span>{`Gợi ý: "${suggestedDocRequest}"`}</span></span>{isGeneratingDocument && caseDocRequest === '' && <Loader />}</button></div>)}
+                                        <div className="flex gap-2">
+                                        <input type="text" value={caseDocRequest} onChange={(e) => setCaseDocRequest(e.target.value)} placeholder="Ví dụ: Soạn Đơn khởi kiện" className="w-full p-2 bg-white border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex-grow" />
+                                        <button onClick={() => handleGenerateCaseDocument(false)} disabled={isGeneratingDocument || !caseDocRequest} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-slate-300 text-sm">{isGeneratingDocument && caseDocRequest !== '' ? 'Soạn...' : "Soạn thảo"}</button>
+                                        </div>
+                                        {generationError && <div className="mt-2"><Alert message={generationError} type="error" /></div>}
+                                    </div>
+                                </div>
+                            )}
+                            {generatedDocument && (<div className="mt-4 animate-fade-in p-4"><h4 className="text-lg font-semibold mb-2">Văn bản đã soạn:</h4><pre className="whitespace-pre-wrap font-sans bg-slate-50 p-4 rounded-lg border">{generatedDocument}</pre></div>)}
                         </div>
                     </div>
                 </>
             ) : (
-                <PlaceholderView viewName={navItems.find(item => item.id === activeView)?.label || ''} />
+                <div className="flex-1">
+                    <PlaceholderView viewName={navItems.find(item => item.id === activeView)?.label || ''} />
+                </div>
             )}
         </main>
       </div>
