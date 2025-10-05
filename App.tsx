@@ -1,4 +1,5 @@
 
+
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { FileUpload } from './components/FileUpload';
 import { ReportDisplay } from './components/ReportDisplay';
@@ -100,24 +101,24 @@ const navItems = [
 
 
 // --- UI Components ---
-const Sidebar: React.FC<{ activeView: View; onNavigate: (view: View) => void }> = ({ activeView, onNavigate }) => {
+const Sidebar: React.FC<{ activeView: View; onNavigate: (view: View) => void; isExpanded: boolean; }> = ({ activeView, onNavigate, isExpanded }) => {
     return (
-        <aside className="w-64 bg-[var(--sidebar-bg)] text-[var(--sidebar-text)] p-4 flex flex-col rounded-l-xl h-full">
+        <aside className={`transition-all duration-300 ease-in-out bg-[var(--sidebar-bg)] text-[var(--sidebar-text)] p-4 flex flex-col rounded-l-xl h-full overflow-hidden ${isExpanded ? 'w-64' : 'w-20'}`}>
             <nav className="flex-grow">
                 <ul>
                     {navItems.map(item => {
                         const Icon = item.icon;
                         const isActive = activeView === item.id;
-                        const classes = `flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                        const classes = `flex items-center gap-4 p-3 rounded-lg cursor-pointer transition-colors ${
                             isActive 
                                 ? 'bg-[var(--sidebar-active-bg)] text-[var(--sidebar-active-text)] font-semibold'
                                 : 'hover:bg-[var(--sidebar-active-bg)] hover:text-[var(--sidebar-text-hover)]'
-                        }`;
+                        } ${!isExpanded ? 'justify-center' : ''}`;
                         return (
                             <li key={item.label} className="mb-2">
-                                <a href="#" className={classes} onClick={e => { e.preventDefault(); onNavigate(item.id); }}>
-                                    <Icon className="w-5 h-5" />
-                                    <span>{item.label}</span>
+                                <a href="#" className={classes} onClick={e => { e.preventDefault(); onNavigate(item.id); }} title={isExpanded ? '' : item.label}>
+                                    <Icon className="w-5 h-5 flex-shrink-0" />
+                                    <span className={`transition-opacity duration-200 whitespace-nowrap ${isExpanded ? 'opacity-100' : 'opacity-0'}`}>{item.label}</span>
                                 </a>
                             </li>
                         );
@@ -201,7 +202,7 @@ const App: React.FC = () => {
   const [libsReady, setLibsReady] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isPreprocessingFinished, setIsPreprocessingFinished] = useState(false);
-  const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
+  const [isSidebarHovered, setIsSidebarHovered] = useState(false);
 
   const resetAnalysisState = useCallback(() => {
     setFiles([]);
@@ -226,9 +227,8 @@ const App: React.FC = () => {
 
   const handleGoBackToSelection = useCallback(() => {
     setActiveCase(null);
-    resetAnalysisState();
     setIsWorkflowSelectorOpen(false);
-  }, [resetAnalysisState]);
+  }, []);
 
   const loadData = useCallback(async () => {
       try {
@@ -609,21 +609,23 @@ const App: React.FC = () => {
 
     return (
       <div className="flex w-full bg-white rounded-xl soft-shadow animate-fade-in h-[calc(100vh-6.5rem)]">
-        <div className={`flex-shrink-0 transition-all duration-300 ease-in-out ${isPanelCollapsed ? 'w-0' : 'w-64'}`}>
-            <div className={`w-64 h-full transition-opacity duration-200 ${isPanelCollapsed ? 'opacity-0' : 'opacity-100'}`}>
-                <Sidebar activeView={activeView} onNavigate={setActiveView} />
-            </div>
+        <div 
+            className="flex-shrink-0 h-full relative z-20"
+            onMouseEnter={() => setIsSidebarHovered(true)}
+            onMouseLeave={() => setIsSidebarHovered(false)}
+        >
+            <Sidebar activeView={activeView} onNavigate={setActiveView} isExpanded={isSidebarHovered} />
         </div>
         <main className="flex-1 p-6 overflow-y-auto" style={{maxHeight: 'calc(100vh - 6.5rem)'}}>
             {activeView === 'caseAnalysis' ? (
                 <>
-                    <div className="flex justify-between items-center mb-6">
-                        <button onClick={() => { if (window.confirm("Bạn có chắc chắn muốn quay lại? Mọi dữ liệu chưa lưu sẽ bị mất.")) { handleGoBackToSelection(); } }} className="flex items-center gap-2 text-sm text-slate-500 hover:text-blue-600 font-semibold transition-colors">
-                            <BackIcon className="w-4 h-4" /> Quay lại Chọn Nghiệp vụ
-                        </button>
-                    </div>
                     <div className="grid grid-cols-12 gap-6">
-                        <div className={`space-y-4 transition-all duration-300 ease-in-out ${isPanelCollapsed ? 'hidden' : 'col-span-5'}`}>
+                        <div className="col-span-5 space-y-4">
+                            <div className="flex justify-between items-center">
+                                <button onClick={() => { if (window.confirm("Bạn có chắc chắn muốn quay lại? Mọi dữ liệu chưa lưu sẽ bị mất.")) { handleGoBackToSelection(); } }} className="flex items-center gap-2 text-sm text-slate-500 hover:text-blue-600 font-semibold transition-colors">
+                                    <BackIcon className="w-4 h-4" /> Quay lại Chọn Nghiệp vụ
+                                </button>
+                            </div>
                             <div className="p-4 border border-slate-200 rounded-lg">
                                 <FileUpload files={files} setFiles={setFiles} onPreview={setPreviewingFile} />
                             </div>
@@ -664,15 +666,7 @@ const App: React.FC = () => {
                             </div>
                             {error && <div className="mt-2"><Alert message={error} type="error" /></div>}
                         </div>
-                         <div className={`relative border border-slate-200 rounded-lg p-6 flex flex-col transition-all duration-300 ease-in-out ${isPanelCollapsed ? 'col-span-12' : 'col-span-7'}`}>
-                            <button 
-                                onClick={() => setIsPanelCollapsed(!isPanelCollapsed)}
-                                className="absolute top-1/2 -translate-y-1/2 z-20 bg-white border border-slate-300 rounded-full p-1.5 hover:bg-slate-100 shadow-md transition-all -left-4"
-                                title={isPanelCollapsed ? 'Mở rộng' : 'Thu gọn'}
-                                aria-label={isPanelCollapsed ? 'Mở rộng bảng điều khiển' : 'Thu gọn bảng điều khiển'}
-                            >
-                                {isPanelCollapsed ? <PanelExpandIcon className="w-5 h-5 text-slate-600" /> : <PanelCollapseIcon className="w-5 h-5 text-slate-600" />}
-                            </button>
+                         <div className="col-span-7 border border-slate-200 rounded-lg p-6 flex flex-col">
                             <div className="flex justify-between items-center mb-4">
                                 <h3 className="text-lg font-bold text-slate-800">Kết quả Phân tích</h3>
                                 {report && !isLoading && (<div className="flex items-center gap-2">
