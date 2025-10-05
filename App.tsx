@@ -5,7 +5,7 @@ import { FileUpload } from './components/FileUpload';
 import { ReportDisplay } from './components/ReportDisplay';
 import { Loader } from './components/Loader';
 import { analyzeCaseFiles, generateContextualDocument, refineText, generateReportSummary, categorizeMultipleFiles } from './services/geminiService';
-import { db, getAllCasesSorted, saveCase, deleteCaseById } from './services/db';
+import { db, getAllCasesSorted, saveCase, deleteCaseById, clearAndBulkAddCases } from './services/db';
 import type { AnalysisReport, UploadedFile, SavedCase, SerializableFile, LitigationStage, LitigationType, FileCategory, ApplicableLaw, LegalLoophole } from './types';
 import { ConsultingWorkflow } from './components/ConsultingWorkflow';
 import { AnalysisIcon } from './components/icons/AnalysisIcon';
@@ -23,6 +23,8 @@ import { ProcessingProgress } from './components/ProcessingProgress';
 import { AppLogo } from './components/icons/AppLogo';
 import { PanelCollapseIcon } from './components/icons/PanelCollapseIcon';
 import { PanelExpandIcon } from './components/icons/PanelExpandIcon';
+import { DownloadIcon } from './components/icons/DownloadIcon';
+import { UploadIcon } from './components/icons/UploadIcon';
 
 
 // Declare global variables from CDN scripts to satisfy TypeScript
@@ -101,7 +103,17 @@ const navItems = [
 
 
 // --- UI Components ---
-const Sidebar: React.FC<{ activeView: View; onNavigate: (view: View) => void; isExpanded: boolean; }> = ({ activeView, onNavigate, isExpanded }) => {
+const Sidebar: React.FC<{ 
+    activeView: View; 
+    onNavigate: (view: View) => void; 
+    isExpanded: boolean; 
+    onBackup: () => void;
+    onRestore: () => void;
+    isActionInProgress: boolean;
+}> = ({ activeView, onNavigate, isExpanded, onBackup, onRestore, isActionInProgress }) => {
+    
+    const actionButtonClasses = `w-full flex items-center gap-4 p-3 rounded-lg cursor-pointer transition-colors text-[var(--sidebar-text)] hover:bg-[var(--sidebar-active-bg)] hover:text-[var(--sidebar-text-hover)] disabled:opacity-50 disabled:cursor-not-allowed ${!isExpanded ? 'justify-center' : ''}`;
+
     return (
         <aside className={`transition-all duration-300 ease-in-out bg-[var(--sidebar-bg)] text-[var(--sidebar-text)] p-4 flex flex-col rounded-l-xl h-full overflow-hidden ${isExpanded ? 'w-64' : 'w-20'}`}>
             <nav className="flex-grow">
@@ -125,6 +137,22 @@ const Sidebar: React.FC<{ activeView: View; onNavigate: (view: View) => void; is
                     })}
                 </ul>
             </nav>
+            <div className="flex-shrink-0 mt-auto pt-4 border-t border-gray-700/50">
+                <ul className="space-y-2">
+                     <li>
+                        <button onClick={onBackup} disabled={isActionInProgress} className={actionButtonClasses} title={isExpanded ? '' : 'Sao lưu Dữ liệu'}>
+                            <DownloadIcon className="w-5 h-5 flex-shrink-0" />
+                            <span className={`transition-opacity duration-200 whitespace-nowrap ${isExpanded ? 'opacity-100' : 'opacity-0'}`}>Sao lưu Dữ liệu</span>
+                        </button>
+                    </li>
+                    <li>
+                        <button onClick={onRestore} disabled={isActionInProgress} className={actionButtonClasses} title={isExpanded ? '' : 'Khôi phục Dữ liệu'}>
+                            <UploadIcon className="w-5 h-5 flex-shrink-0" />
+                            <span className={`transition-opacity duration-200 whitespace-nowrap ${isExpanded ? 'opacity-100' : 'opacity-0'}`}>Khôi phục Dữ liệu</span>
+                        </button>
+                    </li>
+                </ul>
+            </div>
         </aside>
     );
 }
@@ -179,6 +207,8 @@ const App: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isWorkflowSelectorOpen, setIsWorkflowSelectorOpen] = useState(false);
+  const [isBackingUp, setIsBackingUp] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
   
   // --- Litigation Workflow State ---
   const [currentLitigationType, setCurrentLitigationType] = useState<LitigationType>('civil');
@@ -203,6 +233,7 @@ const App: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isPreprocessingFinished, setIsPreprocessingFinished] = useState(false);
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
+  const [isInputPanelCollapsed, setIsInputPanelCollapsed] = useState(false);
 
   const resetAnalysisState = useCallback(() => {
     setFiles([]);
@@ -459,6 +490,84 @@ const App: React.FC = () => {
      }
   };
 
+    const handleBackup = async () => {
+      if (isBackingUp) return;
+      setIsBackingUp(true);
+      try {
+        const allCases = await getAllCasesSorted();
+        if (allCases.length === 0) {
+          alert("Không có vụ việc nào để sao lưu.");
+          return;
+        }
+        const jsonData = JSON.stringify(allCases, null, 2);
+        const blob = new Blob([jsonData], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        const timestamp = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+        link.download = `legal_assistant_backup_${timestamp}.json`;
+        link.href = url;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        console.error("Backup failed:", err);
+        alert("Sao lưu dữ liệu thất bại.");
+      } finally {
+        setIsBackingUp(false);
+      }
+    };
+
+    const handleRestore = () => {
+      if (isRestoring) return;
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = '.json';
+      fileInput.onchange = (event) => {
+        const target = event.target as HTMLInputElement;
+        const file = target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          setIsRestoring(true);
+          try {
+            const text = e.target?.result;
+            if (typeof text !== 'string') {
+              throw new Error("Không thể đọc tệp.");
+            }
+            const data = JSON.parse(text);
+
+            // Basic validation
+            if (!Array.isArray(data) || (data.length > 0 && typeof data[0].id === 'undefined')) {
+              throw new Error("Tệp sao lưu không hợp lệ hoặc bị hỏng.");
+            }
+
+            const confirmed = window.confirm(
+              `Bạn sắp khôi phục ${data.length} vụ việc. Thao tác này sẽ XÓA TẤT CẢ các vụ việc hiện tại.\n\nBạn có chắc chắn muốn tiếp tục không?`
+            );
+
+            if (confirmed) {
+              await clearAndBulkAddCases(data as SavedCase[]);
+              await loadData(); // Refresh the list
+              alert(`Đã khôi phục thành công ${data.length} vụ việc.`);
+            }
+          } catch (err) {
+            console.error("Restore failed:", err);
+            alert(`Khôi phục dữ liệu thất bại: ${err instanceof Error ? err.message : 'Lỗi không xác định'}`);
+          } finally {
+            setIsRestoring(false);
+          }
+        };
+        reader.onerror = () => {
+           alert("Không thể đọc tệp đã chọn.");
+        };
+        reader.readAsText(file);
+      };
+      fileInput.click();
+    };
+
+
   const filteredCases = savedCases.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()) || c.caseContent.toLowerCase().includes(searchQuery.toLowerCase()));
 
   // --- Export Logic ---
@@ -614,59 +723,75 @@ const App: React.FC = () => {
             onMouseEnter={() => setIsSidebarHovered(true)}
             onMouseLeave={() => setIsSidebarHovered(false)}
         >
-            <Sidebar activeView={activeView} onNavigate={setActiveView} isExpanded={isSidebarHovered} />
+            <Sidebar 
+                activeView={activeView} 
+                onNavigate={setActiveView} 
+                isExpanded={isSidebarHovered}
+                onBackup={handleBackup}
+                onRestore={handleRestore}
+                isActionInProgress={isBackingUp || isRestoring}
+            />
         </div>
         <main className="flex-1 p-6 overflow-y-auto" style={{maxHeight: 'calc(100vh - 6.5rem)'}}>
             {activeView === 'caseAnalysis' ? (
                 <>
                     <div className="grid grid-cols-12 gap-6">
-                        <div className="col-span-5 space-y-4">
-                            <div className="flex justify-between items-center">
-                                <button onClick={() => { if (window.confirm("Bạn có chắc chắn muốn quay lại? Mọi dữ liệu chưa lưu sẽ bị mất.")) { handleGoBackToSelection(); } }} className="flex items-center gap-2 text-sm text-slate-500 hover:text-blue-600 font-semibold transition-colors">
-                                    <BackIcon className="w-4 h-4" /> Quay lại Chọn Nghiệp vụ
-                                </button>
-                            </div>
-                            <div className="p-4 border border-slate-200 rounded-lg">
-                                <FileUpload files={files} setFiles={setFiles} onPreview={setPreviewingFile} />
-                            </div>
-                            <div className="p-4 border border-slate-200 rounded-lg space-y-2">
+                        {!isInputPanelCollapsed && (
+                            <div className="col-span-5 space-y-4 animate-fade-in">
                                 <div className="flex justify-between items-center">
-                                    <label htmlFor="caseContent" className="block text-sm font-semibold text-slate-800">Tóm tắt diễn biến, sự việc, các mốc thời gian quan trọng...</label>
-                                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                                        <RefineButton field="caseContent" mode="concise" text="Làm gọn" />
-                                        <RefineButton field="caseContent" mode="detailed" text="Chi tiết hóa" />
-                                    </div>
+                                    <button onClick={() => { if (window.confirm("Bạn có chắc chắn muốn quay lại? Mọi dữ liệu chưa lưu sẽ bị mất.")) { handleGoBackToSelection(); } }} className="flex items-center gap-2 text-sm text-slate-500 hover:text-blue-600 font-semibold transition-colors">
+                                        <BackIcon className="w-4 h-4" /> Quay lại Chọn Nghiệp vụ
+                                    </button>
                                 </div>
-                                <textarea id="caseContent" value={caseContent} onChange={(e) => setCaseContent(e.target.value)} className="w-full min-h-[100px] bg-white p-2 border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500" rows={4}/>
-                                {refineError?.field === 'caseContent' && <p className="text-red-500 text-xs mt-1">{refineError.message}</p>}
-                            </div>
-                            <div className="p-4 border border-slate-200 rounded-lg space-y-2">
-                                <div className="flex justify-between items-center">
-                                    <label htmlFor="clientRequest" className="block text-sm font-semibold text-slate-800">Tóm tắt Thách hàng</label>
-                                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                                        <RefineButton field="clientRequest" mode="concise" text="Làm gọn" />
-                                        <RefineButton field="clientRequest" mode="detailed" text="Chi tiết hóa" />
-                                    </div>
+                                <div className="p-4 border border-slate-200 rounded-lg">
+                                    <FileUpload files={files} setFiles={setFiles} onPreview={setPreviewingFile} />
                                 </div>
-                                <textarea id="clientRequest" value={clientRequest} onChange={(e) => setClientRequest(e.target.value)} placeholder="khách hàng mong muốn đạt được điều gì? ví dụ: đòi lại tiền cọc..." className="w-full min-h-[80px] bg-white p-2 border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500" rows={3} />
-                                {refineError?.field === 'clientRequest' && <p className="text-red-500 text-xs mt-1">{refineError.message}</p>}
+                                <div className="p-4 border border-slate-200 rounded-lg space-y-2">
+                                    <div className="flex justify-between items-center">
+                                        <label htmlFor="caseContent" className="block text-sm font-semibold text-slate-800">Tóm tắt diễn biến, sự việc, các mốc thời gian quan trọng...</label>
+                                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                                            <RefineButton field="caseContent" mode="concise" text="Làm gọn" />
+                                            <RefineButton field="caseContent" mode="detailed" text="Chi tiết hóa" />
+                                        </div>
+                                    </div>
+                                    <textarea id="caseContent" value={caseContent} onChange={(e) => setCaseContent(e.target.value)} className="w-full min-h-[100px] bg-white p-2 border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500" rows={4}/>
+                                    {refineError?.field === 'caseContent' && <p className="text-red-500 text-xs mt-1">{refineError.message}</p>}
+                                </div>
+                                <div className="p-4 border border-slate-200 rounded-lg space-y-2">
+                                    <div className="flex justify-between items-center">
+                                        <label htmlFor="clientRequest" className="block text-sm font-semibold text-slate-800">Tóm tắt Thách hàng</label>
+                                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                                            <RefineButton field="clientRequest" mode="concise" text="Làm gọn" />
+                                            <RefineButton field="clientRequest" mode="detailed" text="Chi tiết hóa" />
+                                        </div>
+                                    </div>
+                                    <textarea id="clientRequest" value={clientRequest} onChange={(e) => setClientRequest(e.target.value)} placeholder="khách hàng mong muốn đạt được điều gì? ví dụ: đòi lại tiền cọc..." className="w-full min-h-[80px] bg-white p-2 border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500" rows={3} />
+                                    {refineError?.field === 'clientRequest' && <p className="text-red-500 text-xs mt-1">{refineError.message}</p>}
+                                </div>
+                                <div className="p-4 rounded-lg bg-blue-50 border border-blue-200">
+                                    <label htmlFor="mainQuery" className="block text-sm font-bold text-blue-900 mb-1">Yêu cầu chính cho AI</label>
+                                    <p className="text-xs text-blue-800/80 mb-2">Đây là yêu cầu quan trọng nhất, quyết định hướng phân tích của AI.</p>
+                                    <textarea id="mainQuery" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Ví dụ: Phân tích và đề xuất chiến lược khởi kiện" className="w-full bg-white p-2 border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500" rows={2} />
+                                </div>
+                                <div className="flex items-center gap-3 pt-2">
+                                    <button onClick={handleMainActionClick} disabled={mainAction.disabled} className="py-2.5 px-4 font-semibold text-sm rounded-lg transition-all duration-200 flex items-center justify-center gap-2 flex-1 bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 disabled:bg-slate-300">
+                                        {isLoading ? <><Loader /><span>{mainAction.loadingText}</span></> : <span>{mainAction.text}</span>}
+                                    </button>
+                                    <button onClick={handleSaveCase} disabled={isSaving} className="py-2.5 px-4 font-semibold text-sm rounded-lg transition-all duration-200 flex items-center justify-center gap-2 flex-1 bg-slate-100 text-slate-800 hover:bg-slate-200 focus:ring-slate-400 border border-slate-300">
+                                        {isSaving ? <Loader /> : <><SaveCaseIcon className="w-4 h-4" /><span>Lưu vụ việc</span></>}
+                                    </button>
+                                </div>
+                                {error && <div className="mt-2"><Alert message={error} type="error" /></div>}
                             </div>
-                            <div className="p-4 rounded-lg bg-blue-50 border border-blue-200">
-                                <label htmlFor="mainQuery" className="block text-sm font-bold text-blue-900 mb-1">Yêu cầu chính cho AI</label>
-                                <p className="text-xs text-blue-800/80 mb-2">Đây là yêu cầu quan trọng nhất, quyết định hướng phân tích của AI.</p>
-                                <textarea id="mainQuery" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Ví dụ: Phân tích và đề xuất chiến lược khởi kiện" className="w-full bg-white p-2 border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500" rows={2} />
-                            </div>
-                            <div className="flex items-center gap-3 pt-2">
-                                 <button onClick={handleMainActionClick} disabled={mainAction.disabled} className="py-2.5 px-4 font-semibold text-sm rounded-lg transition-all duration-200 flex items-center justify-center gap-2 flex-1 bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 disabled:bg-slate-300">
-                                    {isLoading ? <><Loader /><span>{mainAction.loadingText}</span></> : <span>{mainAction.text}</span>}
-                                </button>
-                                 <button onClick={() => {}} disabled={isSaving} className="py-2.5 px-4 font-semibold text-sm rounded-lg transition-all duration-200 flex items-center justify-center gap-2 flex-1 bg-slate-100 text-slate-800 hover:bg-slate-200 focus:ring-slate-400 border border-slate-300">
-                                    {isSaving ? <Loader /> : <span>Lưu nháp</span>}
-                                </button>
-                            </div>
-                            {error && <div className="mt-2"><Alert message={error} type="error" /></div>}
-                        </div>
-                         <div className="col-span-7 border border-slate-200 rounded-lg p-6 flex flex-col">
+                        )}
+                         <div className={`${isInputPanelCollapsed ? 'col-span-12' : 'col-span-7'} border border-slate-200 rounded-lg p-6 flex flex-col relative transition-all duration-300`}>
+                            <button
+                                onClick={() => setIsInputPanelCollapsed(p => !p)}
+                                className="absolute -left-4 top-1/2 -translate-y-1/2 z-30 p-1.5 bg-white border border-slate-300 rounded-full shadow-md hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors"
+                                title={isInputPanelCollapsed ? "Hiện bảng nhập liệu" : "Ẩn bảng nhập liệu"}
+                            >
+                                {isInputPanelCollapsed ? <PanelExpandIcon className="w-5 h-5" /> : <PanelCollapseIcon className="w-5 h-5" />}
+                            </button>
                             <div className="flex justify-between items-center mb-4">
                                 <h3 className="text-lg font-bold text-slate-800">Kết quả Phân tích</h3>
                                 {report && !isLoading && (<div className="flex items-center gap-2">
@@ -796,7 +921,9 @@ const App: React.FC = () => {
             <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
                 <div className="bg-white rounded-xl shadow-2xl p-6 w-11/12 max-w-3xl flex flex-col max-h-[85vh] soft-shadow-lg">
                     <div className="flex justify-between items-center pb-4 border-b">
-                        <h3 className="text-xl font-bold">Danh sách Vụ việc đã lưu</h3>
+                         <div className="flex items-center gap-4">
+                            <h3 className="text-xl font-bold">Danh sách Vụ việc đã lưu</h3>
+                        </div>
                         <button onClick={() => setIsCaseListOpen(false)} className="text-slate-400 hover:text-red-600 text-3xl p-1 leading-none">&times;</button>
                     </div>
                     <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Tìm kiếm..." className="w-full p-2.5 my-4 border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />

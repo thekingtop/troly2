@@ -1,6 +1,5 @@
 
 
-
 import React, { useState, useCallback, useEffect } from 'react';
 import { FileUpload } from './FileUpload';
 import { Loader } from './Loader';
@@ -34,6 +33,28 @@ const ExclamationTriangleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props)
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
     </svg>
 );
+// --- Icons for Loophole Categories ---
+const ContractIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m.75 12 3 3m0 0 3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+  </svg>
+);
+const LawIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0 0 12 4.5c-2.291 0-4.545.16-6.75.47m13.5 0c1.01.143 2.01.317 3 .52m-3-.52v16.5m-3.5-16.5v16.5m-3.5-16.5v16.5m0 0C5.116 20.507 3 19.742 3 18.25V8.75c0-1.492 2.116-2.257 4.5-2.257m0 11.75c2.384 0 4.5-.765 4.5-2.257V8.75C12 7.258 9.884 6.5 7.5 6.5m0 11.75 4.5-11.75" />
+  </svg>
+);
+const ProcedureIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z" />
+  </svg>
+);
+const InfoIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
+  </svg>
+);
+
 
 const Alert: React.FC<{ message: string; type: 'error' | 'warning' | 'info' }> = ({ message, type }) => {
     const baseClasses = "p-4 text-sm rounded-lg animate-fade-in";
@@ -222,7 +243,7 @@ export const ConsultingWorkflow: React.FC<ConsultingWorkflowProps> = ({ onPrevie
                     <BackIcon className="w-5 h-5" /> Quay lại Chọn Nghiệp vụ
                 </button>
                 <button onClick={handleSave} disabled={isSaving} className="flex items-center justify-center gap-2 py-2 px-4 bg-slate-600 text-white text-sm font-semibold rounded-lg hover:bg-slate-700 disabled:bg-slate-300">
-                    {isSaving ? <Loader /> : <SaveCaseIcon className="w-4 h-4" />} Lưu Nghiệp vụ
+                    {isSaving ? <Loader /> : <><SaveCaseIcon className="w-4 h-4" /> <span>Lưu vụ việc</span></>}
                 </button>
             </div>
             
@@ -297,18 +318,66 @@ const InfoCard: React.FC<{ icon: React.ReactNode; title: string; children: React
     </div>
 );
 
+const LegalLoopholesDisplay: React.FC<{ loopholes: LegalLoophole[] }> = ({ loopholes }) => {
+    const getSeverityClasses = (severity: LegalLoophole['severity']) => {
+        switch (severity) {
+            case 'Cao': return 'bg-red-100 text-red-800 border-red-300';
+            case 'Trung bình': return 'bg-amber-100 text-amber-800 border-amber-300';
+            case 'Thấp': return 'bg-green-100 text-green-800 border-green-300';
+            default: return 'bg-slate-100 text-slate-800 border-slate-300';
+        }
+    };
+    const groupedLoopholes = loopholes.reduce((acc, loophole) => {
+        const key = loophole.classification;
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(loophole);
+        return acc;
+    }, {} as Record<LegalLoophole['classification'], LegalLoophole[]>);
+    const classificationOrder: LegalLoophole['classification'][] = ['Hợp đồng', 'Quy phạm Pháp luật', 'Tố tụng', 'Khác'];
+    const classificationMeta: Record<LegalLoophole['classification'], { icon: React.ReactNode; color: string; title: string }> = {
+        'Hợp đồng': { icon: <ContractIcon className="w-5 h-5" />, color: 'text-purple-800', title: 'Lỗ hổng Hợp đồng' },
+        'Quy phạm Pháp luật': { icon: <LawIcon className="w-5 h-5" />, color: 'text-teal-800', title: 'Lỗ hổng Luật & QPPL' },
+        'Tố tụng': { icon: <ProcedureIcon className="w-5 h-5" />, color: 'text-indigo-800', title: 'Lỗ hổng Tố tụng' },
+        'Khác': { icon: <InfoIcon className="w-5 h-5" />, color: 'text-slate-800', title: 'Lỗ hổng Khác' },
+    };
+
+    return (
+        <div className="space-y-4">
+            {classificationOrder
+                .filter(classification => groupedLoopholes[classification])
+                .map(classification => (
+                    <div key={classification}>
+                        <div className={`flex items-center gap-2 ${classificationMeta[classification].color}`}>
+                            {classificationMeta[classification].icon}
+                            <h5 className="font-semibold text-sm">{classificationMeta[classification].title}</h5>
+                        </div>
+                        <div className="space-y-2 mt-2 pl-7">
+                            {groupedLoopholes[classification].map((item, index) => (
+                                <div key={index} className="p-2 bg-slate-50 border border-slate-200 rounded-md text-xs">
+                                    <div className="flex justify-between items-center mb-1">
+                                        <p className="font-semibold text-slate-700">{item.description}</p>
+                                        <span className={`font-bold px-2 py-0.5 rounded-full border text-xs ${getSeverityClasses(item.severity)}`}>
+                                            {item.severity}
+                                        </span>
+                                    </div>
+                                    <p className="text-slate-600"><span className="font-semibold">Gợi ý:</span> {item.suggestion}</p>
+                                    <blockquote className="mt-1 border-l-2 border-slate-300 pl-2 italic text-slate-500">
+                                      {item.evidence}
+                                    </blockquote>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ))}
+        </div>
+    );
+};
+
 const AnalysisResultDisplay: React.FC<{ report: ConsultingReport; onGenerateRequest: (req: string) => void; }> = ({ report, onGenerateRequest }) => {
     const caseTypeLabel: Record<LitigationType | 'unknown', string> = {
       civil: 'Dân sự', criminal: 'Hình sự', administrative: 'Hành chính', unknown: 'Chưa xác định'
     };
-    const getSeverityClasses = (severity: LegalLoophole['severity']) => {
-        switch (severity) {
-            case 'Cao': return 'text-red-700';
-            case 'Trung bình': return 'text-amber-700';
-            case 'Thấp': return 'text-green-700';
-            default: return 'text-slate-700';
-        }
-    };
+    
     return (
         <div className="space-y-4">
             <InfoCard icon={<DiscussionIcon className="w-5 h-5"/>} title="Điểm quan trọng cần trao đổi">
@@ -320,21 +389,7 @@ const AnalysisResultDisplay: React.FC<{ report: ConsultingReport; onGenerateRequ
             </InfoCard>
             {report.legalLoopholes && report.legalLoopholes.length > 0 && (
                 <InfoCard icon={<ExclamationTriangleIcon className="w-5 h-5"/>} title="Lỗ hổng Pháp lý Tiềm ẩn">
-                    <ul className="space-y-3">
-                        {report.legalLoopholes.map((loophole, index) => (
-                            <li key={index} className="border-t border-slate-100 pt-2 first:border-t-0 first:pt-0">
-                                <p className="font-semibold">
-                                    {loophole.classification} (<span className={`${getSeverityClasses(loophole.severity)} font-bold`}>{loophole.severity}</span>)
-                                </p>
-                                <p className="text-slate-600">{loophole.description}</p>
-                                {loophole.suggestion && (
-                                     <p className="mt-1 text-xs text-blue-700 bg-blue-50 p-1 rounded-md">
-                                        <span className="font-semibold">Gợi ý:</span> {loophole.suggestion}
-                                    </p>
-                                )}
-                            </li>
-                        ))}
-                    </ul>
+                     <LegalLoopholesDisplay loopholes={report.legalLoopholes} />
                 </InfoCard>
             )}
             <InfoCard icon={<DocumentSuggestionIcon className="w-5 h-5"/>} title="Đề xuất Tiếp theo">

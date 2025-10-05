@@ -62,5 +62,22 @@ export const bulkAddCases = (casesData: SavedCase[]): Promise<string> => {
   return db.cases.bulkAdd(casesData);
 }
 
+/**
+ * Atomically clears the entire 'cases' table and then adds new cases.
+ * This is used for restoring data from a backup.
+ * @param casesData An array of SavedCase objects to restore.
+ * @returns A promise that resolves when the restore is complete.
+ */
+export const clearAndBulkAddCases = (casesData: SavedCase[]): Promise<string> => {
+  return db.transaction('rw', db.cases, async () => {
+    await db.cases.clear();
+    // Validate that casesData is an array before adding
+    if (!Array.isArray(casesData)) {
+      throw new Error("Invalid data format for restore: Expected an array of cases.");
+    }
+    return await db.cases.bulkAdd(casesData);
+  });
+};
+
 // Export the db instance itself if direct, more complex queries are needed.
 export { db };
