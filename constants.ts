@@ -1,5 +1,5 @@
 import { Type } from "@google/genai";
-import type { FileCategory, DocType, LitigationType, LitigationStage } from "./types";
+import type { FileCategory, DocType, LitigationType, LitigationStage, ArgumentNodeType } from "./types";
 
 export const fileCategoryLabels: Record<FileCategory, string> = {
     Uncategorized: 'Chưa phân loại',
@@ -8,6 +8,17 @@ export const fileCategoryLabels: Record<FileCategory, string> = {
     Minutes: 'Biên bản làm việc',
     Image: 'Hình ảnh / Sơ đồ',
     Evidence: 'Chứng cứ khác',
+};
+
+export const nodeTypeMeta: Record<ArgumentNodeType, { color: string, label: string }> = {
+    legalIssue: { color: 'bg-red-100 border-red-400', label: 'Vấn đề pháp lý' },
+    strength: { color: 'bg-green-100 border-green-400', label: 'Điểm mạnh' },
+    weakness: { color: 'bg-amber-100 border-amber-400', label: 'Điểm yếu' },
+    risk: { color: 'bg-orange-100 border-orange-400', label: 'Rủi ro' },
+    timelineEvent: { color: 'bg-sky-100 border-sky-400', label: 'Sự kiện' },
+    applicableLaw: { color: 'bg-indigo-100 border-indigo-400', label: 'Cơ sở pháp lý' },
+    loophole: { color: 'bg-purple-100 border-purple-400', label: 'Lỗ hổng pháp lý' },
+    custom: { color: 'bg-slate-100 border-slate-400', label: 'Ghi chú' },
 };
 
 export const DOC_TYPE_FIELDS: Partial<Record<DocType, string[]>> = {
@@ -159,6 +170,8 @@ Bạn là một luật sư AI bậc thầy, chuyên về việc xây dựng lu�
 4.  **Liên kết các Yếu tố:** Đảm bảo rằng mối liên hệ giữa sự kiện, bằng chứng và luật áp dụng được thể hiện rõ ràng trong bài viết.
 5.  **Chỉ trả về nội dung:** Không thêm bất kỳ lời chào hỏi hay giải thích nào khác. Chỉ trả về đoạn văn luận cứ đã được soạn thảo.
 `;
+
+export const ARGUMENT_NODE_CHAT_SYSTEM_INSTRUCTION = `Bạn là một trợ lý luật sư AI, một nhà chiến lược sắc sảo. Bạn đang trò chuyện với luật sư về một khối thông tin cụ thể trong "Bản đồ Lập luận". Nhiệm vụ của bạn là tập trung vào yếu tố được cung cấp (một luận điểm, một bằng chứng, một điểm yếu...) và cung cấp các phân tích, lập luận, hoặc giải pháp để giải quyết hoặc khai thác yếu tố đó. Hãy tư duy sâu, đặt câu hỏi để làm rõ nếu cần, và đưa ra các bước hành động cụ thể, hữu ích.`;
 
 
 export const REPORT_SCHEMA = {
