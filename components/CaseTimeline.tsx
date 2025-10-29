@@ -42,6 +42,12 @@ const eventMeta: Record<CaseTimelineEvent['eventType'], { icon: React.ReactNode;
     Other: { icon: <OtherIcon className="w-5 h-5"/>, color: 'border-slate-500' },
 };
 
+const significanceLabels: Record<CaseTimelineEvent['significance'], string> = {
+    High: 'Cao',
+    Medium: 'Trung bình',
+    Low: 'Thấp',
+};
+
 const HighlightedText: React.FC<{ text: string | undefined; term: string }> = React.memo(({ text, term }) => {
     if (!term.trim() || !text) return <>{text}</>;
     const escapedTerm = term.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
@@ -73,7 +79,7 @@ const TimelineEventCard: React.FC<{ event: CaseTimelineEvent; isLeft: boolean; h
              <div className="relative p-4 bg-white border rounded-lg soft-shadow">
                 <div className={`absolute top-3 ${isLeft ? 'right-3' : 'left-3'}`}>
                     <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${significanceClasses[event.significance]}`}>
-                        <HighlightedText text={event.significance} term={highlightTerm} />
+                        <HighlightedText text={significanceLabels[event.significance]} term={highlightTerm} />
                     </span>
                 </div>
                 <div className="flex items-center gap-3 mb-2">
