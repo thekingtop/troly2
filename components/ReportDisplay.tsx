@@ -10,8 +10,10 @@ import { TrashIcon } from './icons/TrashIcon.tsx';
 import { ChatIcon } from './icons/ChatIcon.tsx';
 import { SendIcon } from './icons/SendIcon.tsx';
 import { CaseTimeline } from './CaseTimeline.tsx';
+import { DownloadIcon } from './icons/DownloadIcon.tsx';
 
 // --- Internal Components and Icons ---
+declare var html2canvas: any;
 
 const EditIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
@@ -222,11 +224,14 @@ const HighlightedText: React.FC<{ text: string | undefined; term: string }> = Re
 });
 
 
-const Section: React.FC<{ title: string; children: React.ReactNode; id?: string; highlightTerm: string; }> = ({ title, children, id, highlightTerm }) => (
+const Section: React.FC<{ title: string; children: React.ReactNode; id?: string; highlightTerm: string; extraHeaderContent?: React.ReactNode; }> = ({ title, children, id, highlightTerm, extraHeaderContent }) => (
   <div id={id} className="mb-8">
-    <h3 className="text-lg font-semibold text-slate-900 border-b-2 border-slate-100 pb-2 mb-4">
-        <HighlightedText text={title} term={highlightTerm} />
-    </h3>
+    <div className="flex justify-between items-center border-b-2 border-slate-100 pb-2 mb-4">
+        <h3 className="text-lg font-semibold text-slate-900">
+            <HighlightedText text={title} term={highlightTerm} />
+        </h3>
+        {extraHeaderContent}
+    </div>
     <div className="space-y-3 text-slate-700">
       {children}
     </div>
@@ -313,7 +318,7 @@ const LegalLoopholesDisplay: React.FC<{ loopholes: LegalLoophole[]; highlightTer
     );
 };
 
-type ChatContextKey = 'prospectsChat' | 'gapAnalysisChat' | 'strategyChat';
+type ChatContextKey = 'prospectsChat' | 'gapAnalysisChat' | 'strategyChat' | 'resolutionPlanChat';
 
 const ContextualChat: React.FC<{
     report: AnalysisReport;
@@ -453,6 +458,37 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
   } | null>(null);
   const [highlightTerm, setHighlightTerm] = useState('');
   const [visibleChats, setVisibleChats] = useState<Record<string, boolean>>({});
+  const [isDownloadingTimeline, setIsDownloadingTimeline] = useState(false);
+
+
+  const handleDownloadTimeline = async () => {
+    const timelineElement = document.getElementById('caseTimeline');
+    if (!timelineElement || typeof html2canvas === 'undefined') {
+        alert("Không thể tìm thấy mục dòng thời gian hoặc thư viện chưa sẵn sàng.");
+        return;
+    }
+    setIsDownloadingTimeline(true);
+    try {
+        const canvas = await html2canvas(timelineElement, {
+            scale: 2,
+            backgroundColor: '#f8fafc',
+            useCORS: true,
+            logging: false,
+        });
+        const dataUrl = canvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        link.download = 'dong_thoi_gian_vu_viec.png';
+        link.href = dataUrl;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    } catch (error) {
+        console.error("Lỗi khi tạo ảnh dòng thời gian:", error);
+        alert("Đã xảy ra lỗi khi tạo ảnh.");
+    } finally {
+        setIsDownloadingTimeline(false);
+    }
+};
 
   const toggleChat = (key: string) => {
     setVisibleChats(prev => ({ ...prev, [key]: !prev[key] }));
@@ -482,6 +518,18 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
       setExplanation(prev => (prev?.law === lawText ? { ...prev, error: errorMessage, isLoading: false } : prev));
     }
   };
+
+  const timelineDownloadButton = (
+    <button
+        onClick={handleDownloadTimeline}
+        disabled={isDownloadingTimeline}
+        className="flex items-center gap-2 px-3 py-1.5 text-xs bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300 disabled:opacity-50"
+        title="Tải dòng thời gian về dưới dạng ảnh"
+    >
+        {isDownloadingTimeline ? <Loader /> : <DownloadIcon className="w-4 h-4" />}
+        <span>Tải ảnh</span>
+    </button>
+  );
 
   return (
     <div id="report-content" className="animate-fade-in">
@@ -554,7 +602,7 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
       )}
 
       {report?.caseTimeline && report.caseTimeline.length > 0 && (
-        <Section title="Dòng thời gian Vụ việc (do AI tạo)" id="caseTimeline" highlightTerm={highlightTerm}>
+        <Section title="Dòng thời gian Vụ việc (do AI tạo)" id="caseTimeline" highlightTerm={highlightTerm} extraHeaderContent={timelineDownloadButton}>
             <CaseTimeline events={report.caseTimeline} highlightTerm={highlightTerm} />
         </Section>
       )}
@@ -607,6 +655,20 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
                         <li key={index}><HighlightedText text={step} term={highlightTerm} /></li>
                     ))}
                 </ul>
+                <div className="mt-4 pt-4 border-t border-blue-200/50">
+                    <button onClick={() => toggleChat('resolutionPlan')} className="flex items-center gap-2 text-sm text-blue-700 font-bold hover:text-blue-900">
+                       <ChatIcon className="w-5 h-5"/>
+                       <span>{visibleChats['resolutionPlan'] ? 'Ẩn' : 'Trao đổi với AI về Phương án'}</span>
+                   </button>
+               </div>
+               {visibleChats['resolutionPlan'] && report && (
+                   <ContextualChat 
+                       report={report} 
+                       onUpdateReport={onUpdateReport} 
+                       chatHistoryKey="resolutionPlanChat" 
+                       contextTitle="Phương án giải quyết theo Yêu cầu"
+                   />
+               )}
             </div>
         </Section>
       )}
