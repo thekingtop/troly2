@@ -12,7 +12,9 @@ import {
     SUMMARY_EXTRACTION_SYSTEM_INSTRUCTION,
     SUMMARY_EXTRACTION_SCHEMA,
     CONTEXTUAL_CHAT_SYSTEM_INSTRUCTION,
-    ARGUMENT_GENERATION_SYSTEM_INSTRUCTION
+    ARGUMENT_GENERATION_SYSTEM_INSTRUCTION,
+    ARGUMENT_NODE_CHAT_SYSTEM_INSTRUCTION,
+    nodeTypeMeta
 } from '../constants.ts';
 
 const API_KEY = import.meta.env.VITE_API_KEY;
@@ -668,7 +670,7 @@ export const continueContextualChat = async (
 ): Promise<string> => {
   try {
     // Exclude chat histories from the context to prevent redundancy and save tokens
-    const { prospectsChat, gapAnalysisChat, strategyChat, ...reportContext } = report;
+    const { prospectsChat, gapAnalysisChat, strategyChat, resolutionPlanChat, ...reportContext } = report;
 
     const conversationHistoryPrompt = chatHistory
       .map(msg => `${msg.role === 'user' ? 'Luật sư' : 'Trợ lý AI'}: ${msg.content}`)
@@ -740,4 +742,48 @@ export const generateArgumentText = async (
     } catch (error) {
         throw handleGeminiError(error, 'soạn thảo luận cứ');
     }
+};
+
+export const chatAboutArgumentNode = async (
+  node: ArgumentNode,
+  chatHistory: ChatMessage[],
+  newMessage: string
+): Promise<string> => {
+  try {
+    const conversationHistoryPrompt = chatHistory
+      .map(msg => `${msg.role === 'user' ? 'Luật sư' : 'Trợ lý AI'}: ${msg.content}`)
+      .join('\n');
+
+    const prompt = `
+BỐI CẢNH (KHỐI THÔNG TIN TỪ BẢN ĐỒ LẬP LUẬN):
+- Loại: ${nodeTypeMeta[node.type]?.label || 'Tùy chỉnh'}
+- Nhãn: ${node.label}
+- Nội dung: "${node.content}"
+
+LỊCH SỬ TRAO ĐỔI VỀ KHỐI NÀY:
+---
+${conversationHistoryPrompt}
+---
+
+LUẬT SƯ (YÊU CẦU MỚI):
+${newMessage}
+
+TRỢ LÝ AI:
+`;
+    const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+        config: {
+            systemInstruction: ARGUMENT_NODE_CHAT_SYSTEM_INSTRUCTION,
+            temperature: 0.7,
+        }
+    });
+
+    if (!response || typeof response.text !== 'string') {
+        throw new Error("AI không thể tiếp tục cuộc trò chuyện.");
+    }
+    return response.text.trim();
+  } catch (error) {
+    throw handleGeminiError(error, `trao đổi về luận cứ "${node.label}"`);
+  }
 };
