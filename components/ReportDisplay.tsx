@@ -602,7 +602,7 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
       )}
 
       {report?.caseTimeline && report.caseTimeline.length > 0 && (
-        <Section title="Dòng thời gian Vụ việc (do AI tạo)" id="caseTimeline" highlightTerm={highlightTerm} extraHeaderContent={timelineDownloadButton}>
+        <Section title="Dòng thời gian Vụ việc" id="caseTimeline" highlightTerm={highlightTerm} extraHeaderContent={timelineDownloadButton}>
             <CaseTimeline events={report.caseTimeline} highlightTerm={highlightTerm} />
         </Section>
       )}
