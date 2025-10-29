@@ -1,32 +1,32 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import type { AnalysisReport, ArgumentNode, ArgumentEdge, ArgumentNodeType } from '../types.ts';
-import { generateArgumentText } from '../services/geminiService.ts';
+import type { AnalysisReport, ArgumentNode, ArgumentEdge, ArgumentNodeType, ChatMessage } from '../types.ts';
+import { generateArgumentText, chatAboutArgumentNode } from '../services/geminiService.ts';
 import { Loader } from './Loader.tsx';
 import { MagicIcon } from './icons/MagicIcon.tsx';
 import { DownloadIcon } from './icons/DownloadIcon.tsx';
+import { nodeTypeMeta } from '../constants.ts';
+import { ChatIcon } from './icons/ChatIcon.tsx';
+
 
 // --- Helper Components & Functions ---
 
 // Declare html2canvas from global scope
 declare var html2canvas: any;
 
-const nodeTypeMeta: Record<ArgumentNodeType, { color: string, label: string }> = {
-    legalIssue: { color: 'bg-red-100 border-red-400', label: 'Vấn đề pháp lý' },
-    strength: { color: 'bg-green-100 border-green-400', label: 'Điểm mạnh' },
-    weakness: { color: 'bg-amber-100 border-amber-400', label: 'Điểm yếu' },
-    risk: { color: 'bg-orange-100 border-orange-400', label: 'Rủi ro' },
-    timelineEvent: { color: 'bg-sky-100 border-sky-400', label: 'Sự kiện' },
-    applicableLaw: { color: 'bg-indigo-100 border-indigo-400', label: 'Cơ sở pháp lý' },
-    loophole: { color: 'bg-purple-100 border-purple-400', label: 'Lỗ hổng pháp lý' },
-    custom: { color: 'bg-slate-100 border-slate-400', label: 'Ghi chú' },
-};
+const EditIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+  </svg>
+);
 
 const ArgumentNodeComponent: React.FC<{
     node: ArgumentNode;
     onDragStart: (e: React.MouseEvent, id: string) => void;
     isSelected: boolean;
     onClick: (e: React.MouseEvent, id: string) => void;
-}> = ({ node, onDragStart, isSelected, onClick }) => {
+    onStartEdit: (node: ArgumentNode) => void;
+    onStartChat: (node: ArgumentNode) => void;
+}> = ({ node, onDragStart, isSelected, onClick, onStartEdit, onStartChat }) => {
     const meta = nodeTypeMeta[node.type] || nodeTypeMeta.custom;
     const selectionClass = isSelected ? 'ring-2 ring-offset-2 ring-blue-500' : 'hover:ring-2 hover:ring-blue-300';
 
@@ -38,7 +38,13 @@ const ArgumentNodeComponent: React.FC<{
             onMouseDown={(e) => onDragStart(e, node.id)}
             onClick={(e) => onClick(e, node.id)}
         >
-            <div className="font-bold mb-1">{node.label}</div>
+            <div className="font-bold mb-1 flex justify-between items-start">
+                <span className="line-clamp-2 pr-1">{node.label}</span>
+                <div className="flex items-center gap-0.5 flex-shrink-0 -mr-1 -mt-1">
+                    <button onClick={(e) => { e.stopPropagation(); onStartChat(node); }} className="p-1 rounded hover:bg-black/10" title="Trao đổi với AI"><ChatIcon className="w-4 h-4 text-slate-600"/></button>
+                    <button onClick={(e) => { e.stopPropagation(); onStartEdit(node); }} className="p-1 rounded hover:bg-black/10" title="Chỉnh sửa"><EditIcon className="w-4 h-4 text-slate-600"/></button>
+                </div>
+            </div>
             <p className="line-clamp-4">{node.content}</p>
         </div>
     );
@@ -152,6 +158,93 @@ const ArgumentEditor: React.FC<ArgumentEditorProps> = ({ selectedNodes, onDownlo
     );
 };
 
+const ArgumentNodeEditorModal: React.FC<{
+    node: ArgumentNode;
+    onSave: (id: string, newContent: string) => void;
+    onClose: () => void;
+}> = ({ node, onSave, onClose }) => {
+    const [content, setContent] = useState(node.content);
+    return (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
+            <div className="bg-white rounded-xl shadow-2xl p-6 w-11/12 max-w-lg" onClick={e => e.stopPropagation()}>
+                <h3 className="text-lg font-bold mb-4">Chỉnh sửa: {node.label}</h3>
+                <textarea
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    className="w-full h-48 p-2 border border-slate-300 rounded-md bg-slate-50 focus:ring-1 focus:ring-blue-500"
+                />
+                <div className="flex justify-end gap-3 mt-4">
+                    <button onClick={onClose} className="px-4 py-2 text-sm font-semibold bg-slate-200 rounded-md hover:bg-slate-300">Hủy</button>
+                    <button onClick={() => { onSave(node.id, content); onClose(); }} className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700">Lưu</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const ArgumentNodeChatModal: React.FC<{
+    node: ArgumentNode;
+    onSendMessage: (nodeId: string, userMessage: ChatMessage) => Promise<void>;
+    onClose: () => void;
+    isLoading: boolean;
+}> = ({ node, onSendMessage, onClose, isLoading }) => {
+    const [userInput, setUserInput] = useState('');
+    const chatHistory = node.chatHistory || [];
+    const chatEndRef = useRef<HTMLDivElement>(null);
+    
+    useEffect(() => {
+        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [chatHistory]);
+
+    const handleFormSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!userInput.trim() || isLoading) return;
+        const newUserMessage: ChatMessage = { role: 'user', content: userInput.trim() };
+        setUserInput('');
+        await onSendMessage(node.id, newUserMessage);
+    };
+
+    return (
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in" onClick={onClose}>
+        <div className="bg-white rounded-xl shadow-2xl p-4 w-11/12 max-w-2xl flex flex-col h-[70vh]" onClick={e => e.stopPropagation()}>
+          <div className="flex justify-between items-center pb-3 border-b mb-3">
+              <h3 className="text-lg font-bold">Trao đổi về: {node.label}</h3>
+              <button onClick={onClose} className="text-slate-400 hover:text-red-600 text-3xl p-1 leading-none">&times;</button>
+          </div>
+          <div className="flex-grow bg-slate-50 border rounded-lg p-3 overflow-y-auto space-y-4">
+              {chatHistory.map((msg, index) => (
+                  <div key={index} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
+                      {msg.role === 'model' && (
+                           <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0">
+                              <MagicIcon className="w-5 h-5 text-white"/>
+                          </div>
+                      )}
+                      <div className={`max-w-[80%] p-3 rounded-lg ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-800'}`}>
+                          <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                      </div>
+                  </div>
+              ))}
+              {isLoading && (
+                   <div className="flex gap-3">
+                       <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0">
+                          <MagicIcon className="w-5 h-5 text-white"/>
+                      </div>
+                      <div className="max-w-[80%] p-3 rounded-lg bg-slate-100 text-slate-800 flex items-center">
+                          <Loader />
+                      </div>
+                  </div>
+              )}
+              <div ref={chatEndRef} />
+          </div>
+          <form onSubmit={handleFormSubmit} className="mt-3 flex gap-2">
+              <input type="text" value={userInput} onChange={(e) => setUserInput(e.target.value)} placeholder="Hỏi AI để có giải pháp..." className="flex-grow p-2 border border-slate-300 rounded-md text-sm" disabled={isLoading} />
+              <button type="submit" disabled={isLoading || !userInput.trim()} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 disabled:bg-slate-400">Gửi</button>
+          </form>
+        </div>
+      </div>
+    );
+};
+
 
 // --- Main Component ---
 interface ArgumentMapViewProps {
@@ -159,11 +252,14 @@ interface ArgumentMapViewProps {
     onUpdateReport: (report: AnalysisReport) => void;
 }
 
-export const ArgumentMapView: React.FC<ArgumentMapViewProps> = ({ report }) => {
+export const ArgumentMapView: React.FC<ArgumentMapViewProps> = ({ report, onUpdateReport }) => {
     const [nodes, setNodes] = useState<ArgumentNode[]>([]);
     const [edges, setEdges] = useState<ArgumentEdge[]>([]);
     const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
     const [isDownloading, setIsDownloading] = useState(false);
+    const [editingNode, setEditingNode] = useState<ArgumentNode | null>(null);
+    const [chattingNode, setChattingNode] = useState<ArgumentNode | null>(null);
+    const [isChatLoading, setIsChatLoading] = useState(false);
     
     const draggingNode = useRef<{ id: string; offset: { x: number; y: number } } | null>(null);
     const mapRef = useRef<HTMLDivElement>(null);
@@ -236,10 +332,9 @@ export const ArgumentMapView: React.FC<ArgumentMapViewProps> = ({ report }) => {
         e.preventDefault();
         const node = nodes.find(n => n.id === id);
         if (!node || !mapRef.current) return;
-        const mapRect = mapRef.current.getBoundingClientRect();
         
         // Clicks on interactive elements inside the node should not start a drag
-        if ((e.target as HTMLElement).tagName === 'BUTTON' || (e.target as HTMLElement).tagName === 'A') {
+        if ((e.target as HTMLElement).closest('button')) {
             return;
         }
 
@@ -295,7 +390,7 @@ export const ArgumentMapView: React.FC<ArgumentMapViewProps> = ({ report }) => {
     
     const handleCanvasClick = (e: React.MouseEvent) => {
         // Deselect all nodes if clicking on the canvas itself
-        if (e.target === mapRef.current) {
+        if (e.target === mapRef.current || e.target === mapContentRef.current) {
             setSelectedNodeIds(new Set());
         }
     };
@@ -303,6 +398,44 @@ export const ArgumentMapView: React.FC<ArgumentMapViewProps> = ({ report }) => {
     const selectedNodes = useMemo(() => {
         return nodes.filter(node => selectedNodeIds.has(node.id));
     }, [nodes, selectedNodeIds]);
+
+    const handleSaveNodeEdit = (id: string, newContent: string) => {
+        const newNodes = nodes.map(n => n.id === id ? { ...n, content: newContent } : n);
+        setNodes(newNodes);
+        if (report?.argumentGraph) {
+            onUpdateReport({ ...report, argumentGraph: { ...report.argumentGraph, nodes: newNodes } });
+        }
+    };
+    
+    const handleSendMessageInNode = async (nodeId: string, userMessage: ChatMessage) => {
+        const targetNode = nodes.find(n => n.id === nodeId);
+        if (!targetNode) return;
+    
+        const updatedHistory = [...(targetNode.chatHistory || []), userMessage];
+        const newNodesTemp = nodes.map(n => n.id === nodeId ? { ...n, chatHistory: updatedHistory } : n);
+        setNodes(newNodesTemp);
+        setChattingNode(newNodesTemp.find(n => n.id === nodeId) || null);
+        setIsChatLoading(true);
+    
+        try {
+            const aiResponseContent = await chatAboutArgumentNode(targetNode, updatedHistory, userMessage.content);
+            const aiMessage: ChatMessage = { role: 'model', content: aiResponseContent };
+            const finalHistory = [...updatedHistory, aiMessage];
+            
+            const finalNodes = newNodesTemp.map(n => n.id === nodeId ? { ...n, chatHistory: finalHistory } : n);
+            setNodes(finalNodes);
+            setChattingNode(finalNodes.find(n => n.id === nodeId) || null);
+            if (report?.argumentGraph) {
+                onUpdateReport({ ...report, argumentGraph: { ...report.argumentGraph, nodes: finalNodes } });
+            }
+        } catch (err) {
+            console.error(err);
+            // Optionally, add an error message to the chat history
+        } finally {
+            setIsChatLoading(false);
+        }
+    };
+
 
     if (!report || !report.argumentGraph || report.argumentGraph.nodes.length === 0) {
         return (
@@ -343,6 +476,8 @@ export const ArgumentMapView: React.FC<ArgumentMapViewProps> = ({ report }) => {
                             onDragStart={handleNodeDragStart}
                             isSelected={selectedNodeIds.has(node.id)}
                             onClick={handleNodeClick}
+                            onStartEdit={setEditingNode}
+                            onStartChat={setChattingNode}
                         />
                     ))}
                 </div>
@@ -354,6 +489,9 @@ export const ArgumentMapView: React.FC<ArgumentMapViewProps> = ({ report }) => {
                     isDownloading={isDownloading}
                 />
             </div>
+
+            {editingNode && <ArgumentNodeEditorModal node={editingNode} onClose={() => setEditingNode(null)} onSave={handleSaveNodeEdit} />}
+            {chattingNode && <ArgumentNodeChatModal node={chattingNode} onClose={() => setChattingNode(null)} onSendMessage={handleSendMessageInNode} isLoading={isChatLoading} />}
         </div>
     );
 };
