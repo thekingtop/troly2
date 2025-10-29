@@ -33,19 +33,19 @@ const ArgumentNodeComponent: React.FC<{
     return (
         <div
             id={`node-${node.id}`}
-            className={`absolute p-3 rounded-lg shadow-md cursor-grab active:cursor-grabbing text-xs text-slate-800 w-48 ${meta.color} border-2 ${selectionClass} transition-all duration-150`}
+            className={`absolute p-3 rounded-lg shadow-md cursor-grab active:cursor-grabbing text-xs text-slate-800 w-48 ${meta.color} border-2 ${selectionClass} transition-all duration-150 flex flex-col`}
             style={{ left: node.position.x, top: node.position.y }}
             onMouseDown={(e) => onDragStart(e, node.id)}
             onClick={(e) => onClick(e, node.id)}
         >
             <div className="font-bold mb-1 flex justify-between items-start">
-                <span className="line-clamp-2 pr-1">{node.label}</span>
+                <span className="pr-1">{node.label}</span>
                 <div className="flex items-center gap-0.5 flex-shrink-0 -mr-1 -mt-1">
                     <button onClick={(e) => { e.stopPropagation(); onStartChat(node); }} className="p-1 rounded hover:bg-black/10" title="Trao đổi với AI"><ChatIcon className="w-4 h-4 text-slate-600"/></button>
                     <button onClick={(e) => { e.stopPropagation(); onStartEdit(node); }} className="p-1 rounded hover:bg-black/10" title="Chỉnh sửa"><EditIcon className="w-4 h-4 text-slate-600"/></button>
                 </div>
             </div>
-            <p className="line-clamp-4">{node.content}</p>
+            <p>{node.content}</p>
         </div>
     );
 };
@@ -53,17 +53,21 @@ const ArgumentNodeComponent: React.FC<{
 const ArgumentEdgeComponent: React.FC<{
     edge: ArgumentEdge;
     nodes: ArgumentNode[];
-}> = ({ edge, nodes }) => {
+    nodeDimensions: Record<string, { width: number; height: number }>;
+}> = ({ edge, nodes, nodeDimensions }) => {
     const sourceNode = nodes.find(n => n.id === edge.source);
     const targetNode = nodes.find(n => n.id === edge.target);
 
     if (!sourceNode || !targetNode) return null;
-
-    // Center of nodes (width: 192px, height: depends on content but we estimate)
-    const x1 = sourceNode.position.x + 96;
-    const y1 = sourceNode.position.y + 40;
-    const x2 = targetNode.position.x + 96;
-    const y2 = targetNode.position.y + 40;
+    
+    const sourceDims = nodeDimensions[sourceNode.id];
+    const targetDims = nodeDimensions[targetNode.id];
+    
+    // Calculate center of nodes using measured dimensions if available, otherwise fallback
+    const x1 = sourceNode.position.x + (sourceDims ? sourceDims.width / 2 : 96);
+    const y1 = sourceNode.position.y + (sourceDims ? sourceDims.height / 2 : 40);
+    const x2 = targetNode.position.x + (targetDims ? targetDims.width / 2 : 96);
+    const y2 = targetNode.position.y + (targetDims ? targetDims.height / 2 : 40);
     
     return (
         <line x1={x1} y1={y1} x2={x2} y2={y2} className="stroke-slate-400" strokeWidth="2" markerEnd="url(#arrowhead)" />
@@ -260,6 +264,7 @@ export const ArgumentMapView: React.FC<ArgumentMapViewProps> = ({ report, onUpda
     const [editingNode, setEditingNode] = useState<ArgumentNode | null>(null);
     const [chattingNode, setChattingNode] = useState<ArgumentNode | null>(null);
     const [isChatLoading, setIsChatLoading] = useState(false);
+    const [nodeDimensions, setNodeDimensions] = useState<Record<string, { width: number, height: number }>>({});
     
     const draggingNode = useRef<{ id: string; offset: { x: number; y: number } } | null>(null);
     const mapRef = useRef<HTMLDivElement>(null);
@@ -274,6 +279,23 @@ export const ArgumentMapView: React.FC<ArgumentMapViewProps> = ({ report, onUpda
             setEdges([]);
         }
     }, [report]);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            const dimensions: Record<string, { width: number; height: number }> = {};
+            nodes.forEach(node => {
+                const elem = document.getElementById(`node-${node.id}`);
+                if (elem) {
+                    dimensions[node.id] = { width: elem.offsetWidth, height: elem.offsetHeight };
+                }
+            });
+            if (JSON.stringify(dimensions) !== JSON.stringify(nodeDimensions)) {
+                setNodeDimensions(dimensions);
+            }
+        }, 50); // Small delay to allow for rendering
+        return () => clearTimeout(timer);
+    }, [nodes, nodeDimensions]);
+
 
     const handleDownloadImage = async () => {
         if (!mapContentRef.current || nodes.length === 0 || typeof html2canvas === 'undefined') {
@@ -466,7 +488,7 @@ export const ArgumentMapView: React.FC<ArgumentMapViewProps> = ({ report, onUpda
                             </marker>
                         </defs>
                         {edges.map(edge => (
-                            <ArgumentEdgeComponent key={edge.id} edge={edge} nodes={nodes} />
+                            <ArgumentEdgeComponent key={edge.id} edge={edge} nodes={nodes} nodeDimensions={nodeDimensions} />
                         ))}
                     </svg>
                     {nodes.map(node => (
