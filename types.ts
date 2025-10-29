@@ -97,6 +97,7 @@ export interface ArgumentNode {
   label: string; // Short title, e.g., "Legal Issue 1", "Strength 3"
   content: string; // The full text of the item
   position: { x: number; y: number };
+  chatHistory?: ChatMessage[];
 }
 
 export interface ArgumentEdge {
@@ -128,6 +129,7 @@ export interface AnalysisReport {
   prospectsChat?: ChatMessage[]; // For Case Prospects chat
   gapAnalysisChat?: ChatMessage[]; // For Gap Analysis chat
   strategyChat?: ChatMessage[]; // For Proposed Strategy chat
+  resolutionPlanChat?: ChatMessage[]; // For Request Resolution Plan chat
   argumentGraph?: ArgumentGraph; // Data for the Argument Map
 }
 
