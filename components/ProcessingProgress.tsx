@@ -1,13 +1,12 @@
 
-
 import React from 'react';
-import type { UploadedFile } from '../types';
-import { Loader } from './Loader';
-import { WordIcon } from './icons/WordIcon';
-import { ExcelIcon } from './icons/ExcelIcon';
-import { PdfIcon } from './icons/PdfIcon';
-import { ImageIcon } from './icons/ImageIcon';
-import { FileIcon } from './icons/FileIcon';
+import type { UploadedFile } from '../types.ts';
+import { Loader } from './Loader.tsx';
+import { WordIcon } from './icons/WordIcon.tsx';
+import { ExcelIcon } from './icons/ExcelIcon.tsx';
+import { PdfIcon } from './icons/PdfIcon.tsx';
+import { ImageIcon } from './icons/ImageIcon.tsx';
+import { FileIcon } from './icons/FileIcon.tsx';
 
 const getFileIcon = (fileType: string, fileName: string) => {
     const extension = fileName.split('.').pop()?.toLowerCase() || '';
@@ -80,11 +79,15 @@ export const ProcessingProgress: React.FC<{
                         </div>
                     )}
                     <div className="flex justify-end gap-3">
-                         <button onClick={onCancel} className="px-5 py-2 text-sm font-semibold text-slate-700 bg-slate-200 rounded-lg hover:bg-slate-300 transition-colors">Hủy bỏ</button>
-                         {isFinished && (
-                              <button onClick={onContinue} disabled={!canContinue} className="px-5 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors">
-                                  {failedCount > 0 ? `Tiếp tục với ${successfulCount} tệp` : 'Bắt đầu Phân tích'}
-                              </button>
+                         {!isFinished ? (
+                             <button onClick={onCancel} className="px-5 py-2 text-sm font-semibold text-slate-700 bg-slate-200 rounded-lg hover:bg-slate-300 transition-colors">Hủy bỏ</button>
+                         ) : (
+                             <>
+                                 <button onClick={onCancel} className="px-5 py-2 text-sm font-semibold text-slate-700 bg-slate-200 rounded-lg hover:bg-slate-300 transition-colors">Đóng</button>
+                                 <button onClick={onContinue} disabled={!canContinue} className="px-5 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors">
+                                      {failedCount > 0 ? `Tiếp tục với ${successfulCount} tệp` : 'Bắt đầu Phân tích'}
+                                  </button>
+                             </>
                          )}
                     </div>
                 </div>

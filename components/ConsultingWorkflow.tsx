@@ -1,16 +1,15 @@
 
-
 import React, { useState, useCallback, useEffect } from 'react';
-import { FileUpload } from './FileUpload';
-import { Loader } from './Loader';
-import { MagicIcon } from './icons/MagicIcon';
-import { analyzeConsultingCase, generateConsultingDocument, categorizeMultipleFiles } from '../services/geminiService';
-import type { UploadedFile, SavedCase, SerializableFile, ConsultingReport, LitigationType, LegalLoophole } from '../types';
-import { BackIcon } from './icons/BackIcon';
-import { saveCase } from '../services/db';
-import { SaveCaseIcon } from './icons/SaveCaseIcon';
-import { PlusIcon } from './icons/PlusIcon';
-import { ProcessingProgress } from './ProcessingProgress';
+import { FileUpload } from './FileUpload.tsx';
+import { Loader } from './Loader.tsx';
+import { MagicIcon } from './icons/MagicIcon.tsx';
+import { analyzeConsultingCase, generateConsultingDocument, categorizeMultipleFiles, summarizeText } from '../services/geminiService.ts';
+import type { UploadedFile, SavedCase, SerializableFile, ConsultingReport, LitigationType, LegalLoophole } from '../types.ts';
+import { BackIcon } from './icons/BackIcon.tsx';
+import { saveCase } from '../services/db.ts';
+import { SaveCaseIcon } from './icons/SaveCaseIcon.tsx';
+import { PlusIcon } from './icons/PlusIcon.tsx';
+import { ProcessingProgress } from './ProcessingProgress.tsx';
 
 // --- Internal Icons ---
 const DiscussionIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
@@ -110,6 +109,8 @@ export const ConsultingWorkflow: React.FC<ConsultingWorkflowProps> = ({ onPrevie
     
     const [isProcessing, setIsProcessing] = useState(false);
     const [isPreprocessingFinished, setIsPreprocessingFinished] = useState(false);
+    const [isSummarizingField, setIsSummarizingField] = useState<'disputeContent' | 'clientRequest' | null>(null);
+    const [summarizationError, setSummarizationError] = useState<string | null>(null);
 
     useEffect(() => {
         if (activeCase?.workflowType === 'consulting') {
@@ -159,6 +160,26 @@ export const ConsultingWorkflow: React.FC<ConsultingWorkflowProps> = ({ onPrevie
             setIsSaving(false);
         }
     };
+    
+    const handleSummarizeField = async (fieldName: 'disputeContent' | 'clientRequest') => {
+        const textToSummarize = fieldName === 'disputeContent' ? disputeContent : clientRequest;
+        if (!textToSummarize.trim()) return;
+
+        setIsSummarizingField(fieldName);
+        setSummarizationError(null);
+        try {
+            const summarizedText = await summarizeText(textToSummarize, fieldName);
+            if (fieldName === 'disputeContent') {
+                setDisputeContent(summarizedText);
+            } else {
+                setClientRequest(summarizedText);
+            }
+        } catch (err) {
+            setSummarizationError(err instanceof Error ? err.message : 'Lỗi khi tóm tắt');
+        } finally {
+            setIsSummarizingField(null);
+        }
+    };
 
     const performAnalysis = useCallback(async (filesToAnalyze: UploadedFile[]) => {
         setIsAnalyzing(true);
@@ -174,6 +195,7 @@ export const ConsultingWorkflow: React.FC<ConsultingWorkflowProps> = ({ onPrevie
     
     const handleAnalyzeClick = useCallback(async () => {
         setAnalysisError(null);
+        setSummarizationError(null);
         setConsultingReport(null);
         setGeneratedText('');
 
@@ -234,7 +256,7 @@ export const ConsultingWorkflow: React.FC<ConsultingWorkflowProps> = ({ onPrevie
         }
     };
     
-    const isAnalyzeDisabled = isAnalyzing || isProcessing || (files.length === 0 && !disputeContent.trim() && !clientRequest.trim());
+    const isAnalyzeDisabled = isAnalyzing || isProcessing || isSummarizingField || (files.length === 0 && !disputeContent.trim() && !clientRequest.trim());
 
     return (
         <div className="animate-fade-in">
@@ -258,12 +280,55 @@ export const ConsultingWorkflow: React.FC<ConsultingWorkflowProps> = ({ onPrevie
                         <h3 className="text-lg font-bold text-slate-800 mb-3">1. Cung cấp Thông tin</h3>
                         <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-4">
                             <FileUpload files={files} setFiles={setFiles} onPreview={onPreview} />
-                             <textarea value={disputeContent} onChange={e => setDisputeContent(e.target.value)} placeholder="Tóm tắt bối cảnh, tình huống..." className="input-base w-full h-28 bg-white" />
-                             <textarea value={clientRequest} onChange={e => setClientRequest(e.target.value)} placeholder="Yêu cầu của khách hàng..." className="input-base w-full h-20 bg-white" />
+                             
+                            <div>
+                                <div className="flex justify-between items-center mb-1.5">
+                                    <label htmlFor="disputeContent" className="text-sm font-semibold text-slate-700">Tóm tắt bối cảnh, tình huống</label>
+                                    <button 
+                                        onClick={() => handleSummarizeField('disputeContent')} 
+                                        disabled={!disputeContent.trim() || !!isSummarizingField} 
+                                        className="flex items-center gap-1.5 px-2 py-1 text-xs text-blue-600 font-semibold hover:bg-blue-50 rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                        title="Dùng AI để tóm tắt và làm rõ nội dung bên dưới"
+                                    >
+                                        {isSummarizingField === 'disputeContent' ? <Loader /> : <MagicIcon className="w-4 h-4" />}
+                                        <span>Tóm tắt bằng AI</span>
+                                    </button>
+                                </div>
+                                <textarea 
+                                    id="disputeContent"
+                                    value={disputeContent} 
+                                    onChange={e => setDisputeContent(e.target.value)} 
+                                    placeholder="Dán hoặc nhập nội dung vụ việc, diễn biến sự kiện vào đây..." 
+                                    className="input-base w-full h-28 bg-white" 
+                                />
+                            </div>
+
+                            <div>
+                                <div className="flex justify-between items-center mb-1.5">
+                                    <label htmlFor="clientRequest" className="text-sm font-semibold text-slate-700">Yêu cầu của khách hàng</label>
+                                    <button 
+                                        onClick={() => handleSummarizeField('clientRequest')} 
+                                        disabled={!clientRequest.trim() || !!isSummarizingField} 
+                                        className="flex items-center gap-1.5 px-2 py-1 text-xs text-blue-600 font-semibold hover:bg-blue-50 rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                        title="Dùng AI để tóm tắt và làm rõ nội dung bên dưới"
+                                    >
+                                        {isSummarizingField === 'clientRequest' ? <Loader /> : <MagicIcon className="w-4 h-4" />}
+                                        <span>Tóm tắt bằng AI</span>
+                                    </button>
+                                </div>
+                                <textarea 
+                                    id="clientRequest"
+                                    value={clientRequest} 
+                                    onChange={e => setClientRequest(e.target.value)} 
+                                    placeholder="Dán hoặc nhập yêu cầu, mong muốn của khách hàng..." 
+                                    className="input-base w-full h-20 bg-white" 
+                                />
+                            </div>
                         </div>
                     </div>
                     <div>
                         <h3 className="text-lg font-bold text-slate-800 mb-3">2. Phân tích Sơ bộ</h3>
+                        {summarizationError && <div className="mb-2"><Alert message={summarizationError} type="error" /></div>}
                         <button onClick={handleAnalyzeClick} disabled={isAnalyzeDisabled} className="btn btn-primary w-full !py-3 !text-base">
                             {isAnalyzing || isProcessing ? <><Loader /> <span>Đang phân tích...</span></> : <><MagicIcon className="w-5 h-5" /> Phân tích Tư vấn</>}
                         </button>

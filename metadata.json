@@ -1,5 +1,5 @@
 {
-  "name": "Trợ lý Pháp lý giao diện mới",
-  "description": "Một ứng dụng AI chuyên sâu giúp luật sư phân tích hồ sơ vụ việc, xác định chiến lược và phát hiện các thiếu sót pháp lý từ các tệp tài liệu thô.",
+  "name": "Trợ lý luật 29-10 ver8",
+  "description": "nâng cấp tóm tắt, phân tích tự động giai đoạn, nguyên đơn, bị đơn, phương án sau thắng kiện/thua kiện",
   "requestFramePermissions": []
 }

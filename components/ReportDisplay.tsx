@@ -1,14 +1,15 @@
-
-
-import React, { useState } from 'react';
-import type { AnalysisReport, ApplicableLaw, LawArticle, UploadedFile, LitigationType, LegalLoophole } from '../types';
-import { MagicIcon } from './icons/MagicIcon';
-import { explainLaw } from '../services/geminiService';
-import { Loader } from './Loader';
-import { SearchIcon } from './icons/SearchIcon';
-import { getStageLabel } from '../constants';
-import { PlusIcon } from './icons/PlusIcon';
-import { TrashIcon } from './icons/TrashIcon';
+import React, { useState, useRef, useEffect } from 'react';
+import type { AnalysisReport, ApplicableLaw, LawArticle, UploadedFile, LitigationType, LegalLoophole, ChatMessage, CaseTimelineEvent } from '../types.ts';
+import { MagicIcon } from './icons/MagicIcon.tsx';
+import { explainLaw, continueContextualChat } from '../services/geminiService.ts';
+import { Loader } from './Loader.tsx';
+import { SearchIcon } from './icons/SearchIcon.tsx';
+import { getStageLabel } from '../constants.ts';
+import { PlusIcon } from './icons/PlusIcon.tsx';
+import { TrashIcon } from './icons/TrashIcon.tsx';
+import { ChatIcon } from './icons/ChatIcon.tsx';
+import { SendIcon } from './icons/SendIcon.tsx';
+import { CaseTimeline } from './CaseTimeline.tsx';
 
 // --- Internal Components and Icons ---
 
@@ -185,12 +186,15 @@ const UserLawsManager: React.FC<UserLawsManagerProps> = ({ laws, onUpdate }) => 
 
 
 interface ReportDisplayProps {
-  report: AnalysisReport;
+  report: AnalysisReport | null;
   files: UploadedFile[];
   onPreview: (file: UploadedFile) => void;
   onClearSummary: () => void;
   litigationType: LitigationType;
   onUpdateUserLaws: (updatedLaws: ApplicableLaw[]) => void;
+  onUpdateReport: (updatedReport: AnalysisReport) => void;
+  caseSummary?: string;
+  clientRequestSummary?: string;
 }
 
 const HighlightedText: React.FC<{ text: string | undefined; term: string }> = React.memo(({ text, term }) => {
@@ -309,8 +313,137 @@ const LegalLoopholesDisplay: React.FC<{ loopholes: LegalLoophole[]; highlightTer
     );
 };
 
+type ChatContextKey = 'prospectsChat' | 'gapAnalysisChat' | 'strategyChat';
 
-export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSummary, litigationType, onUpdateUserLaws }) => {
+const ContextualChat: React.FC<{
+    report: AnalysisReport;
+    onUpdateReport: (updatedReport: AnalysisReport) => void;
+    chatHistoryKey: ChatContextKey;
+    contextTitle: string;
+}> = ({ report, onUpdateReport, chatHistoryKey, contextTitle }) => {
+    const [userInput, setUserInput] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const chatHistory = report[chatHistoryKey] || [];
+    const chatEndRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [chatHistory]);
+
+
+    const handleSendMessage = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!userInput.trim() || isLoading) return;
+
+        const newUserMessage: ChatMessage = { role: 'user', content: userInput.trim() };
+        const updatedChatHistory = [...chatHistory, newUserMessage];
+        
+        // Optimistically update UI
+        onUpdateReport({ ...report, [chatHistoryKey]: updatedChatHistory });
+        setUserInput('');
+        setIsLoading(true);
+        setError(null);
+
+        try {
+            const aiResponseContent = await continueContextualChat(report, updatedChatHistory, newUserMessage.content, contextTitle);
+            const aiMessage: ChatMessage = { role: 'model', content: aiResponseContent };
+            // Final update with AI response
+            onUpdateReport({ ...report, [chatHistoryKey]: [...updatedChatHistory, aiMessage] });
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Lỗi không xác định.';
+            setError(errorMessage);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    
+    return (
+        <div className="mt-4 p-4 border-t-2 border-dashed border-blue-300 bg-blue-50/50 rounded-lg animate-fade-in">
+            <h4 className="text-base font-bold text-slate-800 mb-3">Trao đổi & Cập nhật: {contextTitle}</h4>
+            <div className="bg-white border border-slate-200 rounded-lg p-3 max-h-80 overflow-y-auto space-y-4">
+                {chatHistory.map((msg, index) => (
+                    <div key={index} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
+                        {msg.role === 'model' && (
+                             <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0">
+                                <MagicIcon className="w-5 h-5 text-white"/>
+                            </div>
+                        )}
+                        <div className={`max-w-[80%] p-3 rounded-lg ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-800'}`}>
+                            <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                        </div>
+                    </div>
+                ))}
+                {isLoading && (
+                     <div className="flex gap-3">
+                         <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0">
+                            <MagicIcon className="w-5 h-5 text-white"/>
+                        </div>
+                        <div className="max-w-[80%] p-3 rounded-lg bg-slate-100 text-slate-800 flex items-center">
+                            <Loader />
+                        </div>
+                    </div>
+                )}
+                 <div ref={chatEndRef} />
+            </div>
+            {error && <p className="text-red-600 text-sm mt-2">{error}</p>}
+            <form onSubmit={handleSendMessage} className="mt-3 flex gap-2">
+                <input 
+                    type="text" 
+                    value={userInput}
+                    onChange={(e) => setUserInput(e.target.value)}
+                    placeholder="Nhập tình tiết mới hoặc câu hỏi..."
+                    className="flex-grow p-2 border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-blue-500"
+                    disabled={isLoading}
+                />
+                <button type="submit" disabled={isLoading || !userInput.trim()} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 disabled:bg-slate-400 flex items-center justify-center">
+                    <SendIcon className="w-5 h-5" />
+                </button>
+            </form>
+        </div>
+    );
+};
+
+const TimelineInfo: React.FC<{ events: CaseTimelineEvent[]; highlightTerm: string }> = ({ events, highlightTerm }) => {
+    if (!events || events.length === 0) {
+        return null;
+    }
+
+    const sortedEvents = [...events].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const startDate = sortedEvents[0].date;
+    const endDate = sortedEvents[sortedEvents.length - 1].date;
+
+    const keyMilestones = sortedEvents.filter(e => e.significance === 'High').slice(0, 3);
+
+    return (
+        <div className="mt-3 text-sm text-slate-600 space-y-2">
+            {startDate !== endDate && (
+                 <div>
+                    <span className="font-semibold">Thời gian diễn ra (dựa trên hồ sơ):</span>{' '}
+                    <HighlightedText text={`${startDate} đến ${endDate}`} term={highlightTerm} />
+                </div>
+            )}
+            {keyMilestones.length > 0 && (
+                <div>
+                    <p className="font-semibold">Cột mốc quan trọng:</p>
+                    <ul className="list-disc list-inside pl-2 space-y-1">
+                        {keyMilestones.map((milestone, index) => (
+                            <li key={index}>
+                                <span className="font-medium text-slate-800">
+                                    <HighlightedText text={`${milestone.date}:`} term={highlightTerm} />
+                                </span>{' '}
+                                <HighlightedText text={milestone.description} term={highlightTerm} />
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+        </div>
+    );
+};
+
+
+export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSummary, litigationType, onUpdateUserLaws, onUpdateReport, caseSummary, clientRequestSummary }) => {
   const [explanation, setExplanation] = useState<{
     law: string;
     content: string;
@@ -319,6 +452,11 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
     rect: DOMRect | null;
   } | null>(null);
   const [highlightTerm, setHighlightTerm] = useState('');
+  const [visibleChats, setVisibleChats] = useState<Record<string, boolean>>({});
+
+  const toggleChat = (key: string) => {
+    setVisibleChats(prev => ({ ...prev, [key]: !prev[key] }));
+  };
 
   const handleLawClick = async (law: ApplicableLaw, article: LawArticle, event: React.MouseEvent<HTMLButtonElement>) => {
     const lawText = `${article.articleNumber} ${law.documentName}`;
@@ -372,7 +510,7 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
           )}
       </div>
 
-      {report.quickSummary && (
+      {report?.quickSummary && (
         <div className="mb-8 p-5 bg-blue-50 border-l-4 border-blue-500 rounded-lg relative animate-fade-in-down shadow-md shadow-blue-500/10">
             <div className="flex justify-between items-start">
                 <h3 className="text-lg font-bold text-blue-900 mb-2 flex items-center gap-2">
@@ -393,28 +531,66 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
         </div>
       )}
 
-      {report.customNotes && (
+      {caseSummary && (
+        <Section title="Tóm tắt Diễn biến Vụ việc (do AI rút trích)" highlightTerm={highlightTerm}>
+          <p className="whitespace-pre-wrap break-words bg-slate-50 border-l-4 border-slate-300 p-4 text-slate-800 rounded-md">
+            <HighlightedText text={caseSummary} term={highlightTerm} />
+          </p>
+        </Section>
+      )}
+
+      {clientRequestSummary && (
+        <Section title="Yêu cầu của Khách hàng (do AI tóm tắt)" highlightTerm={highlightTerm}>
+          <p className="whitespace-pre-wrap break-words bg-slate-50 border-l-4 border-slate-300 p-4 text-slate-800 rounded-md">
+            <HighlightedText text={clientRequestSummary} term={highlightTerm} />
+          </p>
+        </Section>
+      )}
+
+      {report?.customNotes && (
         <Section title="Ghi chú Tùy chỉnh" id="customNotesSection" highlightTerm={highlightTerm}>
           <p className="whitespace-pre-wrap bg-yellow-50 border-l-4 border-yellow-300 p-4 text-slate-800 rounded-md"><HighlightedText text={report.customNotes} term={highlightTerm} /></p>
         </Section>
       )}
 
-      {report.litigationStage && (
-        <Section title="Giai đoạn Tố tụng (do AI xác định)" highlightTerm={highlightTerm}>
-          <p className="font-bold text-blue-700 bg-blue-50 px-3 py-2 inline-block rounded-md border border-blue-200">
-            <HighlightedText text={getStageLabel(litigationType, report.litigationStage)} term={highlightTerm} />
-          </p>
+      {report?.caseTimeline && report.caseTimeline.length > 0 && (
+        <Section title="Dòng thời gian Vụ việc (do AI tạo)" id="caseTimeline" highlightTerm={highlightTerm}>
+            <CaseTimeline events={report.caseTimeline} highlightTerm={highlightTerm} />
         </Section>
       )}
 
-      {report.legalRelationship && (
+      {report?.litigationStage && (
+        <Section title="Giai đoạn Tố tụng (do AI xác định)" highlightTerm={highlightTerm}>
+          <div className="bg-blue-50 px-4 py-3 rounded-lg border border-blue-200">
+            <p className="font-bold text-blue-700 text-base">
+              <HighlightedText text={getStageLabel(litigationType, report.litigationStage)} term={highlightTerm} />
+            </p>
+            <TimelineInfo events={report.caseTimeline} highlightTerm={highlightTerm} />
+          </div>
+        </Section>
+      )}
+
+      {report?.legalRelationship && (
         <Section title="1. Quan hệ pháp luật" id="legalRelationship" highlightTerm={highlightTerm}>
           <p><HighlightedText text={report.legalRelationship} term={highlightTerm} /></p>
         </Section>
       )}
 
-      {report.coreLegalIssues && report.coreLegalIssues.length > 0 && (
-         <Section title="2. Vấn đề pháp lý cốt lõi" id="coreLegalIssues" highlightTerm={highlightTerm}>
+      {report?.proceduralStatus && report.proceduralStatus.length > 0 && (
+         <Section title="2. Tư cách Tố tụng" id="proceduralStatus" highlightTerm={highlightTerm}>
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-2">
+                {report.proceduralStatus.map((party, index) => (
+                    <p key={index}>
+                        <strong className="font-semibold text-slate-800"><HighlightedText text={party.partyName} term={highlightTerm} />:</strong>
+                        <span className="ml-2"><HighlightedText text={party.status} term={highlightTerm} /></span>
+                    </p>
+                ))}
+            </div>
+        </Section>
+      )}
+
+      {report?.coreLegalIssues && report.coreLegalIssues.length > 0 && (
+         <Section title="3. Vấn đề pháp lý cốt lõi" id="coreLegalIssues" highlightTerm={highlightTerm}>
             <ul className="list-disc list-inside space-y-1.5 pl-1">
                 {report.coreLegalIssues.map((issue, index) => (
                     <li key={index}><HighlightedText text={issue} term={highlightTerm} /></li>
@@ -423,8 +599,20 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
         </Section>
       )}
 
-      {report.applicableLaws && report.applicableLaws.length > 0 && (
-        <Section title="3. Cơ sở pháp lý áp dụng (do AI đề xuất)" id="applicableLaws" highlightTerm={highlightTerm}>
+      {report?.requestResolutionPlan && report.requestResolutionPlan.length > 0 && (
+         <Section title="4. Phương án giải quyết theo Yêu cầu" id="requestResolutionPlan" highlightTerm={highlightTerm}>
+            <div className="bg-blue-50/70 p-4 rounded-lg border border-blue-200">
+                <ul className="list-decimal list-inside space-y-1.5 pl-1">
+                    {report.requestResolutionPlan.map((step, index) => (
+                        <li key={index}><HighlightedText text={step} term={highlightTerm} /></li>
+                    ))}
+                </ul>
+            </div>
+        </Section>
+      )}
+
+      {report?.applicableLaws && report.applicableLaws.length > 0 && (
+        <Section title="5. Cơ sở pháp lý áp dụng (do AI đề xuất)" id="applicableLaws" highlightTerm={highlightTerm}>
             <div className="space-y-4">
                 {report.applicableLaws.map((law, lawIndex) => (
                     <div key={lawIndex} className="p-4 bg-white border border-slate-200 rounded-lg soft-shadow">
@@ -470,16 +658,16 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
         </Section>
       )}
 
-      <Section title="4. Cơ sở pháp lý Bổ sung (do người dùng thêm)" id="userAddedLaws" highlightTerm={highlightTerm}>
+      <Section title="6. Cơ sở pháp lý Bổ sung (do người dùng thêm)" id="userAddedLaws" highlightTerm={highlightTerm}>
         <UserLawsManager 
-            laws={report.userAddedLaws || []}
+            laws={report?.userAddedLaws || []}
             onUpdate={onUpdateUserLaws}
         />
       </Section>
 
 
-      {report.gapAnalysis && (
-        <Section title="5. Phân tích Lỗ hổng & Hành động Đề xuất" id="gapAnalysis" highlightTerm={highlightTerm}>
+      {report?.gapAnalysis && (
+        <Section title="7. Phân tích Lỗ hổng & Hành động Đề xuất" id="gapAnalysis" highlightTerm={highlightTerm}>
           <div className="flex flex-col gap-6 bg-slate-50 p-4 rounded-lg border border-slate-200">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <BulletList title="Thông tin / Chứng cứ còn thiếu" items={report.gapAnalysis.missingInformation} highlightTerm={highlightTerm} />
@@ -491,12 +679,26 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
                      <LegalLoopholesDisplay loopholes={report.gapAnalysis.legalLoopholes} highlightTerm={highlightTerm} />
                  </div>
               )}
+                <div className="mt-2 pt-4 border-t border-slate-200/80">
+                    <button onClick={() => toggleChat('gapAnalysis')} className="flex items-center gap-2 text-sm text-blue-700 font-bold hover:text-blue-900">
+                       <ChatIcon className="w-5 h-5"/>
+                       <span>{visibleChats['gapAnalysis'] ? 'Ẩn' : 'Trao đổi với AI về Lỗ hổng'}</span>
+                   </button>
+               </div>
+               {visibleChats['gapAnalysis'] && report && (
+                   <ContextualChat 
+                       report={report} 
+                       onUpdateReport={onUpdateReport} 
+                       chatHistoryKey="gapAnalysisChat" 
+                       contextTitle="Phân tích Lỗ hổng"
+                   />
+               )}
           </div>
         </Section>
       )}
 
-      {report.caseProspects && (
-        <Section title="6. Đánh giá Triển vọng Vụ việc" id="caseProspects" highlightTerm={highlightTerm}>
+      {report?.caseProspects && (
+        <Section title="8. Đánh giá Triển vọng Vụ việc" id="caseProspects" highlightTerm={highlightTerm}>
            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-green-50 p-3 rounded-lg border border-green-200">
                     <BulletList title="Điểm mạnh" items={report.caseProspects.strengths} highlightTerm={highlightTerm} />
@@ -508,11 +710,25 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
                      <BulletList title="Rủi ro" items={report.caseProspects.risks} highlightTerm={highlightTerm} />
                 </div>
            </div>
+            <div className="mt-6 pt-4 border-t border-slate-200">
+                 <button onClick={() => toggleChat('prospects')} className="flex items-center gap-2 text-sm text-blue-700 font-bold hover:text-blue-900">
+                    <ChatIcon className="w-5 h-5"/>
+                    <span>{visibleChats['prospects'] ? 'Ẩn' : 'Trao đổi với AI về Triển vọng'}</span>
+                </button>
+            </div>
+            {visibleChats['prospects'] && report && (
+                <ContextualChat 
+                    report={report} 
+                    onUpdateReport={onUpdateReport} 
+                    chatHistoryKey="prospectsChat" 
+                    contextTitle="Đánh giá Triển vọng Vụ việc"
+                />
+            )}
         </Section>
       )}
       
-      {report.proposedStrategy && (
-        <Section title="7. Đề xuất Lộ trình & Chiến lược" id="proposedStrategy" highlightTerm={highlightTerm}>
+      {report?.proposedStrategy && (
+        <Section title="9. Đề xuất Lộ trình & Chiến lược" id="proposedStrategy" highlightTerm={highlightTerm}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="bg-blue-50/70 p-4 rounded-lg border border-blue-200">
                   <BulletList title="Giai đoạn Tiền tố tụng" items={report.proposedStrategy.preLitigation} highlightTerm={highlightTerm} />
@@ -521,9 +737,35 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
                   <BulletList title="Giai đoạn Tố tụng" items={report.proposedStrategy.litigation} highlightTerm={highlightTerm} />
               </div>
           </div>
+           <div className="mt-6 pt-4 border-t border-slate-200">
+                 <button onClick={() => toggleChat('strategy')} className="flex items-center gap-2 text-sm text-blue-700 font-bold hover:text-blue-900">
+                    <ChatIcon className="w-5 h-5"/>
+                    <span>{visibleChats['strategy'] ? 'Ẩn' : 'Trao đổi với AI về Chiến lược'}</span>
+                </button>
+            </div>
+            {visibleChats['strategy'] && report && (
+                <ContextualChat 
+                    report={report} 
+                    onUpdateReport={onUpdateReport} 
+                    chatHistoryKey="strategyChat" 
+                    contextTitle="Đề xuất Lộ trình & Chiến lược"
+                />
+            )}
         </Section>
       )}
       
+      {report?.contingencyPlan && report.contingencyPlan.length > 0 && (
+        <Section title="10. Phương án xử lý nếu thua kiện" id="contingencyPlan" highlightTerm={highlightTerm}>
+            <div className="bg-amber-50/70 p-4 rounded-lg border border-amber-200">
+                <ul className="list-disc list-inside space-y-1.5 pl-1">
+                    {report.contingencyPlan.map((item, index) => (
+                        <li key={index}><HighlightedText text={item} term={highlightTerm} /></li>
+                    ))}
+                </ul>
+            </div>
+        </Section>
+      )}
+
       {explanation && (
         <div
             style={{

@@ -1,7 +1,10 @@
+
 import React, { useState } from 'react';
-import { generateParagraph, refineText, ParagraphGenerationOptions } from '../services/geminiService';
-import { Loader } from './Loader';
-import { MagicIcon } from './icons/MagicIcon';
+// FIX: Import ParagraphGenerationOptions from the correct source file.
+import { generateParagraph, refineText } from '../services/geminiService.ts';
+import type { ParagraphGenerationOptions } from '../types.ts';
+import { Loader } from './Loader.tsx';
+import { MagicIcon } from './icons/MagicIcon.tsx';
 
 // Define the extended type for tone options for clarity and reusability
 type ToneOption = ParagraphGenerationOptions['tone'];
@@ -18,20 +21,29 @@ const RadioGroup: React.FC<{
     <div>
         <label className="block text-base font-semibold text-slate-800 mb-2">{label}</label>
         <div className="flex flex-wrap gap-2">
-            {options.map(option => (
-                <label key={option.value} className={`cursor-pointer px-4 py-2 text-sm rounded-lg transition-all duration-200 border ${selected === option.value ? 'bg-blue-600 text-white font-semibold border-blue-600' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'}`}>
-                    <input
-                        type="radio"
-                        name={name}
-                        value={option.value}
-                        checked={selected === option.value}
-                        onChange={onChange}
-                        className="sr-only"
-                        aria-label={option.label}
-                    />
-                    {option.label}
-                </label>
-            ))}
+            {options.map(option => {
+                const inputId = `${name}-option-${option.value}`;
+                return (
+                    <div key={option.value}>
+                        <input
+                            type="radio"
+                            id={inputId}
+                            name={name}
+                            value={option.value}
+                            checked={selected === option.value}
+                            onChange={onChange}
+                            className="sr-only"
+                            aria-label={option.label}
+                        />
+                        <label 
+                            htmlFor={inputId}
+                            className={`cursor-pointer px-4 py-2 text-sm rounded-lg transition-all duration-200 border ${selected === option.value ? 'bg-blue-600 text-white font-semibold border-blue-600' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'}`}
+                        >
+                            <span>{option.label}</span>
+                        </label>
+                    </div>
+                );
+            })}
         </div>
     </div>
 );

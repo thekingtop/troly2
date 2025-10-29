@@ -1,4 +1,5 @@
-import type { SavedCase } from '../types';
+
+import type { SavedCase } from '../types.ts';
 
 // Declare global Dexie to satisfy TypeScript since it's loaded from CDN
 declare var Dexie: any;

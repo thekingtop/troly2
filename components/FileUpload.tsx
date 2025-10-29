@@ -1,14 +1,15 @@
+
 import React, { useCallback, useRef, useState, useEffect } from 'react';
-import type { UploadedFile, FileCategory } from '../types';
-import { fileCategoryLabels } from '../constants';
-import { FileIcon } from './icons/FileIcon';
-import { PdfIcon } from './icons/PdfIcon';
-import { ImageIcon } from './icons/ImageIcon';
-import { TrashIcon } from './icons/TrashIcon';
-import { WordIcon } from './icons/WordIcon';
-import { ExcelIcon } from './icons/ExcelIcon';
-import { Loader } from './Loader';
-import { ZipIcon } from './icons/ZipIcon';
+import type { UploadedFile, FileCategory } from '../types.ts';
+import { fileCategoryLabels } from '../constants.ts';
+import { FileIcon } from './icons/FileIcon.tsx';
+import { PdfIcon } from './icons/PdfIcon.tsx';
+import { ImageIcon } from './icons/ImageIcon.tsx';
+import { TrashIcon } from './icons/TrashIcon.tsx';
+import { WordIcon } from './icons/WordIcon.tsx';
+import { ExcelIcon } from './icons/ExcelIcon.tsx';
+import { Loader } from './Loader.tsx';
+import { ZipIcon } from './icons/ZipIcon.tsx';
 
 // Access JSZip from the window object, as it's loaded via CDN
 declare var JSZip: any;

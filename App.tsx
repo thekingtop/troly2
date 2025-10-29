@@ -1,30 +1,33 @@
-
-
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { FileUpload } from './components/FileUpload';
-import { ReportDisplay } from './components/ReportDisplay';
-import { Loader } from './components/Loader';
-import { analyzeCaseFiles, generateContextualDocument, refineText, generateReportSummary, categorizeMultipleFiles } from './services/geminiService';
-import { db, getAllCasesSorted, saveCase, deleteCaseById, clearAndBulkAddCases } from './services/db';
-import type { AnalysisReport, UploadedFile, SavedCase, SerializableFile, LitigationStage, LitigationType, FileCategory, ApplicableLaw, LegalLoophole } from './types';
-import { ConsultingWorkflow } from './components/ConsultingWorkflow';
-import { AnalysisIcon } from './components/icons/AnalysisIcon';
-import { PreviewModal } from './components/PreviewModal';
-import { MagicIcon } from './components/icons/MagicIcon';
-import { ExportIcon } from './components/icons/ExportIcon';
-import { TrashIcon } from './components/icons/TrashIcon';
-import { SaveCaseIcon } from './components/icons/SaveCaseIcon';
-import { FolderIcon } from './components/icons/FolderIcon';
-import { PlusIcon } from './components/icons/PlusIcon';
-import { CustomizeReportModal, ReportSection } from './components/CustomizeReportModal';
-import { BackIcon } from './components/icons/BackIcon';
-import { litigationStagesByType, getStageLabel, litigationStageSuggestions } from './constants';
-import { ProcessingProgress } from './components/ProcessingProgress';
-import { AppLogo } from './components/icons/AppLogo';
-import { PanelCollapseIcon } from './components/icons/PanelCollapseIcon';
-import { PanelExpandIcon } from './components/icons/PanelExpandIcon';
-import { DownloadIcon } from './components/icons/DownloadIcon';
-import { UploadIcon } from './components/icons/UploadIcon';
+import { FileUpload } from './components/FileUpload.tsx';
+import { ReportDisplay } from './components/ReportDisplay.tsx';
+import { Loader } from './components/Loader.tsx';
+import { analyzeCaseFiles, generateContextualDocument, categorizeMultipleFiles, generateReportSummary, refineText, extractSummariesFromFiles } from './services/geminiService.ts';
+import { db, getAllCasesSorted, saveCase, deleteCaseById, clearAndBulkAddCases } from './services/db.ts';
+import type { AnalysisReport, UploadedFile, SavedCase, SerializableFile, LitigationStage, LitigationType, FileCategory, ApplicableLaw, LegalLoophole, ParagraphGenerationOptions } from './types.ts';
+import { ConsultingWorkflow } from './components/ConsultingWorkflow.tsx';
+import { AnalysisIcon } from './components/icons/AnalysisIcon.tsx';
+import { PreviewModal } from './components/PreviewModal.tsx';
+import { MagicIcon } from './components/icons/MagicIcon.tsx';
+import { ExportIcon } from './components/icons/ExportIcon.tsx';
+import { TrashIcon } from './components/icons/TrashIcon.tsx';
+import { SaveCaseIcon } from './components/icons/SaveCaseIcon.tsx';
+import { FolderIcon } from './components/icons/FolderIcon.tsx';
+import { PlusIcon } from './components/icons/PlusIcon.tsx';
+import { CustomizeReportModal, ReportSection } from './components/CustomizeReportModal.tsx';
+import { BackIcon } from './components/icons/BackIcon.tsx';
+import { litigationStagesByType, getStageLabel, litigationStageSuggestions } from './constants.ts';
+import { AppLogo } from './components/icons/AppLogo.tsx';
+import { PanelCollapseIcon } from './components/icons/PanelCollapseIcon.tsx';
+import { PanelExpandIcon } from './components/icons/PanelExpandIcon.tsx';
+import { DownloadIcon } from './components/icons/DownloadIcon.tsx';
+import { UploadIcon } from './components/icons/UploadIcon.tsx';
+import { DocumentGenerator } from './components/DocumentGenerator.tsx';
+import { QuickDraftGenerator } from './components/QuickDraftGenerator.tsx';
+import { DocumentIcon } from './components/icons/DocumentIcon.tsx';
+import { ProcessingProgress } from './components/ProcessingProgress.tsx';
+import { ArgumentMapView } from './components/ArgumentMapView.tsx';
+import { ArgumentMapIcon } from './components/icons/ArgumentMapIcon.tsx';
 
 
 // Declare global variables from CDN scripts to satisfy TypeScript
@@ -33,10 +36,8 @@ declare var XLSX: any;
 declare var jspdf: any;
 declare var html2canvas: any;
 
-type RefineField = 'caseContent' | 'clientRequest';
-type RefineMode = 'concise' | 'detailed';
 type MainActionType = 'analyze' | 'update' | 'none';
-type View = 'caseInfo' | 'dashboard' | 'fileManagement' | 'calendar' | 'caseAnalysis' | 'client';
+type View = 'caseInfo' | 'dashboard' | 'fileManagement' | 'calendar' | 'caseAnalysis' | 'client' | 'documentGenerator' | 'quickDraft' | 'argumentMap';
 
 
 interface MainAction {
@@ -93,11 +94,13 @@ const base64ToFile = (base64: string, filename: string, mimeType: string): File 
 };
   
 const navItems = [
-    { id: 'caseInfo', icon: HomeIcon, label: 'Thông tin vụ việc' },
+    { id: 'caseAnalysis', icon: AnalysisIcon, label: 'Phân tích Vụ việc' },
+    { id: 'argumentMap', icon: ArgumentMapIcon, label: 'Bản đồ Lập luận' },
+    { id: 'documentGenerator', icon: DocumentIcon, label: 'Soạn thảo Văn bản' },
+    { id: 'quickDraft', icon: MagicIcon, label: 'Soạn thảo Nhanh' },
     { id: 'dashboard', icon: DashboardIcon, label: 'Bảng điều khiển' },
     { id: 'fileManagement', icon: FileManagementIcon, label: 'Quản lý tài liệu' },
     { id: 'calendar', icon: CalendarIcon, label: 'Lịch họp & Deadline' },
-    { id: 'caseAnalysis', icon: AnalysisIcon, label: 'Phân tích Vụ việc' },
     { id: 'client', icon: ClientIcon, label: 'Khách hàng' }
 ] as const;
 
@@ -193,8 +196,6 @@ const App: React.FC = () => {
   // --- Core State ---
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [query, setQuery] = useState<string>('');
-  const [caseContent, setCaseContent] = useState<string>('');
-  const [clientRequest, setClientRequest] = useState<string>('');
   const [report, setReport] = useState<AnalysisReport | null>(null);
   const [originalReport, setOriginalReport] = useState<AnalysisReport | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -214,15 +215,20 @@ const App: React.FC = () => {
   const [currentLitigationType, setCurrentLitigationType] = useState<LitigationType>('civil');
   const [currentLitigationStage, setCurrentLitigationStage] = useState<LitigationStage>('consulting');
   const [mainAction, setMainAction] = useState<MainAction>({ text: 'Phân tích Vụ việc', disabled: true, action: 'analyze', loadingText: 'Đang phân tích...' });
-  const [refiningField, setRefiningField] = useState<{ field: RefineField; mode: RefineMode } | null>(null);
-  const [refineError, setRefineError] = useState<{field: RefineField, message: string} | null>(null);
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
-  const [isGeneratingDocument, setIsGeneratingDocument] = useState<boolean>(false);
-  const [generatedDocument, setGeneratedDocument] = useState<string | null>(null);
-  const [generationError, setGenerationError] = useState<string | null>(null);
-  const [caseDocRequest, setCaseDocRequest] = useState('');
-  const [suggestedDocRequest, setSuggestedDocRequest] = useState('');
+  
+  // --- Contextual Drafting State ---
+  const [draftRequest, setDraftRequest] = useState('');
+  const [draftContent, setDraftContent] = useState('');
+  const [draftOptions, setDraftOptions] = useState<{
+    detail: ParagraphGenerationOptions['detail'];
+  }>({
+    detail: 'detailed',
+  });
+  const [isDrafting, setIsDrafting] = useState(false);
+  const [isRefining, setIsRefining] = useState<'concise' | 'detailed' | null>(null);
+  const [draftError, setDraftError] = useState<string | null>(null);
 
   // --- UI State ---
   const [activeView, setActiveView] = useState<View>('caseAnalysis');
@@ -230,24 +236,38 @@ const App: React.FC = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [isCustomizeModalOpen, setIsCustomizeModalOpen] = useState(false);
   const [libsReady, setLibsReady] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isPreprocessingFinished, setIsPreprocessingFinished] = useState(false);
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const [isInputPanelCollapsed, setIsInputPanelCollapsed] = useState(false);
+  
+  // --- Processing State ---
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isPreprocessingFinished, setIsPreprocessingFinished] = useState(false);
+  const [caseContentForDisplay, setCaseContentForDisplay] = useState('');
+  const [clientRequestForDisplay, setClientRequestForDisplay] = useState('');
+
+  // --- Dynamic Progress State ---
+  const [progress, setProgress] = useState(0);
+  const [progressMessage, setProgressMessage] = useState('');
+  const progressIntervalRef = useRef<number | null>(null);
+
 
   const resetAnalysisState = useCallback(() => {
     setFiles([]);
     setQuery('');
-    setCaseContent('');
-    setClientRequest('');
     setReport(null);
     setOriginalReport(null);
     setError(null);
     setSummaryError(null);
-    setGenerationError(null);
-    setGeneratedDocument(null);
-    setCaseDocRequest('');
-    setSuggestedDocRequest('');
+    setDraftRequest('');
+    setDraftContent('');
+    setDraftError(null);
+    setDraftOptions({ detail: 'detailed' });
+    setIsLoading(false);
+    setIsProcessing(false);
+    setIsPreprocessingFinished(false);
+    setCaseContentForDisplay('');
+    setClientRequestForDisplay('');
+
     setActiveView('caseAnalysis');
     const defaultLitigationType: LitigationType = 'civil';
     const defaultStage = litigationStagesByType[defaultLitigationType]?.[0]?.value || 'consulting';
@@ -289,64 +309,114 @@ const App: React.FC = () => {
   }, []);
   
   useEffect(() => {
-    const isReadyForAnalysis = query.trim().length > 0 && (files.length > 0 || caseContent.trim().length > 0 || clientRequest.trim().length > 0);
+    const isReadyForAnalysis = query.trim().length > 0 && files.length > 0;
     const stageLabel = getStageLabel(currentLitigationType, currentLitigationStage);
 
     if (!report) {
-        setMainAction({ text: 'Bắt đầu Phân tích', disabled: !isReadyForAnalysis || isLoading || isProcessing, action: 'analyze', loadingText: 'Đang xử lý...' });
+        setMainAction({ text: 'Bắt đầu Phân tích', disabled: !isReadyForAnalysis || isLoading, action: 'analyze', loadingText: 'Đang xử lý...' });
     } else {
         const isUpdatableStage = currentLitigationStage !== 'consulting' && currentLitigationStage !== 'closed';
         if (isUpdatableStage) {
-            setMainAction({ text: `Cập nhật cho GĐ: ${stageLabel}`, disabled: isLoading || isProcessing, action: 'update', loadingText: 'Đang cập nhật...' });
+            setMainAction({ text: `Cập nhật cho GĐ: ${stageLabel}`, disabled: isLoading, action: 'update', loadingText: 'Đang cập nhật...' });
         } else {
             setMainAction({ text: 'Đã phân tích', disabled: true, action: 'none', loadingText: '' });
         }
     }
-  }, [report, currentLitigationStage, currentLitigationType, files, caseContent, clientRequest, query, isLoading, isProcessing]);
+  }, [report, currentLitigationStage, currentLitigationType, files, query, isLoading]);
 
-  const handleDocSuggestionClick = (docName: string) => {
-    setCaseDocRequest(`Soạn thảo "${docName}"`);
-    document.getElementById('generation-section')?.scrollIntoView({ behavior: 'smooth' });
-  };
+  useEffect(() => {
+    if (isLoading) {
+        let currentProgress = 0;
+        // Clear any existing interval
+        if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
 
-  const performAnalysis = async (filesToAnalyze: UploadedFile[]) => {
-      setIsLoading(true);
-      try {
-          const analysisResult = await analyzeCaseFiles(filesToAnalyze, query, caseContent, clientRequest);
-          analysisResult.userAddedLaws = analysisResult.userAddedLaws || []; // Initialize user added laws
-          setReport(analysisResult);
-          setOriginalReport(analysisResult);
-          
-          const currentStageOptions = litigationStagesByType[currentLitigationType] || [];
-          if (analysisResult.litigationStage && currentStageOptions.some(opt => opt.value === analysisResult.litigationStage)) {
-              setCurrentLitigationStage(analysisResult.litigationStage);
-          } else if (currentLitigationStage === 'consulting') {
-              const nextStage = litigationStagesByType[currentLitigationType]?.[1]?.value || currentLitigationStage;
-              setCurrentLitigationStage(nextStage);
-          }
+        progressIntervalRef.current = window.setInterval(() => {
+            let increment = 1;
+            if (currentProgress < 20) increment = 1;
+            else if (currentProgress < 80) increment = 2;
+            else increment = 1;
 
-          let suggestion = '';
-          const strategy = analysisResult.proposedStrategy;
-          if (strategy?.litigation?.length > 0) suggestion = strategy.litigation[0];
-          else if (strategy?.preLitigation?.length > 0) suggestion = strategy.preLitigation[0];
-          setSuggestedDocRequest(suggestion);
-          setCaseDocRequest('');
-      } catch (err) {
-          console.error(err);
-          setError(err instanceof Error ? err.message : "Đã xảy ra lỗi không xác định. Vui lòng thử lại.");
-      } finally {
-          setIsLoading(false);
-      }
-  };
+            currentProgress += increment;
+            
+            if (currentProgress >= 99) {
+                currentProgress = 99; // Cap at 99
+                if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+            }
+
+            setProgress(currentProgress);
+
+            if (currentProgress < 10) {
+                setProgressMessage('Đang khởi tạo môi trường phân tích...');
+            } else if (currentProgress < 40) {
+                setProgressMessage('AI đang đọc và liên kết dữ liệu từ các tệp...');
+            } else if (currentProgress < 70) {
+                setProgressMessage('AI đang phân tích các vấn đề pháp lý cốt lõi...');
+            } else if (currentProgress < 95) {
+                setProgressMessage('AI đang xây dựng chiến lược và đề xuất...');
+            } else {
+                setProgressMessage('Đang tổng hợp báo cáo cuối cùng...');
+            }
+        }, 400);
+
+    } else {
+        if (progress > 0) {
+            setProgress(100);
+            setProgressMessage('Phân tích hoàn tất!');
+            setTimeout(() => {
+                setProgress(0);
+                setProgressMessage('');
+            }, 1000);
+        }
+        if (progressIntervalRef.current) {
+            clearInterval(progressIntervalRef.current);
+            progressIntervalRef.current = null;
+        }
+    }
+
+    return () => {
+        if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+    };
+  }, [isLoading]);
   
-  const handleAnalyze = useCallback(async () => {
-    setError(null);
-    setSummaryError(null);
-    setGenerationError(null);
+  const performMainAnalysis = useCallback(async (filesToAnalyze: UploadedFile[]) => {
+    setIsLoading(true);
     setReport(null);
     setOriginalReport(null);
-    setGeneratedDocument(null);
-    setSuggestedDocRequest('');
+    setError(null);
+
+    try {
+        const analysisResult = await analyzeCaseFiles(filesToAnalyze, query);
+        analysisResult.userAddedLaws = analysisResult.userAddedLaws || [];
+        setReport(analysisResult);
+        setOriginalReport(analysisResult);
+        
+        // After analysis, clear the pre-check summaries
+        setCaseContentForDisplay('');
+        setClientRequestForDisplay('');
+
+        const currentStageOptions = litigationStagesByType[currentLitigationType] || [];
+        if (analysisResult.litigationStage && currentStageOptions.some(opt => opt.value === analysisResult.litigationStage)) {
+            setCurrentLitigationStage(analysisResult.litigationStage);
+        } else if (currentLitigationStage === 'consulting') {
+            const nextStage = litigationStagesByType[currentLitigationType]?.[1]?.value || currentLitigationStage;
+            setCurrentLitigationStage(nextStage);
+        }
+
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : "Đã xảy ra lỗi không xác định. Vui lòng thử lại.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [query, currentLitigationType, currentLitigationStage]);
+
+
+  const handleStartFileProcessing = useCallback(async () => {
+    setError(null);
+    setSummaryError(null);
+    setReport(null);
+    setOriginalReport(null);
+    setDraftContent('');
 
     if (files.length > 0) {
         setIsPreprocessingFinished(false);
@@ -356,39 +426,81 @@ const App: React.FC = () => {
         try {
             const fileObjects = files.map(f => f.file);
             const categoryMap = await categorizeMultipleFiles(fileObjects);
-            setFiles(prev => prev.map(f => ({
+            const categorizedFiles = files.map(f => ({
                 ...f,
-                status: 'completed',
+                status: 'completed' as const,
                 category: categoryMap[f.file.name] || 'Uncategorized'
-            })));
+            }));
+            setFiles(categorizedFiles);
         } catch (err) {
             const message = err instanceof Error ? err.message : 'Lỗi không xác định';
             setFiles(prev => prev.map(f => ({ ...f, status: 'failed', error: message })));
+            setError(`Lỗi khi phân loại tệp: ${message}`);
         } finally {
             setIsPreprocessingFinished(true);
         }
     } else {
-        await performAnalysis([]);
+        await performMainAnalysis([]);
     }
-}, [files, query, caseContent, clientRequest]);
+  }, [files, performMainAnalysis]);
   
   const handleContinueAnalysis = useCallback(async () => {
     const successfulFiles = files.filter(f => f.status === 'completed');
     setIsProcessing(false);
-    await performAnalysis(successfulFiles);
-  }, [files, query, caseContent, clientRequest]);
-  
+    await performMainAnalysis(successfulFiles);
+  }, [files, performMainAnalysis]);
+
   const handleCancelProcessing = () => {
-      setIsProcessing(false);
-      setIsPreprocessingFinished(false);
-      setFiles(prev => prev.map(f => ({ ...f, status: 'pending', error: undefined })));
+    setIsProcessing(false);
+    setIsPreprocessingFinished(false);
+    setFiles(prev => prev.map(f => ({ ...f, status: 'pending', error: undefined })));
   };
+
+
+  const handleExtractAndDisplaySummaries = useCallback(async () => {
+    if (files.length === 0) {
+        setSummaryError("Vui lòng tải lên ít nhất một tệp để tóm tắt.");
+        return;
+    }
+
+    setIsSummarizing(true);
+    setSummaryError(null);
+    setCaseContentForDisplay('');
+    setClientRequestForDisplay('');
+    setReport(null);
+    setOriginalReport(null);
+
+    try {
+        // Step 1: Categorize files first to provide context
+        setFiles(prev => prev.map(f => ({ ...f, status: 'processing' as const, error: undefined })));
+        const fileObjects = files.map(f => f.file);
+        const categoryMap = await categorizeMultipleFiles(fileObjects);
+        const categorizedFiles = files.map(f => ({
+            ...f,
+            status: 'completed' as const,
+            category: categoryMap[f.file.name] || 'Uncategorized'
+        }));
+        setFiles(categorizedFiles);
+
+        // Step 2: Extract summaries using the now-categorized files
+        const { caseSummary, clientRequestSummary } = await extractSummariesFromFiles(categorizedFiles);
+        setCaseContentForDisplay(caseSummary);
+        setClientRequestForDisplay(clientRequestSummary);
+    } catch (err) {
+        const message = err instanceof Error ? err.message : 'Lỗi không xác định';
+        setSummaryError(`Lỗi khi tóm tắt hồ sơ: ${message}`);
+        setFiles(prev => prev.map(f => ({ ...f, status: 'failed', error: message })));
+    } finally {
+        setIsSummarizing(false);
+    }
+  }, [files]);
+
 
   const handleUpdateAnalysis = useCallback(async () => {
     if (!originalReport) { setError("Không có báo cáo gốc để cập nhật."); return; }
     setError(null); setSummaryError(null); setIsLoading(true);
     try {
-      const updatedReport = await analyzeCaseFiles(files, query, caseContent, clientRequest, {
+      const updatedReport = await analyzeCaseFiles(files, query, {
         report: originalReport,
         stage: getStageLabel(currentLitigationType, currentLitigationStage)
       });
@@ -400,10 +512,10 @@ const App: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [originalReport, currentLitigationType, currentLitigationStage, files, query, caseContent, clientRequest]);
+  }, [originalReport, currentLitigationType, currentLitigationStage, files, query]);
 
   const handleMainActionClick = () => {
-    if (mainAction.action === 'analyze') handleAnalyze();
+    if (mainAction.action === 'analyze') handleStartFileProcessing();
     else if (mainAction.action === 'update') handleUpdateAnalysis();
   };
   
@@ -414,6 +526,11 @@ const App: React.FC = () => {
     };
     setReport(updateLaws);
     setOriginalReport(updateLaws);
+  };
+  
+  const handleUpdateReport = (updatedReport: AnalysisReport) => {
+    setReport(updatedReport);
+    setOriginalReport(updatedReport);
   };
 
   // --- Case Management Logic ---
@@ -442,7 +559,10 @@ const App: React.FC = () => {
         ...activeCase,
         id: activeCase.id.startsWith('new_') ? now : activeCase.id,
         createdAt: activeCase.id.startsWith('new_') ? now : activeCase.createdAt,
-        name: caseName, caseContent, clientRequest, query, files: serializableFiles, updatedAt: now,
+        name: caseName, 
+        caseContent: '', // This is deprecated, content is in files
+        clientRequest: '', // This is deprecated
+        query, files: serializableFiles, updatedAt: now,
         litigationType: currentLitigationType, litigationStage: currentLitigationStage, analysisReport: report,
       };
       await saveCase(caseToSave);
@@ -459,8 +579,6 @@ const App: React.FC = () => {
   const handleLoadCase = (caseToLoad: SavedCase) => {
     resetAnalysisState();
     setActiveCase({ ...caseToLoad, workflowType: caseToLoad.workflowType || 'litigation' });
-    setCaseContent(caseToLoad.caseContent);
-    setClientRequest(caseToLoad.clientRequest);
     setQuery(caseToLoad.query);
     
     const reportToLoad = caseToLoad.analysisReport;
@@ -568,7 +686,7 @@ const App: React.FC = () => {
     };
 
 
-  const filteredCases = savedCases.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()) || c.caseContent.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredCases = savedCases.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
   // --- Export Logic ---
   const generateSafeFilename = (baseName: string) => baseName.replace(/[^a-z0-9_-\s]/gi, '').replace(/\s+/g, '_').substring(0, 50) || 'Bao_cao';
@@ -613,13 +731,13 @@ const App: React.FC = () => {
                         createSubHeading("Hành động đề xuất:"),
                         ...reportData.gapAnalysis.recommendedActions.map(item => createListItem(item)),
                         createSubHeading("Lỗ hổng pháp lý tiềm ẩn:"),
-                        // FIX: Convert LegalLoophole object to a descriptive string.
                         ...(reportData.gapAnalysis.legalLoopholes || []).map((item: LegalLoophole) => createListItem(`[${item.classification} - Mức độ: ${item.severity}] ${item.description}`))
                     );
                 }
                 break;
             case 'caseProspects': if (reportData.caseProspects) docSections.push( createHeading(section.title), createSubHeading("Điểm mạnh:"), ...reportData.caseProspects.strengths.map(item => createListItem(item)), createSubHeading("Điểm yếu:"), ...reportData.caseProspects.weaknesses.map(item => createListItem(item)), createSubHeading("Rủi ro:"), ...reportData.caseProspects.risks.map(item => createListItem(item)) ); break;
             case 'proposedStrategy': if (reportData.proposedStrategy) docSections.push( createHeading(section.title), createSubHeading("Giai đoạn Tiền tố tụng:"), ...reportData.proposedStrategy.preLitigation.map(item => createListItem(item)), createSubHeading("Giai đoạn Tố tụng:"), ...reportData.proposedStrategy.litigation.map(item => createListItem(item)) ); break;
+            case 'contingencyPlan': if (reportData.contingencyPlan?.length) docSections.push(createHeading(section.title), ...reportData.contingencyPlan.map(item => createListItem(item))); break;
         }
     });
     const doc = new Document({ styles: { paragraphStyles: [{ id: "strongStyle", name: "Strong Style", basedOn: "Normal", next: "Normal", run: { bold: true }, }], }, sections: [{ children: docSections }] });
@@ -632,7 +750,6 @@ const App: React.FC = () => {
     if (reportData.customNotes) appendSheet("Ghi chú", [["Ghi chú Tùy chỉnh"], [reportData.customNotes]]);
     if (reportData.legalRelationship) appendSheet("Tổng quan", [["Quan hệ pháp luật", reportData.legalRelationship],["Vấn đề pháp lý cốt lõi", (reportData.coreLegalIssues || []).join('\n')]]);
     if (reportData.applicableLaws?.length) { const d = [["Văn bản", "Điều luật", "Nội dung"]]; reportData.applicableLaws.forEach(l => l.articles.forEach(a => d.push([l.documentName, a.articleNumber, a.summary]))); appendSheet("Cơ sở pháp lý", d); }
-    // FIX: Convert LegalLoophole object to a descriptive string for the XLSX cell.
     if (reportData.gapAnalysis) {
         const d = [["Lỗ hổng thông tin", "Hành động đề xuất", "Lỗ hổng pháp lý"]];
         const max = Math.max(reportData.gapAnalysis.missingInformation.length, reportData.gapAnalysis.recommendedActions.length, (reportData.gapAnalysis.legalLoopholes || []).length);
@@ -649,6 +766,7 @@ const App: React.FC = () => {
     }
     if (reportData.caseProspects) { const d = [["Điểm mạnh", "Điểm yếu", "Rủi ro"]]; const max = Math.max(reportData.caseProspects.strengths.length, reportData.caseProspects.weaknesses.length, reportData.caseProspects.risks.length); for (let i = 0; i < max; i++) d.push([reportData.caseProspects.strengths[i] || '', reportData.caseProspects.weaknesses[i] || '', reportData.caseProspects.risks[i] || '']); appendSheet("Triển vọng Vụ việc", d); }
     if (reportData.proposedStrategy) { const d = [["Chiến lược Tiền tố tụng", "Chiến lược Tố tụng"]]; const max = Math.max(reportData.proposedStrategy.preLitigation.length, reportData.proposedStrategy.litigation.length); for (let i = 0; i < max; i++) d.push([reportData.proposedStrategy.preLitigation[i] || '', reportData.proposedStrategy.litigation[i] || '']); appendSheet("Chiến lược Đề xuất", d); }
+    if (reportData.contingencyPlan?.length) { const d = [["Phương án xử lý nếu thua kiện"]]; reportData.contingencyPlan.forEach(item => d.push([item])); appendSheet("Phương án Dự phòng", d); }
     XLSX.writeFile(wb, fileName);
   };
   const exportToPdf = (fileName: string) => {
@@ -658,33 +776,37 @@ const App: React.FC = () => {
     html2canvas(reportElement, { scale: 2, useCORS: true }).then((canvas) => { const imgData = canvas.toDataURL('image/png'); const { jsPDF } = jspdf; const pdf = new jsPDF({ orientation: 'p', unit: 'px', format: 'a4' }); const pdfWidth = pdf.internal.pageSize.getWidth(); const ratio = canvas.width / pdfWidth; const imgHeight = canvas.height / ratio; let heightLeft = imgHeight; let position = 0; pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight); heightLeft -= pdf.internal.pageSize.getHeight(); while (heightLeft > 0) { position = heightLeft - imgHeight; pdf.addPage(); pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight); heightLeft -= pdf.internal.pageSize.getHeight(); } pdf.save(fileName); }).catch(err => { setError("Error creating PDF."); }).finally(() => { setIsExporting(false); setIsCustomizeModalOpen(false); if (originalReport) setReport(originalReport); });
   };
 
-  const handleGenerateCaseDocument = useCallback(async (useSuggestion: boolean = false) => {
-    const requestText = useSuggestion ? `Soạn thảo văn bản cho: "${suggestedDocRequest}"` : caseDocRequest;
-    if (!report || !requestText.trim()) { setGenerationError("Vui lòng nhập yêu cầu."); return; }
-    if (useSuggestion) setCaseDocRequest('');
-    setGenerationError(null); setIsGeneratingDocument(true); setGeneratedDocument(null);
-    try {
-      setGeneratedDocument(await generateContextualDocument(report, requestText));
-    } catch (err) {
-      setGenerationError(err instanceof Error ? err.message : "Lỗi khi soạn thảo.");
-    } finally {
-      setIsGeneratingDocument(false);
+  const handleGenerateDraft = useCallback(async () => {
+    if (!report || !draftRequest.trim()) {
+        setDraftError("Vui lòng nhập yêu cầu soạn thảo.");
+        return;
     }
-  }, [report, caseDocRequest, suggestedDocRequest]);
+    setDraftError(null);
+    setIsDrafting(true);
+    setDraftContent('');
+    try {
+        const result = await generateContextualDocument(report, draftRequest, draftOptions);
+        setDraftContent(result);
+    } catch (err) {
+        setDraftError(err instanceof Error ? err.message : "Lỗi khi soạn thảo.");
+    } finally {
+        setIsDrafting(false);
+    }
+  }, [report, draftRequest, draftOptions]);
 
-  const handleRefineText = async (field: RefineField, mode: RefineMode) => {
-    const textToRefine = field === 'caseContent' ? caseContent : clientRequest;
-    if (!textToRefine.trim()) { setRefineError({field, message: "Vui lòng nhập nội dung."}); return; }
-    setRefiningField({ field, mode }); setRefineError(null);
-    try {
-      const refinedText = await refineText(textToRefine, mode);
-      if (field === 'caseContent') setCaseContent(refinedText); else setClientRequest(refinedText);
-    } catch (err) {
-      setRefineError({field, message: err instanceof Error ? err.message : "Lỗi không xác định"});
-    } finally {
-      setRefiningField(null);
-    }
-  };
+  const handleRefineDraft = useCallback(async (mode: 'concise' | 'detailed') => {
+      if (!draftContent.trim()) return;
+      setDraftError(null);
+      setIsRefining(mode);
+      try {
+          const result = await refineText(draftContent, mode);
+          setDraftContent(result);
+      } catch (err) {
+          setDraftError(err instanceof Error ? err.message : `Lỗi khi ${mode === 'concise' ? 'làm gọn' : 'chi tiết hóa'}.`);
+      } finally {
+          setIsRefining(null);
+      }
+  }, [draftContent]);
   
   const handleGenerateSummary = useCallback(async () => {
     if (!report) return;
@@ -707,13 +829,218 @@ const App: React.FC = () => {
 
   const renderLitigationWorkflow = () => {
     const currentStageSuggestions = litigationStageSuggestions[currentLitigationStage];
-    const showStageSuggestions = report && currentStageSuggestions && (currentStageSuggestions.actions.length > 0 || currentStageSuggestions.documents.length > 0);
+    const showStageSuggestions = report && currentStageSuggestions;
 
-    const RefineButton: React.FC<{field: RefineField, mode: RefineMode, text: string}> = ({ field, mode, text }) => {
-        const isLoading = refiningField?.field === field && refiningField?.mode === mode;
-        return (<button onClick={() => handleRefineText(field, mode)} disabled={!!refiningField} className="text-xs px-2 py-1 bg-slate-100 text-blue-700 font-semibold rounded-md hover:bg-blue-100 hover:text-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all" title={text}>
-            {isLoading ? <Loader /> : <span>{text}</span>}
-        </button>);
+    const renderCurrentView = () => {
+        switch(activeView) {
+            case 'caseAnalysis':
+                return (
+                    <>
+                        {/* Input Panel */}
+                        {!isInputPanelCollapsed && (
+                            <div className="w-5/12 flex-shrink-0 overflow-y-auto pr-2 -mr-2 space-y-4 animate-fade-in">
+                                <div className="flex justify-between items-center">
+                                    <button onClick={() => { if (window.confirm("Bạn có chắc chắn muốn quay lại? Mọi dữ liệu chưa lưu sẽ bị mất.")) { handleGoBackToSelection(); } }} className="flex items-center gap-2 text-sm text-slate-500 hover:text-blue-600 font-semibold transition-colors">
+                                        <BackIcon className="w-4 h-4" /> Quay lại Chọn Nghiệp vụ
+                                    </button>
+                                </div>
+                                <div className="p-4 border border-slate-200 rounded-lg">
+                                    <FileUpload files={files} setFiles={setFiles} onPreview={setPreviewingFile} />
+                                </div>
+                                <div className="p-4 rounded-lg bg-blue-50 border border-blue-200">
+                                    <label htmlFor="mainQuery" className="block text-sm font-bold text-blue-900 mb-1">Yêu cầu chính cho AI</label>
+                                    <p className="text-xs text-blue-800/80 mb-2">Đây là yêu cầu quan trọng nhất, quyết định hướng phân tích của AI.</p>
+                                    <textarea id="mainQuery" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Ví dụ: Phân tích và đề xuất chiến lược khởi kiện" className="w-full bg-white p-2 border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500" rows={2} />
+                                </div>
+                                <div className="pt-2 space-y-3">
+                                    <button onClick={handleMainActionClick} disabled={mainAction.disabled} className="w-full py-2.5 px-4 font-semibold text-sm rounded-lg transition-all duration-200 flex items-center justify-center gap-2 bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 disabled:bg-slate-300">
+                                        {isLoading ? <><Loader /><span>{mainAction.loadingText}</span></> : <span>{mainAction.text}</span>}
+                                    </button>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <button onClick={handleExtractAndDisplaySummaries} disabled={files.length === 0 || isLoading || isSummarizing} className="py-2.5 px-4 font-semibold text-sm rounded-lg transition-all duration-200 flex items-center justify-center gap-2 bg-slate-100 text-slate-800 hover:bg-slate-200 focus:ring-slate-400 border border-slate-300">
+                                            {isSummarizing ? <><Loader /><span>Đang tóm tắt...</span></> : <><MagicIcon className="w-4 h-4" /><span>Tóm tắt Hồ sơ</span></>}
+                                        </button>
+                                        <button onClick={handleSaveCase} disabled={isSaving} className="py-2.5 px-4 font-semibold text-sm rounded-lg transition-all duration-200 flex items-center justify-center gap-2 bg-slate-100 text-slate-800 hover:bg-slate-200 focus:ring-slate-400 border border-slate-300">
+                                            {isSaving ? <Loader /> : <><SaveCaseIcon className="w-4 h-4" /><span>Lưu vụ việc</span></>}
+                                        </button>
+                                    </div>
+                                </div>
+                                {error && <div className="mt-2"><Alert message={error} type="error" /></div>}
+                                {summaryError && <div className="mt-2"><Alert message={summaryError} type="error" /></div>}
+                            </div>
+                        )}
+                        
+                        {/* Separator / Button */}
+                        <div className="flex-shrink-0 flex items-center justify-center -mx-3">
+                            <button
+                                onClick={() => setIsInputPanelCollapsed(p => !p)}
+                                className="z-10 p-1.5 bg-white border border-slate-300 rounded-full shadow-md hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors"
+                                title={isInputPanelCollapsed ? "Hiện bảng nhập liệu" : "Ẩn bảng nhập liệu"}
+                            >
+                                {isInputPanelCollapsed ? <PanelExpandIcon className="w-5 h-5" /> : <PanelCollapseIcon className="w-5 h-5" />}
+                            </button>
+                        </div>
+
+                        {/* Results Panel */}
+                        <div className="flex-1 overflow-y-auto border border-slate-200 rounded-lg p-6 flex flex-col">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-lg font-bold text-slate-800">Kết quả Phân tích</h3>
+                                {report && !isLoading && (<div className="flex items-center gap-2">
+                                    <button onClick={handleGenerateSummary} disabled={isSummarizing} className="flex items-center gap-2 px-3 py-1.5 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 disabled:bg-slate-200">{isSummarizing ? <Loader /> : <MagicIcon className="w-4 h-4" />}Tóm tắt</button>
+                                    <button onClick={() => setIsCustomizeModalOpen(true)} disabled={isExporting || !libsReady} className="flex items-center gap-2 px-3 py-1.5 text-xs bg-slate-700 text-white rounded-lg hover:bg-slate-800 disabled:bg-slate-400">{!libsReady ? <Loader /> : <ExportIcon className="w-4 h-4" />}{!libsReady ? "Tải..." : "Xuất"}</button>
+                                </div>)}
+                            </div>
+                            
+                            <div className="flex-grow rounded-lg bg-slate-50/50 p-1 min-h-[60vh]">
+                                {isLoading && (
+                                    <div className="flex flex-col items-center justify-center h-full text-center text-slate-500 p-8">
+                                        <div className="w-full max-w-lg">
+                                            <p className="text-lg font-semibold text-slate-700 mb-3 animate-fade-in">{progressMessage}</p>
+                                            <div className="w-full bg-slate-200 rounded-full h-4 overflow-hidden soft-shadow">
+                                                <div 
+                                                    className="bg-gradient-to-r from-blue-500 to-indigo-600 h-4 rounded-full transition-all duration-500 ease-out"
+                                                    style={{ width: `${progress}%` }}
+                                                ></div>
+                                            </div>
+                                            <p className="text-3xl font-bold text-slate-800 mt-4">{progress}%</p>
+                                        </div>
+                                    </div>
+                                )}
+                                {!isLoading && !report && !caseContentForDisplay && (
+                                    <div className="flex flex-col items-center justify-center h-full text-center text-slate-400">
+                                        <p className="text-sm font-medium text-slate-500">Chờ kết quả phân tích và soạn thảo ở đây...</p>
+                                    </div>
+                                )}
+                                {(report || caseContentForDisplay) && (
+                                    <div className="animate-fade-in h-full overflow-y-auto p-4">
+                                        <ReportDisplay 
+                                            report={report} 
+                                            files={files} 
+                                            onPreview={setPreviewingFile} 
+                                            onClearSummary={handleClearSummary}
+                                            litigationType={currentLitigationType}
+                                            onUpdateUserLaws={handleUpdateUserLaws}
+                                            onUpdateReport={handleUpdateReport}
+                                            caseSummary={caseContentForDisplay}
+                                            clientRequestSummary={clientRequestForDisplay}
+                                        />
+                                       
+                                        {showStageSuggestions && currentStageSuggestions.actions.length > 0 && (
+                                            <div className="mt-8 pt-6 border-t-2 border-slate-100">
+                                                <h3 className="text-xl font-bold text-slate-800 mb-4">Gợi ý Hành động cho GĐ: {getStageLabel(currentLitigationType, currentLitigationStage)}</h3>
+                                                <div className="bg-slate-50 p-4 rounded-lg border">
+                                                    <ul className="list-disc list-inside space-y-1.5 text-sm">
+                                                        {currentStageSuggestions.actions.map((a, i) => <li key={i}>{a}</li>)}
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {report && (<div id="contextual-drafting-section" className="mt-8 pt-6 border-t-2 border-slate-100">
+                                            <h3 className="text-xl font-bold text-slate-800 mb-4">Soạn thảo Văn bản theo Bối cảnh</h3>
+                                            
+                                            <div className="p-4 bg-slate-100 border border-slate-200 rounded-lg space-y-4">
+                                                <div>
+                                                    <label htmlFor="draftRequest" className="block text-sm font-semibold text-slate-700 mb-1.5">Yêu cầu soạn thảo</label>
+                                                    {showStageSuggestions && currentStageSuggestions.documents.length > 0 && (
+                                                        <div className="mb-3 flex flex-wrap gap-2">
+                                                            {currentStageSuggestions.documents.map((d, i) => (
+                                                                <button key={i} onClick={() => setDraftRequest(d)} className="flex items-center gap-1.5 text-xs p-1.5 bg-blue-100 text-blue-800 font-medium rounded-md hover:bg-blue-200">
+                                                                    <PlusIcon className="w-3 h-3 shrink-0" />{d}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                    <textarea
+                                                        id="draftRequest"
+                                                        value={draftRequest}
+                                                        onChange={(e) => setDraftRequest(e.target.value)}
+                                                        placeholder="Ví dụ: Soạn thảo Đơn khởi kiện yêu cầu bồi thường thiệt hại..."
+                                                        className="w-full h-24 p-2.5 bg-white border border-slate-300 rounded-md text-sm"
+                                                    />
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-sm font-semibold text-slate-700 mb-2">Mức độ chi tiết</label>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {(['detailed', 'concise'] as const).map(detail => {
+                                                            const inputId = `detail-option-${detail}`;
+                                                            return (
+                                                                <div key={detail}>
+                                                                    <input
+                                                                        type="radio"
+                                                                        id={inputId}
+                                                                        name="detail"
+                                                                        value={detail}
+                                                                        checked={draftOptions.detail === detail}
+                                                                        onChange={(e) => setDraftOptions({ detail: e.target.value as any })}
+                                                                        className="sr-only"
+                                                                    />
+                                                                    <label
+                                                                        htmlFor={inputId}
+                                                                        className={`cursor-pointer px-3 py-1.5 text-xs rounded-md transition-colors border ${draftOptions.detail === detail ? 'bg-blue-600 text-white font-semibold border-blue-600' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'}`}
+                                                                    >
+                                                                        <span>{detail === 'detailed' ? 'Chi tiết' : 'Ngắn gọn'}</span>
+                                                                    </label>
+                                                                </div>
+                                                            )
+                                                        })}
+                                                    </div>
+                                                </div>
+
+                                                <button onClick={handleGenerateDraft} disabled={isDrafting || !draftRequest} className="w-full py-2.5 px-4 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-slate-300 flex items-center justify-center gap-2">
+                                                    {isDrafting ? <><Loader /> <span>Đang soạn...</span></> : 'Soạn thảo'}
+                                                </button>
+                                            </div>
+
+                                            {draftError && <div className="mt-2"><Alert message={draftError} type="error" /></div>}
+
+                                            {(isDrafting || draftContent) && (
+                                                <div className="mt-4 animate-fade-in">
+                                                    <h4 className="text-base font-semibold text-slate-800 mb-2">Văn bản đã soạn:</h4>
+                                                    <div className="relative">
+                                                        <textarea
+                                                            value={draftContent}
+                                                            onChange={(e) => setDraftContent(e.target.value)}
+                                                            placeholder={isDrafting ? "AI đang soạn thảo, vui lòng đợi..." : ""}
+                                                            className="w-full p-4 bg-white border border-slate-200 rounded-lg min-h-[300px] text-sm font-sans shadow-inner"
+                                                            readOnly={isDrafting || !!isRefining}
+                                                        />
+                                                        <div className="absolute top-3 right-3 flex items-center gap-2 z-10">
+                                                            <button onClick={() => handleRefineDraft('concise')} disabled={!!isRefining || !draftContent} className="flex items-center text-xs px-2 py-1 bg-slate-200 text-blue-600 rounded-md hover:bg-slate-300 disabled:opacity-50">
+                                                                {isRefining === 'concise' ? <Loader/> : <MagicIcon className="w-3 h-3 mr-1"/>} Làm gọn
+                                                            </button>
+                                                            <button onClick={() => handleRefineDraft('detailed')} disabled={!!isRefining || !draftContent} className="flex items-center text-xs px-2 py-1 bg-slate-200 text-blue-600 rounded-md hover:bg-slate-300 disabled:opacity-50">
+                                                                {isRefining === 'detailed' ? <Loader/> : <MagicIcon className="w-3 h-3 mr-1"/>} Chi tiết hóa
+                                                            </button>
+                                                            <div className="w-px h-4 bg-slate-300"></div>
+                                                            <button onClick={() => { navigator.clipboard.writeText(draftContent); alert('Đã sao chép!'); }} disabled={!draftContent} className="bg-slate-200 text-slate-700 px-2.5 py-1 text-xs font-semibold rounded-md hover:bg-slate-300 disabled:opacity-50">
+                                                                Copy
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>)}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </>
+                );
+            case 'argumentMap':
+                return <ArgumentMapView report={report} onUpdateReport={handleUpdateReport} />;
+            case 'documentGenerator':
+                return <div className="flex-1 overflow-y-auto"><DocumentGenerator /></div>;
+            case 'quickDraft':
+                return <div className="flex-1 overflow-y-auto"><QuickDraftGenerator /></div>;
+            default:
+                return (
+                    <div className="flex-1">
+                        <PlaceholderView viewName={navItems.find(item => item.id === activeView)?.label || ''} />
+                    </div>
+                );
+        }
     };
 
     return (
@@ -733,140 +1060,7 @@ const App: React.FC = () => {
             />
         </div>
         <main className="flex-1 p-6 flex gap-6 overflow-hidden">
-             {activeView === 'caseAnalysis' ? (
-                <>
-                    {/* Input Panel */}
-                    {!isInputPanelCollapsed && (
-                        <div className="w-5/12 flex-shrink-0 overflow-y-auto pr-2 -mr-2 space-y-4 animate-fade-in">
-                            <div className="flex justify-between items-center">
-                                <button onClick={() => { if (window.confirm("Bạn có chắc chắn muốn quay lại? Mọi dữ liệu chưa lưu sẽ bị mất.")) { handleGoBackToSelection(); } }} className="flex items-center gap-2 text-sm text-slate-500 hover:text-blue-600 font-semibold transition-colors">
-                                    <BackIcon className="w-4 h-4" /> Quay lại Chọn Nghiệp vụ
-                                </button>
-                            </div>
-                            <div className="p-4 border border-slate-200 rounded-lg">
-                                <FileUpload files={files} setFiles={setFiles} onPreview={setPreviewingFile} />
-                            </div>
-                            <div className="p-4 border border-slate-200 rounded-lg space-y-2">
-                                <div className="flex justify-between items-center">
-                                    <label htmlFor="caseContent" className="block text-sm font-semibold text-slate-800">Tóm tắt diễn biến, sự việc, các mốc thời gian quan trọng...</label>
-                                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                                        <RefineButton field="caseContent" mode="concise" text="Làm gọn" />
-                                        <RefineButton field="caseContent" mode="detailed" text="Chi tiết hóa" />
-                                    </div>
-                                </div>
-                                <textarea id="caseContent" value={caseContent} onChange={(e) => setCaseContent(e.target.value)} className="w-full min-h-[100px] bg-white p-2 border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500" rows={4}/>
-                                {refineError?.field === 'caseContent' && <p className="text-red-500 text-xs mt-1">{refineError.message}</p>}
-                            </div>
-                            <div className="p-4 border border-slate-200 rounded-lg space-y-2">
-                                <div className="flex justify-between items-center">
-                                    <label htmlFor="clientRequest" className="block text-sm font-semibold text-slate-800">Tóm tắt Thách hàng</label>
-                                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                                        <RefineButton field="clientRequest" mode="concise" text="Làm gọn" />
-                                        <RefineButton field="clientRequest" mode="detailed" text="Chi tiết hóa" />
-                                    </div>
-                                </div>
-                                <textarea id="clientRequest" value={clientRequest} onChange={(e) => setClientRequest(e.target.value)} placeholder="khách hàng mong muốn đạt được điều gì? ví dụ: đòi lại tiền cọc..." className="w-full min-h-[80px] bg-white p-2 border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500" rows={3} />
-                                {refineError?.field === 'clientRequest' && <p className="text-red-500 text-xs mt-1">{refineError.message}</p>}
-                            </div>
-                            <div className="p-4 rounded-lg bg-blue-50 border border-blue-200">
-                                <label htmlFor="mainQuery" className="block text-sm font-bold text-blue-900 mb-1">Yêu cầu chính cho AI</label>
-                                <p className="text-xs text-blue-800/80 mb-2">Đây là yêu cầu quan trọng nhất, quyết định hướng phân tích của AI.</p>
-                                <textarea id="mainQuery" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Ví dụ: Phân tích và đề xuất chiến lược khởi kiện" className="w-full bg-white p-2 border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500" rows={2} />
-                            </div>
-                            <div className="flex items-center gap-3 pt-2">
-                                <button onClick={handleMainActionClick} disabled={mainAction.disabled} className="py-2.5 px-4 font-semibold text-sm rounded-lg transition-all duration-200 flex items-center justify-center gap-2 flex-1 bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 disabled:bg-slate-300">
-                                    {isLoading ? <><Loader /><span>{mainAction.loadingText}</span></> : <span>{mainAction.text}</span>}
-                                </button>
-                                <button onClick={handleSaveCase} disabled={isSaving} className="py-2.5 px-4 font-semibold text-sm rounded-lg transition-all duration-200 flex items-center justify-center gap-2 flex-1 bg-slate-100 text-slate-800 hover:bg-slate-200 focus:ring-slate-400 border border-slate-300">
-                                    {isSaving ? <Loader /> : <><SaveCaseIcon className="w-4 h-4" /><span>Lưu vụ việc</span></>}
-                                </button>
-                            </div>
-                            {error && <div className="mt-2"><Alert message={error} type="error" /></div>}
-                        </div>
-                    )}
-                    
-                    {/* Separator / Button */}
-                    <div className="flex-shrink-0 flex items-center justify-center -mx-3">
-                        <button
-                            onClick={() => setIsInputPanelCollapsed(p => !p)}
-                            className="z-10 p-1.5 bg-white border border-slate-300 rounded-full shadow-md hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors"
-                            title={isInputPanelCollapsed ? "Hiện bảng nhập liệu" : "Ẩn bảng nhập liệu"}
-                        >
-                            {isInputPanelCollapsed ? <PanelExpandIcon className="w-5 h-5" /> : <PanelCollapseIcon className="w-5 h-5" />}
-                        </button>
-                    </div>
-
-                    {/* Results Panel */}
-                    <div className="flex-1 overflow-y-auto border border-slate-200 rounded-lg p-6 flex flex-col">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-bold text-slate-800">Kết quả Phân tích</h3>
-                            {report && !isLoading && (<div className="flex items-center gap-2">
-                                <button onClick={handleGenerateSummary} disabled={isSummarizing} className="flex items-center gap-2 px-3 py-1.5 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 disabled:bg-slate-200">{isSummarizing ? <Loader /> : <MagicIcon className="w-4 h-4" />}Tóm tắt</button>
-                                <button onClick={() => setIsCustomizeModalOpen(true)} disabled={isExporting || !libsReady} className="flex items-center gap-2 px-3 py-1.5 text-xs bg-slate-700 text-white rounded-lg hover:bg-slate-800 disabled:bg-slate-400">{!libsReady ? <Loader /> : <ExportIcon className="w-4 h-4" />}{!libsReady ? "Tải..." : "Xuất"}</button>
-                            </div>)}
-                        </div>
-                        {summaryError && <Alert message={summaryError} type="error" />}
-                        <div className="flex-grow rounded-lg bg-slate-50/50 p-1 min-h-[60vh]">
-                            {isLoading && (
-                                <div className="loading-bar-container">
-                                    <div className="loading-bars">
-                                        <div className="loading-bar"></div>
-                                        <div className="loading-bar"></div>
-                                        <div className="loading-bar"></div>
-                                    </div>
-                                    <p className="mt-4 text-sm text-slate-500">{mainAction.loadingText}</p>
-                                </div>
-                            )}
-                            {!isLoading && !report && !generatedDocument && (
-                                <div className="flex flex-col items-center justify-center h-full text-center text-slate-400">
-                                    <p className="text-sm font-medium text-slate-500">Chờ cao phân tích và soạn thảo ở đây...</p>
-                                </div>
-                            )}
-                            {report && (
-                                <div className="animate-fade-in h-full overflow-y-auto p-4">
-                                    <ReportDisplay 
-                                        report={report} 
-                                        files={files} 
-                                        onPreview={setPreviewingFile} 
-                                        onClearSummary={handleClearSummary}
-                                        litigationType={currentLitigationType}
-                                        onUpdateUserLaws={handleUpdateUserLaws}
-                                    />
-                                    {showStageSuggestions && (
-                                        <div className="mt-8 pt-6 border-t-2 border-slate-100">
-                                        <h3 className="text-xl font-bold text-slate-800 mb-4">Gợi ý cho GĐ: {getStageLabel(currentLitigationType, currentLitigationStage)}</h3>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-4 rounded-lg border">
-                                            <div>
-                                            <h4 className="font-semibold mb-2">Hành động đề xuất:</h4>
-                                            <ul className="list-disc list-inside space-y-1.5 text-sm">{currentStageSuggestions.actions.map((a, i) => <li key={i}>{a}</li>)}</ul>
-                                            </div>
-                                            <div>
-                                            <h4 className="font-semibold mb-2">Văn bản cần soạn thảo:</h4>
-                                            <div className="flex flex-col items-start gap-2">{currentStageSuggestions.documents.map((d, i) => (<button key={i} onClick={() => handleDocSuggestionClick(d)} className="text-left w-full p-2 bg-blue-100 text-blue-800 font-medium rounded-md hover:bg-blue-200 text-sm flex items-center gap-2"><PlusIcon className="w-4 h-4 shrink-0" />{d}</button>))}</div>
-                                            </div>
-                                        </div>
-                                        </div>
-                                    )}
-                                    <div id="generation-section" className="mt-8 pt-6 border-t-2 border-slate-100">
-                                        <h3 className="text-xl font-bold text-slate-800 mb-4">Soạn thảo Văn bản theo Bối cảnh</h3>
-                                        {suggestedDocRequest && (<div className="mb-4"><button onClick={() => handleGenerateCaseDocument(true)} disabled={isGeneratingDocument} className="w-full text-left p-3 bg-blue-50 border-2 border-dashed border-blue-200 text-blue-800 font-semibold rounded-lg hover:bg-blue-100 flex items-center justify-between"><span className="flex items-center gap-2"><MagicIcon className="w-5 h-5"/><span>{`Gợi ý: "${suggestedDocRequest}"`}</span></span>{isGeneratingDocument && caseDocRequest === '' && <Loader />}</button></div>)}
-                                        <div className="flex gap-2">
-                                        <input type="text" value={caseDocRequest} onChange={(e) => setCaseDocRequest(e.target.value)} placeholder="Ví dụ: Soạn Đơn khởi kiện" className="w-full p-2 bg-white border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex-grow" />
-                                        <button onClick={() => handleGenerateCaseDocument(false)} disabled={isGeneratingDocument || !caseDocRequest} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-slate-300 text-sm">{isGeneratingDocument && caseDocRequest !== '' ? 'Soạn...' : "Soạn thảo"}</button>
-                                        </div>
-                                        {generationError && <div className="mt-2"><Alert message={generationError} type="error" /></div>}
-                                    </div>
-                                </div>
-                            )}
-                            {generatedDocument && (<div className="mt-4 animate-fade-in p-4"><h4 className="text-lg font-semibold mb-2">Văn bản đã soạn:</h4><pre className="whitespace-pre-wrap font-sans bg-slate-50 p-4 rounded-lg border">{generatedDocument}</pre></div>)}
-                        </div>
-                    </div>
-                </>
-            ) : (
-                <div className="flex-1">
-                    <PlaceholderView viewName={navItems.find(item => item.id === activeView)?.label || ''} />
-                </div>
-            )}
+             {renderCurrentView()}
         </main>
       </div>
     );
@@ -897,12 +1091,12 @@ const App: React.FC = () => {
             {!activeCase && renderWelcomeScreen()}
             {activeCase?.workflowType === 'litigation' && renderLitigationWorkflow()}
             {activeCase?.workflowType === 'consulting' && <ConsultingWorkflow onPreview={setPreviewingFile} onGoBack={handleGoBackToSelection} activeCase={activeCase} onCasesUpdated={loadData} />}
+        
+            {isProcessing && (<ProcessingProgress files={files} onContinue={handleContinueAnalysis} onCancel={handleCancelProcessing} isFinished={isPreprocessingFinished} hasTextContent={false} />)}
         </main>
       </div>
 
        <PreviewModal file={previewingFile} onClose={() => setPreviewingFile(null)} />
-
-       {isProcessing && activeCase?.workflowType === 'litigation' && (<ProcessingProgress files={files} onContinue={handleContinueAnalysis} onCancel={handleCancelProcessing} isFinished={isPreprocessingFinished} hasTextContent={caseContent.trim().length > 0 || clientRequest.trim().length > 0}/>)}
        
        {isWorkflowSelectorOpen && (
            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">

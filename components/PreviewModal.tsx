@@ -1,5 +1,6 @@
+
 import React, { useEffect, useState } from 'react';
-import type { UploadedFile } from '../types';
+import type { UploadedFile } from '../types.ts';
 
 interface PreviewModalProps {
     file: UploadedFile | null;

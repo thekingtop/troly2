@@ -1,10 +1,8 @@
-
-
 import React, { useState, useRef, useEffect } from 'react';
-import type { AnalysisReport } from '../types';
-import { DragHandleIcon } from './icons/DragHandleIcon';
-import { ExportIcon } from './icons/ExportIcon';
-import { Loader } from './Loader';
+import type { AnalysisReport } from '../types.ts';
+import { DragHandleIcon } from './icons/DragHandleIcon.tsx';
+import { ExportIcon } from './icons/ExportIcon.tsx';
+import { Loader } from './Loader.tsx';
 
 export interface ReportSection {
   id: keyof AnalysisReport | 'customNotesSection';
@@ -14,12 +12,16 @@ export interface ReportSection {
 
 const initialSections: Omit<ReportSection, 'enabled'>[] = [
   { id: 'customNotesSection', title: 'Ghi chú Tùy chỉnh' },
+  { id: 'caseTimeline', title: 'Dòng thời gian Vụ việc' },
   { id: 'legalRelationship', title: '1. Quan hệ pháp luật' },
-  { id: 'coreLegalIssues', title: '2. Vấn đề pháp lý cốt lõi' },
-  { id: 'applicableLaws', title: '3. Cơ sở pháp lý áp dụng' },
-  { id: 'gapAnalysis', title: '4. Phân tích Lỗ hổng & Hành động' },
-  { id: 'caseProspects', title: '5. Đánh giá Triển vọng Vụ việc' },
-  { id: 'proposedStrategy', title: '6. Đề xuất Lộ trình & Chiến lược' },
+  { id: 'proceduralStatus', title: '2. Tư cách Tố tụng' },
+  { id: 'coreLegalIssues', title: '3. Vấn đề pháp lý cốt lõi' },
+  { id: 'requestResolutionPlan', title: '4. Phương án giải quyết theo Yêu cầu' },
+  { id: 'applicableLaws', title: '5. Cơ sở pháp lý áp dụng' },
+  { id: 'gapAnalysis', title: '6. Phân tích Lỗ hổng & Hành động' },
+  { id: 'caseProspects', title: '7. Đánh giá Triển vọng Vụ việc' },
+  { id: 'proposedStrategy', title: '8. Đề xuất Lộ trình & Chiến lược' },
+  { id: 'contingencyPlan', title: '9. Phương án xử lý nếu thua kiện' },
 ];
 
 
