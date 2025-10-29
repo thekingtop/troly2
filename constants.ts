@@ -60,6 +60,117 @@ export const DOC_TYPE_FIELDS: Partial<Record<DocType, string[]>> = {
   ]
 };
 
+export const FIELD_LABELS: Record<string, string> = {
+  // legalServiceContract
+  lawFirmName: "Tên tổ chức hành nghề luật sư",
+  lawFirmAddress: "Địa chỉ",
+  lawFirmTaxCode: "Mã số thuế",
+  lawFirmRep: "Người đại diện",
+  clientName: "Tên khách hàng",
+  clientId: "Số CCCD/CMND/Hộ chiếu",
+  clientAddress: "Địa chỉ thường trú",
+  clientPhone: "Số điện thoại",
+  caseSummary: "Tóm tắt nội dung vụ việc",
+  clientRequest: "Yêu cầu của khách hàng",
+  feeAmount: "Phí dịch vụ",
+  paymentTerms: "Điều khoản thanh toán",
+  scopeOfWork: "Phạm vi công việc",
+  // demandLetter
+  recipientName: "Tên người nhận",
+  recipientAddress: "Địa chỉ người nhận",
+  subject: "Về việc",
+  demands: "Các yêu cầu",
+  deadline: "Thời hạn thực hiện",
+  // powerOfAttorney
+  principalName: "Tên người ủy quyền",
+  principalDob: "Ngày sinh",
+  principalId: "Số CCCD/CMND (Người ủy quyền)",
+  principalIdIssueDate: "Ngày cấp",
+  principalIdIssuePlace: "Nơi cấp",
+  principalAddress: "Địa chỉ thường trú (Người ủy quyền)",
+  agentName: "Tên người được ủy quyền",
+  agentDob: "Ngày sinh (Người được ủy quyền)",
+  agentId: "Số CCCD/CMND (Người được ủy quyền)",
+  agentIdIssueDate: "Ngày cấp (Người được ủy quyền)",
+  agentIdIssuePlace: "Nơi cấp (Người được ủy quyền)",
+  agentAddress: "Địa chỉ thường trú (Người được ủy quyền)",
+  scope: "Phạm vi ủy quyền",
+  term: "Thời hạn ủy quyền",
+  location: "Địa điểm",
+  // lawsuit
+  courtName: "Tên Tòa án",
+  disputeType: "Loại tranh chấp",
+  plaintiffName: "Tên người khởi kiện (Nguyên đơn)",
+  plaintiffId: "Số CCCD/CMND (Nguyên đơn)",
+  plaintiffAddress: "Địa chỉ (Nguyên đơn)",
+  plaintiffPhone: "Số điện thoại (Nguyên đơn)",
+  defendantName: "Tên người bị kiện (Bị đơn)",
+  defendantAddress: "Địa chỉ (Bị đơn)",
+  caseContent: "Nội dung vụ án",
+  requests: "Yêu cầu Tòa án giải quyết",
+  evidence: "Chứng cứ kèm theo",
+  // divorcePetition
+  petitionerName: "Tên người làm đơn",
+  petitionerId: "Số CCCD/CMND (Người làm đơn)",
+  petitionerAddress: "Địa chỉ (Người làm đơn)",
+  respondentName: "Tên người bị yêu cầu",
+  respondentAddress: "Địa chỉ (Người bị yêu cầu)",
+  marriageInfo: "Thông tin hôn nhân (số GCN, ngày, nơi ĐK)",
+  reason: "Lý do ly hôn",
+  childrenInfo: "Thông tin về con chung",
+  propertyInfo: "Thông tin về tài sản chung",
+  // enforcementPetition
+  enforcementAgency: "Tên Cơ quan Thi hành án",
+  creditorName: "Tên người được thi hành án",
+  creditorId: "Số CCCD/CMND (Người được THA)",
+  creditorAddress: "Địa chỉ (Người được THA)",
+  debtorName: "Tên người phải thi hành án",
+  debtorAddress: "Địa chỉ (Người phải THA)",
+  judgmentDetails: "Thông tin bản án/quyết định",
+  enforcementContent: "Nội dung yêu cầu thi hành án",
+  // will
+  testatorName: "Tên người lập di chúc",
+  testatorDob: "Ngày sinh (Người lập di chúc)",
+  testatorId: "Số CCCD/CMND (Người lập di chúc)",
+  testatorAddress: "Địa chỉ (Người lập di chúc)",
+  willContent: "Nội dung di chúc",
+  executor: "Người thực hiện di chúc",
+  witnesses: "Người làm chứng",
+  willDate: "Ngày lập di chúc",
+  willYear: "Năm lập di chúc",
+  // statementOfOpinion
+  presenterName: "Tên người trình bày",
+  presenterDob: "Ngày sinh",
+  presenterId: "Số CCCD/CMND",
+  presenterIdIssueDate: "Ngày cấp",
+  presenterIdIssuePlace: "Nơi cấp",
+  presenterAddress: "Địa chỉ",
+  presenterProceduralStatus: "Tư cách tham gia tố tụng",
+  representedPartyName: "Tên người được đại diện/bảo vệ",
+  representedPartyAddress: "Địa chỉ người được đại diện",
+  representedPartyLegalRep: "Đại diện pháp luật (nếu có)",
+  caseNumber: "Số thụ lý vụ án",
+  caseAcceptanceDate: "Ngày thụ lý",
+  caseName: "Tên vụ án",
+  firstInstanceSummary: "Tóm tắt bản án/quyết định sơ thẩm",
+  furtherProceedings: "Diễn biến sau sơ thẩm",
+  currentStatus: "Tình trạng hiện tại của vụ việc",
+  argument1Title: "Luận điểm 1 - Tiêu đề",
+  argument1Basis: "Luận điểm 1 - Cơ sở thực tế",
+  argument1Analysis: "Luận điểm 1 - Phân tích pháp lý",
+  argument2Title: "Luận điểm 2 - Tiêu đề",
+  argument2Basis: "Luận điểm 2 - Cơ sở thực tế",
+  argument2Analysis: "Luận điểm 2 - Phân tích pháp lý",
+  argument3Title: "Luận điểm 3 - Tiêu đề",
+  argument3Basis: "Luận điểm 3 - Cơ sở thực tế",
+  argument3Analysis: "Luận điểm 3 - Phân tích pháp lý",
+  finalConfirmation: "Khẳng định cuối cùng",
+  courtRequest: "Đề nghị với Tòa án",
+  documentDate: "Ngày làm văn bản",
+  disputeEvent: "Sự kiện pháp lý phát sinh tranh chấp",
+  postEventActions: "Hành động của các bên sau sự kiện"
+};
+
 
 export const SYSTEM_INSTRUCTION = `
 Bạn là một trợ lý luật sư AI xuất sắc tại Việt Nam, được đào tạo chuyên sâu để phân tích hồ sơ vụ việc. Nhiệm vụ của bạn là nhận các thông tin, tài liệu thô và trả về một báo cáo phân tích có cấu trúc JSON chặt chẽ.
@@ -420,6 +531,7 @@ Bạn là một Trợ lý Pháp lý AI chuyên sâu. Nhiệm vụ của bạn l�
 1.  Tiếp nhận một đối tượng JSON chứa toàn bộ báo cáo phân tích vụ việc.
 2.  Tiếp nhận một yêu cầu cụ thể từ luật sư về loại văn bản cần soạn thảo.
 3.  Dựa vào toàn bộ bối cảnh từ báo cáo phân tích, hãy soạn thảo văn bản được yêu cầu một cách chuyên nghiệp, đầy đủ và chính xác theo văn phong pháp lý Việt Nam.
+4.  QUAN TRỌNG: Đầu ra phải là văn bản thuần túy (plain text). TUYỆT ĐỐI không sử dụng định dạng Markdown (ví dụ: không dùng các ký tự như *, #, - để tạo danh sách, tiêu đề hay in đậm).
 `;
 
 export const CONSULTING_SYSTEM_INSTRUCTION = `
