@@ -1,11 +1,10 @@
-
 import React, { useState, useCallback } from 'react';
 import { generateDocumentFromTemplate, extractInfoFromFile, generateFieldContent } from '../services/geminiService.ts';
 import { Loader } from './Loader.tsx';
 import { MagicIcon } from './icons/MagicIcon.tsx';
 import { FileImportIcon } from './icons/FileImportIcon.tsx';
 import type { DocType, FormData, UploadedFile } from '../types.ts';
-import { DOC_TYPE_FIELDS } from '../constants.ts';
+import { DOC_TYPE_FIELDS, FIELD_LABELS } from '../constants.ts';
 
 const DOC_TYPE_LABELS: Record<DocType, string> = {
     '': '--- Chọn loại văn bản ---',
@@ -31,10 +30,10 @@ const DOC_TYPE_LABELS: Record<DocType, string> = {
 };
 
 const FieldLabel: React.FC<{ fieldName: string }> = ({ fieldName }) => {
-  const formatted = fieldName
-    .replace(/([A-Z])/g, ' $1') // Add space before uppercase letters
-    .replace(/^./, (str) => str.toUpperCase()); // Capitalize first letter
-  return <>{formatted}</>;
+    const formatted = fieldName
+        .replace(/([A-Z])/g, ' $1') // Add space before uppercase letters
+        .replace(/^./, (str) => str.toUpperCase()); // Capitalize first letter
+    return <>{FIELD_LABELS[fieldName] || formatted}</>;
 };
 
 export const DocumentGenerator: React.FC = () => {
