@@ -390,6 +390,9 @@ Dựa trên báo cáo đã được điều chỉnh ở trên làm nguồn thôn
     newReport.strategyChat = correctedReport.strategyChat || [];
     newReport.resolutionPlanChat = correctedReport.resolutionPlanChat || [];
     newReport.intelligentSearchChat = correctedReport.intelligentSearchChat || [];
+    newReport.applicableLawsChat = correctedReport.applicableLawsChat || [];
+    newReport.contingencyPlanChat = correctedReport.contingencyPlanChat || [];
+
 
     return newReport;
   } catch (error) {
@@ -726,7 +729,7 @@ export const continueContextualChat = async (
 ): Promise<string> => {
   try {
     // Exclude chat histories from the context to prevent redundancy and save tokens
-    const { prospectsChat, gapAnalysisChat, strategyChat, resolutionPlanChat, intelligentSearchChat, ...reportContext } = report;
+    const { prospectsChat, gapAnalysisChat, strategyChat, resolutionPlanChat, intelligentSearchChat, applicableLawsChat, contingencyPlanChat, ...reportContext } = report;
 
     const conversationHistoryPrompt = chatHistory
       .map(msg => `${msg.role === 'user' ? 'Luật sư' : 'Trợ lý AI'}: ${msg.content}`)
