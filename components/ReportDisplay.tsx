@@ -11,6 +11,7 @@ import { ChatIcon } from './icons/ChatIcon.tsx';
 import { SendIcon } from './icons/SendIcon.tsx';
 import { CaseTimeline } from './CaseTimeline.tsx';
 import { DownloadIcon } from './icons/DownloadIcon.tsx';
+import { RefreshIcon } from './icons/RefreshIcon.tsx';
 
 // --- Internal Components and Icons ---
 declare var html2canvas: any;
@@ -197,6 +198,8 @@ interface ReportDisplayProps {
   onUpdateReport: (updatedReport: AnalysisReport) => void;
   caseSummary?: string;
   clientRequestSummary?: string;
+  onReanalyze: (correctedReport: AnalysisReport) => void;
+  isReanalyzing: boolean;
 }
 
 const HighlightedText: React.FC<{ text: string | undefined; term: string }> = React.memo(({ text, term }) => {
@@ -409,46 +412,8 @@ const ContextualChat: React.FC<{
     );
 };
 
-const TimelineInfo: React.FC<{ events: CaseTimelineEvent[]; highlightTerm: string }> = ({ events, highlightTerm }) => {
-    if (!events || events.length === 0) {
-        return null;
-    }
 
-    const sortedEvents = [...events].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    const startDate = sortedEvents[0].date;
-    const endDate = sortedEvents[sortedEvents.length - 1].date;
-
-    const keyMilestones = sortedEvents.filter(e => e.significance === 'High').slice(0, 3);
-
-    return (
-        <div className="mt-3 text-sm text-slate-600 space-y-2">
-            {startDate !== endDate && (
-                 <div>
-                    <span className="font-semibold">Thời gian diễn ra (dựa trên hồ sơ):</span>{' '}
-                    <HighlightedText text={`${startDate} đến ${endDate}`} term={highlightTerm} />
-                </div>
-            )}
-            {keyMilestones.length > 0 && (
-                <div>
-                    <p className="font-semibold">Cột mốc quan trọng:</p>
-                    <ul className="list-disc list-inside pl-2 space-y-1">
-                        {keyMilestones.map((milestone, index) => (
-                            <li key={index}>
-                                <span className="font-medium text-slate-800">
-                                    <HighlightedText text={`${milestone.date}:`} term={highlightTerm} />
-                                </span>{' '}
-                                <HighlightedText text={milestone.description} term={highlightTerm} />
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-            )}
-        </div>
-    );
-};
-
-
-export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSummary, litigationType, onUpdateUserLaws, onUpdateReport, caseSummary, clientRequestSummary }) => {
+export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSummary, litigationType, onUpdateUserLaws, onUpdateReport, caseSummary, clientRequestSummary, onReanalyze, isReanalyzing }) => {
   const [explanation, setExplanation] = useState<{
     law: string;
     content: string;
@@ -459,6 +424,21 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
   const [highlightTerm, setHighlightTerm] = useState('');
   const [visibleChats, setVisibleChats] = useState<Record<string, boolean>>({});
   const [isDownloadingTimeline, setIsDownloadingTimeline] = useState(false);
+  const [editableSummary, setEditableSummary] = useState('');
+
+  useEffect(() => {
+    setEditableSummary(report?.editableCaseSummary || '');
+  }, [report?.editableCaseSummary]);
+
+  const handleSummaryBlur = () => {
+    if (!report || report.editableCaseSummary === editableSummary) return;
+    onUpdateReport({ ...report, editableCaseSummary: editableSummary });
+  };
+  
+  const handleUpdateEvents = (updatedEvents: CaseTimelineEvent[]) => {
+    if (!report) return;
+    onUpdateReport({ ...report, caseTimeline: updatedEvents });
+  };
 
 
   const handleDownloadTimeline = async () => {
@@ -595,6 +575,19 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
         </Section>
       )}
 
+      {report?.editableCaseSummary && (
+        <Section title="Tóm tắt Vụ việc (có thể chỉnh sửa)" highlightTerm={highlightTerm}>
+            <textarea
+                value={editableSummary}
+                onChange={(e) => setEditableSummary(e.target.value)}
+                onBlur={handleSummaryBlur}
+                className="w-full h-32 p-3 bg-white border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-blue-500"
+                placeholder="Tóm tắt vắn tắt vụ việc..."
+            />
+            <p className="text-xs text-slate-500 mt-1">Nội dung này sẽ được sử dụng làm cơ sở cho các lần phân tích lại.</p>
+        </Section>
+      )}
+      
       {report?.customNotes && (
         <Section title="Ghi chú Tùy chỉnh" id="customNotesSection" highlightTerm={highlightTerm}>
           <p className="whitespace-pre-wrap bg-yellow-50 border-l-4 border-yellow-300 p-4 text-slate-800 rounded-md"><HighlightedText text={report.customNotes} term={highlightTerm} /></p>
@@ -602,8 +595,19 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
       )}
 
       {report?.caseTimeline && report.caseTimeline.length > 0 && (
-        <Section title="Dòng thời gian Vụ việc" id="caseTimeline" highlightTerm={highlightTerm} extraHeaderContent={timelineDownloadButton}>
-            <CaseTimeline events={report.caseTimeline} highlightTerm={highlightTerm} />
+        <Section title="Dòng thời gian Vụ việc (có thể sắp xếp)" id="caseTimeline" highlightTerm={highlightTerm} extraHeaderContent={timelineDownloadButton}>
+            <p className="text-xs text-slate-500 mb-3 -mt-2">Kéo và thả các sự kiện để sắp xếp lại theo đúng trình tự.</p>
+            <CaseTimeline events={report.caseTimeline} highlightTerm={highlightTerm} onUpdateEvents={handleUpdateEvents} />
+            <div className="mt-4 text-center">
+                <button 
+                    onClick={() => report && onReanalyze(report)}
+                    disabled={isReanalyzing}
+                    className="flex items-center justify-center gap-2 py-2 px-5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:bg-slate-400"
+                >
+                    {isReanalyzing ? <Loader /> : <RefreshIcon className="w-5 h-5" />}
+                    Phân tích lại theo Tóm tắt & Dòng thời gian đã sửa
+                </button>
+            </div>
         </Section>
       )}
 
@@ -613,7 +617,6 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
             <p className="font-bold text-blue-700 text-base">
               <HighlightedText text={getStageLabel(litigationType, report.litigationStage)} term={highlightTerm} />
             </p>
-            <TimelineInfo events={report.caseTimeline} highlightTerm={highlightTerm} />
           </div>
         </Section>
       )}
