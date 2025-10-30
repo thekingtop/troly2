@@ -112,6 +112,7 @@ export interface ArgumentGraph {
 }
 
 export interface AnalysisReport {
+  editableCaseSummary?: string;
   caseTimeline: CaseTimelineEvent[];
   litigationStage: LitigationStage;
   proceduralStatus: ProceduralStatus[];
