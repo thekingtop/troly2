@@ -1,5 +1,5 @@
 import { GoogleGenAI, Part, Type } from "@google/genai";
-import type { AnalysisReport, FileCategory, UploadedFile, DocType, FormData, LitigationStage, LitigationType, ConsultingReport, ParagraphGenerationOptions, ChatMessage, ArgumentNode } from '../types.ts';
+import type { AnalysisReport, FileCategory, UploadedFile, DocType, FormData, LitigationStage, LitigationType, ConsultingReport, ParagraphGenerationOptions, ChatMessage, ArgumentNode, DraftingMode, OpponentArgument } from '../types.ts';
 import { 
     SYSTEM_INSTRUCTION, 
     REANALYSIS_SYSTEM_INSTRUCTION,
@@ -16,7 +16,10 @@ import {
     INTELLIGENT_SEARCH_SYSTEM_INSTRUCTION,
     ARGUMENT_GENERATION_SYSTEM_INSTRUCTION,
     ARGUMENT_NODE_CHAT_SYSTEM_INSTRUCTION,
-    nodeTypeMeta
+    OPPONENT_ANALYSIS_SYSTEM_INSTRUCTION,
+    OPPONENT_ANALYSIS_SCHEMA,
+    nodeTypeMeta,
+    DRAFTING_MODE_LABELS
 } from '../constants.ts';
 
 const API_KEY = import.meta.env.VITE_API_KEY;
@@ -39,8 +42,8 @@ const handleGeminiError = (error: any, context: string): Error => {
     const errorMessage = error.message; // Use original case for parsing
     
     // Check for common error types first
-    if (errorMessage.toLowerCase().includes("api key not valid")) {
-        message = 'Lỗi xác thực: API Key không hợp lệ hoặc bị thiếu.';
+    if (errorMessage.includes('401') || errorMessage.toUpperCase().includes('UNAUTHENTICATED')) {
+        message = 'Lỗi xác thực (401): API Key của bạn không hợp lệ, bị thiếu, hoặc đã hết hạn. Vui lòng kiểm tra lại cấu hình và thử lại.';
     } else if (errorMessage.includes('429')) {
       message = 'Vượt giới hạn yêu cầu (429): Quá nhiều yêu cầu được gửi đi. Vui lòng đợi một lát rồi thử lại.';
     } else if (errorMessage.includes('500') || errorMessage.includes('503')) {
@@ -481,42 +484,39 @@ export const summarizeText = async (textToSummarize: string, context: 'disputeCo
     }
 };
 
-export const generateContextualDocument = async (report: AnalysisReport, userRequest: string, options?: Partial<Pick<ParagraphGenerationOptions, 'tone' | 'detail'>>): Promise<string> => {
+export const generateContextualDocument = async (
+  report: AnalysisReport,
+  userRequest: string,
+  options: {
+    detail: ParagraphGenerationOptions['detail'];
+    draftingMode: DraftingMode;
+  }
+): Promise<string> => {
     try {
-        let optionsPrompt = '';
-        if (options) {
-            const { tone, detail } = options;
-            const toneMapping = {
-                'assertive': 'Quyết đoán',
-                'persuasive': 'Thuyết phục',
-                'formal': 'Trang trọng',
-                'conciliatory': 'Hòa giải',
-                'warning': 'Cảnh báo'
-            };
-            const detailMapping = {
-                'concise': 'Ngắn gọn',
-                'detailed': 'Chi tiết'
-            };
-            
-            const optionParts = [];
-            if (tone && toneMapping[tone]) {
-                optionParts.push(`- Giọng văn: ${toneMapping[tone]}`);
-            }
-            if (detail && detailMapping[detail]) {
-                optionParts.push(`- Mức độ chi tiết: ${detailMapping[detail]}`);
-            }
-
-            if (optionParts.length > 0) {
-                optionsPrompt = `\n\nHÃY SOẠN THẢO VĂN BẢN VỚI CÁC TIÊU CHÍ SAU:\n${optionParts.join('\n')}`;
-            }
-        }
-
-        const prompt = `DỮ LIỆU VỤ VIỆC (JSON):\n\`\`\`json\n${JSON.stringify(report, null, 2)}\n\`\`\`\n\nYÊU CẦU CỦA LUẬT SƯ:\n"${userRequest}"\n\nHãy soạn thảo văn bản hoàn chỉnh.${optionsPrompt}`;
+        const { detail, draftingMode } = options;
+        
+        const modeLabel = DRAFTING_MODE_LABELS[draftingMode] || 'Trung lập';
+        const detailLabel = detail === 'detailed' ? 'Chi tiết' : 'Ngắn gọn';
+        
+        const prompt = `
+        DỮ LIỆU VỤ VIỆC (JSON):
+        \`\`\`json
+        ${JSON.stringify(report, null, 2)}
+        \`\`\`
+        
+        YÊU CẦU CỦA LUẬT SƯ:
+        "${userRequest}"
+        
+        HÃY SOẠN THẢO VĂN BẢN VỚI CÁC TIÊU CHÍ SAU:
+        - Lập trường Chiến lược: ${modeLabel}
+        - Mức độ chi tiết: ${detailLabel}
+        
+        Soạn thảo văn bản hoàn chỉnh.`;
         
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
-            config: { systemInstruction: DOCUMENT_GENERATION_SYSTEM_INSTRUCTION, temperature: 0.4 }
+            config: { systemInstruction: DOCUMENT_GENERATION_SYSTEM_INSTRUCTION, temperature: 0.5 }
         });
         
         if (!response || typeof response.text !== 'string') {
@@ -898,4 +898,55 @@ TRỢ LÝ AI:
   } catch (error) {
     throw handleGeminiError(error, `trao đổi về luận cứ "${node.label}"`);
   }
+};
+
+export const analyzeOpponentArguments = async (
+    report: AnalysisReport,
+    files: UploadedFile[],
+    opponentArgumentsText: string
+): Promise<OpponentArgument[]> => {
+    try {
+        const { fileContentParts, multimodalParts } = await getFileContentParts(files);
+        const filesContent = fileContentParts.join('\n\n');
+        // Exclude potentially large/recursive fields from the main report context to save tokens
+        const { argumentGraph, opponentAnalysis, ...reportContext } = report;
+
+        const promptText = `
+**BỐI CẢNH VỤ VIỆC (HỒ SƠ CỦA KHÁCH HÀNG):**
+1.  **Báo cáo Phân tích (JSON):**
+    \`\`\`json
+    ${JSON.stringify(reportContext, null, 2)}
+    \`\`\`
+2.  **Tóm tắt Tài liệu Gốc:**
+    ${filesContent}
+
+**LẬP LUẬN CỦA ĐỐI PHƯƠNG CẦN PHÂN TÍCH:**
+---
+${opponentArgumentsText}
+---
+
+**YÊU CẦU:**
+Dựa vào toàn bộ bối cảnh vụ việc của khách hàng, hãy phân tích các lập luận của đối phương và trả về kết quả dưới dạng một mảng JSON.
+`;
+        const allParts: Part[] = [...multimodalParts, { text: promptText }];
+        
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: { parts: allParts },
+            config: {
+                systemInstruction: OPPONENT_ANALYSIS_SYSTEM_INSTRUCTION,
+                responseMimeType: "application/json",
+                responseSchema: OPPONENT_ANALYSIS_SCHEMA,
+                temperature: 0.4,
+            }
+        });
+        
+        if (!response || typeof response.text !== 'string' || !response.text.trim()) {
+            throw new Error("AI không trả về kết quả phân tích lập luận đối phương.");
+        }
+        const jsonText = response.text.trim().replace(/^```json\s*|```$/g, '');
+        return JSON.parse(jsonText);
+    } catch (error) {
+        throw handleGeminiError(error, 'phân tích lập luận của đối phương');
+    }
 };

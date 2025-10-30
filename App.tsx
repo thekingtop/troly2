@@ -4,7 +4,7 @@ import { ReportDisplay } from './components/ReportDisplay.tsx';
 import { Loader } from './components/Loader.tsx';
 import { analyzeCaseFiles, generateContextualDocument, categorizeMultipleFiles, generateReportSummary, refineText, extractSummariesFromFiles, reanalyzeCaseWithCorrections, intelligentSearchQuery } from './services/geminiService.ts';
 import { db, getAllCasesSorted, saveCase, deleteCaseById, clearAndBulkAddCases } from './services/db.ts';
-import type { AnalysisReport, UploadedFile, SavedCase, SerializableFile, LitigationStage, LitigationType, FileCategory, ApplicableLaw, LegalLoophole, ParagraphGenerationOptions, ChatMessage } from './types.ts';
+import type { AnalysisReport, UploadedFile, SavedCase, SerializableFile, LitigationStage, LitigationType, FileCategory, ApplicableLaw, LegalLoophole, ParagraphGenerationOptions, ChatMessage, DraftingMode } from './types.ts';
 import { ConsultingWorkflow } from './components/ConsultingWorkflow.tsx';
 import { AnalysisIcon } from './components/icons/AnalysisIcon.tsx';
 import { PreviewModal } from './components/PreviewModal.tsx';
@@ -16,7 +16,7 @@ import { FolderIcon } from './components/icons/FolderIcon.tsx';
 import { PlusIcon } from './components/icons/PlusIcon.tsx';
 import { CustomizeReportModal, ReportSection } from './components/CustomizeReportModal.tsx';
 import { BackIcon } from './components/icons/BackIcon.tsx';
-import { litigationStagesByType, getStageLabel, litigationStageSuggestions } from './constants.ts';
+import { litigationStagesByType, getStageLabel, litigationStageSuggestions, DRAFTING_MODE_LABELS } from './constants.ts';
 import { AppLogo } from './components/icons/AppLogo.tsx';
 import { PanelCollapseIcon } from './components/icons/PanelCollapseIcon.tsx';
 import { PanelExpandIcon } from './components/icons/PanelExpandIcon.tsx';
@@ -194,6 +194,42 @@ const PlaceholderView: React.FC<{ viewName: string }> = ({ viewName }) => (
     </div>
 );
 
+const RadioGroup: React.FC<{
+    label: string;
+    name: string;
+    options: { value: string; label: string }[];
+    selected: string;
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+}> = ({ label, name, options, selected, onChange }) => (
+    <div>
+        <label className="block text-sm font-semibold text-slate-700 mb-2">{label}</label>
+        <div className="flex flex-wrap gap-2">
+            {options.map(option => {
+                const inputId = `${name}-option-${option.value}`;
+                return (
+                    <div key={option.value}>
+                        <input
+                            type="radio"
+                            id={inputId}
+                            name={name}
+                            value={option.value}
+                            checked={selected === option.value}
+                            onChange={onChange}
+                            className="sr-only"
+                        />
+                        <label
+                            htmlFor={inputId}
+                            className={`cursor-pointer px-3 py-1.5 text-xs rounded-md transition-colors border ${selected === option.value ? 'bg-blue-600 text-white font-semibold border-blue-600' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'}`}
+                        >
+                            <span>{option.label}</span>
+                        </label>
+                    </div>
+                );
+            })}
+        </div>
+    </div>
+);
+
 
 const App: React.FC = () => {
   // --- Core State ---
@@ -230,6 +266,7 @@ const App: React.FC = () => {
   }>({
     detail: 'detailed',
   });
+  const [draftingMode, setDraftingMode] = useState<DraftingMode>('assertive');
   const [isDrafting, setIsDrafting] = useState(false);
   const [isRefining, setIsRefining] = useState<'concise' | 'detailed' | null>(null);
   const [draftError, setDraftError] = useState<string | null>(null);
@@ -271,6 +308,7 @@ const App: React.FC = () => {
     setDraftContent('');
     setDraftError(null);
     setDraftOptions({ detail: 'detailed' });
+    setDraftingMode('assertive');
     setIsLoading(false);
     setIsReanalyzing(false);
     setIsProcessing(false);
@@ -861,14 +899,14 @@ const App: React.FC = () => {
     setIsDrafting(true);
     setDraftContent('');
     try {
-        const result = await generateContextualDocument(report, draftRequest, draftOptions);
+        const result = await generateContextualDocument(report, draftRequest, { ...draftOptions, draftingMode });
         setDraftContent(result);
     } catch (err) {
         setDraftError(err instanceof Error ? err.message : "Lỗi khi soạn thảo.");
     } finally {
         setIsDrafting(false);
     }
-  }, [report, draftRequest, draftOptions]);
+  }, [report, draftRequest, draftOptions, draftingMode]);
 
   const handleRefineDraft = useCallback(async (mode: 'concise' | 'detailed') => {
       if (!draftContent.trim()) return;
@@ -1038,32 +1076,24 @@ const App: React.FC = () => {
                                                     />
                                                 </div>
 
-                                                <div>
-                                                    <label className="block text-sm font-semibold text-slate-700 mb-2">Mức độ chi tiết</label>
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {(['detailed', 'concise'] as const).map(detail => {
-                                                            const inputId = `detail-option-${detail}`;
-                                                            return (
-                                                                <div key={detail}>
-                                                                    <input
-                                                                        type="radio"
-                                                                        id={inputId}
-                                                                        name="detail"
-                                                                        value={detail}
-                                                                        checked={draftOptions.detail === detail}
-                                                                        onChange={(e) => setDraftOptions({ detail: e.target.value as any })}
-                                                                        className="sr-only"
-                                                                    />
-                                                                    <label
-                                                                        htmlFor={inputId}
-                                                                        className={`cursor-pointer px-3 py-1.5 text-xs rounded-md transition-colors border ${draftOptions.detail === detail ? 'bg-blue-600 text-white font-semibold border-blue-600' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'}`}
-                                                                    >
-                                                                        <span>{detail === 'detailed' ? 'Chi tiết' : 'Ngắn gọn'}</span>
-                                                                    </label>
-                                                                </div>
-                                                            )
-                                                        })}
-                                                    </div>
+                                                <div className="space-y-3">
+                                                    <RadioGroup
+                                                        label="Lập trường Chiến lược"
+                                                        name="draftingMode"
+                                                        selected={draftingMode}
+                                                        onChange={(e) => setDraftingMode(e.target.value as DraftingMode)}
+                                                        options={Object.entries(DRAFTING_MODE_LABELS).map(([value, label]) => ({ value, label }))}
+                                                    />
+                                                    <RadioGroup
+                                                        label="Mức độ chi tiết"
+                                                        name="detail"
+                                                        selected={draftOptions.detail}
+                                                        onChange={(e) => setDraftOptions({ detail: e.target.value as any })}
+                                                        options={[
+                                                            { value: 'detailed', label: 'Chi tiết' },
+                                                            { value: 'concise', label: 'Ngắn gọn' },
+                                                        ]}
+                                                    />
                                                 </div>
 
                                                 <button onClick={handleGenerateDraft} disabled={isDrafting || !draftRequest} className="w-full py-2.5 px-4 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-slate-300 flex items-center justify-center gap-2">

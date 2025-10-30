@@ -9,7 +9,7 @@ export interface UploadedFile {
     error?: string;
 }
 
-export type DocType = '' | 'legalServiceContract' | 'demandLetter' | 'powerOfAttorney' | 'meetingMinutes' | 'lawsuit' | 'evidenceList' | 'civilMatterPetition' | 'statement' | 'appeal' | 'civilContract' | 'businessRegistration' | 'divorcePetition' | 'will' | 'enforcementPetition' | 'complaint' | 'reviewPetition' | 'inheritanceWaiver' | 'statementOfOpinion';
+export type DocType = '' | 'legalServiceContract' | 'demandLetter' | 'powerOfAttorney' | 'meetingMinutes' | 'lawsuit' | 'evidenceList' | 'civilMatterPetition' | 'statement' | 'appeal' | 'civilContract' | 'businessRegistration' | 'divorcePetition' | 'will' | 'enforcementPetition' | 'complaint' | 'reviewPetition' | 'inheritanceWaiver' | 'statementOfOpinion' | 'defenseStatement';
 
 // A single, flexible interface for all form data
 export interface FormData {
@@ -23,6 +23,10 @@ export interface ParagraphGenerationOptions {
   outputFormat: 'text' | 'markdown';
 }
 
+// --- New Strategic Drafting Type ---
+export type DraftingMode = 'assertive' | 'rebuttal' | 'persuasive' | 'formal';
+
+
 // --- New Analysis Report Structure ---
 
 export interface LawArticle {
@@ -30,11 +34,17 @@ export interface LawArticle {
     summary: string;
 }
 
+export interface SupportingEvidence {
+    sourceDocument: string;
+    snippet: string;
+}
+
 export interface ApplicableLaw {
     documentName: string;
     coreIssueAddressed?: string; // Analysis of the main issue the law covers.
     relevanceToCase?: string;    // How this law applies to the current case.
     articles: LawArticle[];
+    supportingEvidence?: SupportingEvidence[];
 }
 
 export interface LegalLoophole {
@@ -111,6 +121,13 @@ export interface ArgumentGraph {
   edges: ArgumentEdge[];
 }
 
+export interface OpponentArgument {
+    argument: string;
+    weaknesses: string[];
+    counterArguments: string[];
+    supportingEvidence: string[];
+}
+
 export interface AnalysisReport {
   editableCaseSummary?: string;
   caseTimeline: CaseTimelineEvent[];
@@ -133,6 +150,7 @@ export interface AnalysisReport {
   resolutionPlanChat?: ChatMessage[]; // For Request Resolution Plan chat
   intelligentSearchChat?: ChatMessage[]; // For Intelligent Q&A
   argumentGraph?: ArgumentGraph; // Data for the Argument Map
+  opponentAnalysis?: OpponentArgument[]; // For Opponent Argument Analysis
 }
 
 // --- New Consulting Report Structure ---

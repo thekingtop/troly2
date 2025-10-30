@@ -7,6 +7,13 @@ import { DownloadIcon } from './icons/DownloadIcon.tsx';
 import { nodeTypeMeta } from '../constants.ts';
 import { ChatIcon } from './icons/ChatIcon.tsx';
 import { EditIcon } from './icons/EditIcon.tsx';
+import { ZoomInIcon } from './icons/ZoomInIcon.tsx';
+import { ZoomOutIcon } from './icons/ZoomOutIcon.tsx';
+import { ResetZoomIcon } from './icons/ResetZoomIcon.tsx';
+import { ArrowUpIcon } from './icons/ArrowUpIcon.tsx';
+import { ArrowDownIcon } from './icons/ArrowDownIcon.tsx';
+import { ArrowLeftIcon } from './icons/ArrowLeftIcon.tsx';
+import { ArrowRightIcon } from './icons/ArrowRightIcon.tsx';
 
 
 // --- Helper Components & Functions ---
@@ -260,8 +267,11 @@ export const ArgumentMapView: React.FC<ArgumentMapViewProps> = ({ report, onUpda
     const [chattingNode, setChattingNode] = useState<ArgumentNode | null>(null);
     const [isChatLoading, setIsChatLoading] = useState(false);
     const [nodeDimensions, setNodeDimensions] = useState<Record<string, { width: number, height: number }>>({});
+    const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
     
     const draggingNode = useRef<{ id: string; offset: { x: number; y: number } } | null>(null);
+    const isPanning = useRef(false);
+    const lastMousePos = useRef({ x: 0, y: 0 });
     const mapRef = useRef<HTMLDivElement>(null);
     const mapContentRef = useRef<HTMLDivElement>(null);
 
@@ -319,6 +329,10 @@ export const ArgumentMapView: React.FC<ArgumentMapViewProps> = ({ report, onUpda
         }
 
         try {
+             // temporarily reset transform for capture
+            const originalTransform = mapElement.style.transform;
+            mapElement.style.transform = '';
+
             const canvas = await html2canvas(mapElement, {
                 x: minX - PADDING,
                 y: minY - PADDING,
@@ -328,6 +342,9 @@ export const ArgumentMapView: React.FC<ArgumentMapViewProps> = ({ report, onUpda
                 backgroundColor: '#f8fafc', // background color of map
                 useCORS: true
             });
+
+            mapElement.style.transform = originalTransform; // restore transform
+
             const dataUrl = canvas.toDataURL('image/png');
             const link = document.createElement('a');
             link.download = 'ban_do_lap_luan.png';
@@ -345,12 +362,13 @@ export const ArgumentMapView: React.FC<ArgumentMapViewProps> = ({ report, onUpda
 
 
     const handleNodeDragStart = (e: React.MouseEvent, id: string) => {
-        // Prevent text selection while dragging
+        if (e.button !== 0) return;
         e.preventDefault();
+        e.stopPropagation();
+
         const node = nodes.find(n => n.id === id);
         if (!node || !mapRef.current) return;
         
-        // Clicks on interactive elements inside the node should not start a drag
         if ((e.target as HTMLElement).closest('button')) {
             return;
         }
@@ -358,29 +376,90 @@ export const ArgumentMapView: React.FC<ArgumentMapViewProps> = ({ report, onUpda
         draggingNode.current = {
             id,
             offset: {
-                x: e.clientX - node.position.x,
-                y: e.clientY - node.position.y,
+                x: (e.clientX - transform.x) / transform.scale - node.position.x,
+                y: (e.clientY - transform.y) / transform.scale - node.position.y,
             },
         };
     };
 
     const handleMouseMove = (e: React.MouseEvent) => {
-        if (!draggingNode.current || !mapRef.current) return;
-        
-        const newX = e.clientX - draggingNode.current.offset.x;
-        const newY = e.clientY - draggingNode.current.offset.y;
+        if (draggingNode.current) {
+            const newX = (e.clientX - transform.x) / transform.scale - draggingNode.current.offset.x;
+            const newY = (e.clientY - transform.y) / transform.scale - draggingNode.current.offset.y;
 
-        setNodes(prevNodes =>
-            prevNodes.map(n =>
-                n.id === draggingNode.current?.id
-                    ? { ...n, position: { x: newX, y: newY } }
-                    : n
-            )
-        );
+            setNodes(prevNodes =>
+                prevNodes.map(n =>
+                    n.id === draggingNode.current?.id
+                        ? { ...n, position: { x: newX, y: newY } }
+                        : n
+                )
+            );
+            return;
+        }
+
+        if (isPanning.current) {
+            const dx = e.clientX - lastMousePos.current.x;
+            const dy = e.clientY - lastMousePos.current.y;
+            lastMousePos.current = { x: e.clientX, y: e.clientY };
+            setTransform(prev => ({ ...prev, x: prev.x + dx, y: prev.y + dy }));
+        }
     };
 
     const handleMouseUp = () => {
         draggingNode.current = null;
+        isPanning.current = false;
+        if(mapRef.current) mapRef.current.style.cursor = 'auto';
+    };
+
+    const handleMapMouseDown = (e: React.MouseEvent) => {
+        // Allow left or right click to pan
+        if (e.button === 0 || e.button === 2) { 
+            e.preventDefault();
+            isPanning.current = true;
+            lastMousePos.current = { x: e.clientX, y: e.clientY };
+            if(mapRef.current) mapRef.current.style.cursor = 'grabbing';
+        }
+    };
+    
+    const handleWheel = (e: React.WheelEvent) => {
+        if (!mapRef.current) return;
+        e.preventDefault();
+        const scaleAmount = 1.1;
+        const newScale = e.deltaY > 0 ? transform.scale / scaleAmount : transform.scale * scaleAmount;
+        
+        const mapRect = mapRef.current.getBoundingClientRect();
+        const mouseX = e.clientX - mapRect.left;
+        const mouseY = e.clientY - mapRect.top;
+
+        const pointX = (mouseX - transform.x) / transform.scale;
+        const pointY = (mouseY - transform.y) / transform.scale;
+
+        const newX = mouseX - pointX * newScale;
+        const newY = mouseY - pointY * newScale;
+        
+        setTransform({ x: newX, y: newY, scale: newScale });
+    };
+
+    const handleZoomControls = (direction: 'in' | 'out' | 'reset') => {
+        if (direction === 'reset') {
+            setTransform({ x: 0, y: 0, scale: 1 });
+            return;
+        }
+        const scaleAmount = direction === 'in' ? 1.25 : 1 / 1.25;
+        setTransform(prev => ({...prev, scale: prev.scale * scaleAmount }));
+    };
+
+    const handlePanControls = (direction: 'up' | 'down' | 'left' | 'right') => {
+        const PAN_AMOUNT = 100;
+        setTransform(prev => {
+            switch(direction) {
+                case 'up': return { ...prev, y: prev.y + PAN_AMOUNT };
+                case 'down': return { ...prev, y: prev.y - PAN_AMOUNT };
+                case 'left': return { ...prev, x: prev.x + PAN_AMOUNT };
+                case 'right': return { ...prev, x: prev.x - PAN_AMOUNT };
+                default: return prev;
+            }
+        })
     };
     
     const handleNodeClick = (e: React.MouseEvent, id: string) => {
@@ -406,7 +485,6 @@ export const ArgumentMapView: React.FC<ArgumentMapViewProps> = ({ report, onUpda
     };
     
     const handleCanvasClick = (e: React.MouseEvent) => {
-        // Deselect all nodes if clicking on the canvas itself
         if (e.target === mapRef.current || e.target === mapContentRef.current) {
             setSelectedNodeIds(new Set());
         }
@@ -447,7 +525,6 @@ export const ArgumentMapView: React.FC<ArgumentMapViewProps> = ({ report, onUpda
             }
         } catch (err) {
             console.error(err);
-            // Optionally, add an error message to the chat history
         } finally {
             setIsChatLoading(false);
         }
@@ -468,14 +545,24 @@ export const ArgumentMapView: React.FC<ArgumentMapViewProps> = ({ report, onUpda
     return (
         <div className="grid grid-cols-12 w-full h-full gap-0">
             <div 
-                className="col-span-8 bg-slate-100/50 rounded-l-lg relative overflow-auto"
+                className="col-span-8 bg-slate-100/50 rounded-l-lg relative overflow-hidden"
                 ref={mapRef}
                 onMouseMove={handleMouseMove}
+                onMouseDown={handleMapMouseDown}
                 onMouseUp={handleMouseUp}
-                onMouseLeave={handleMouseUp} // Stop dragging if mouse leaves canvas
+                onMouseLeave={handleMouseUp}
+                onWheel={handleWheel}
+                onContextMenu={(e) => e.preventDefault()}
                 onClick={handleCanvasClick}
             >
-                <div className="relative w-[2000px] h-[2000px]" ref={mapContentRef}>
+                <div 
+                    className="relative w-[2000px] h-[2000px]" 
+                    ref={mapContentRef}
+                    style={{
+                        transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
+                        transformOrigin: '0 0',
+                    }}
+                >
                     <svg className="absolute w-full h-full pointer-events-none">
                         <defs>
                             <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="8" refY="3.5" orient="auto">
@@ -497,6 +584,29 @@ export const ArgumentMapView: React.FC<ArgumentMapViewProps> = ({ report, onUpda
                             onStartChat={setChattingNode}
                         />
                     ))}
+                </div>
+                {/* Pan Controls */}
+                <div className="absolute top-4 left-4 bg-white/80 backdrop-blur-sm border border-slate-200 rounded-lg shadow-md grid grid-cols-3 w-24">
+                    <div className="col-span-1"></div>
+                    <button onClick={() => handlePanControls('up')} className="p-2 text-slate-600 hover:text-blue-600 flex justify-center"><ArrowUpIcon className="w-5 h-5"/></button>
+                    <div className="col-span-1"></div>
+
+                    <button onClick={() => handlePanControls('left')} className="p-2 text-slate-600 hover:text-blue-600 flex justify-center"><ArrowLeftIcon className="w-5 h-5"/></button>
+                    <div className="col-span-1"></div>
+                    <button onClick={() => handlePanControls('right')} className="p-2 text-slate-600 hover:text-blue-600 flex justify-center"><ArrowRightIcon className="w-5 h-5"/></button>
+
+                    <div className="col-span-1"></div>
+                    <button onClick={() => handlePanControls('down')} className="p-2 text-slate-600 hover:text-blue-600 flex justify-center"><ArrowDownIcon className="w-5 h-5"/></button>
+                    <div className="col-span-1"></div>
+                </div>
+
+                {/* Zoom Controls */}
+                <div className="absolute bottom-4 right-4 bg-white/80 backdrop-blur-sm border border-slate-200 rounded-lg shadow-md flex flex-col items-center">
+                    <button onClick={() => handleZoomControls('in')} className="p-2 text-slate-600 hover:text-blue-600 w-full" title="Phóng to"><ZoomInIcon className="w-5 h-5"/></button>
+                    <div className="w-full h-px bg-slate-200"></div>
+                    <button onClick={() => handleZoomControls('out')} className="p-2 text-slate-600 hover:text-blue-600 w-full" title="Thu nhỏ"><ZoomOutIcon className="w-5 h-5"/></button>
+                    <div className="w-full h-px bg-slate-200"></div>
+                    <button onClick={() => handleZoomControls('reset')} className="p-2 text-slate-600 hover:text-blue-600 w-full" title="Reset"><ResetZoomIcon className="w-5 h-5"/></button>
                 </div>
             </div>
             <div className="col-span-4 h-full">

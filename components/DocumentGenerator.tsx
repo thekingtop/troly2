@@ -27,6 +27,7 @@ const DOC_TYPE_LABELS: Record<DocType, string> = {
     complaint: 'Đơn khiếu nại',
     reviewPetition: 'Đơn đề nghị Giám đốc thẩm/Tái thẩm',
     inheritanceWaiver: 'Văn bản từ chối nhận di sản',
+    defenseStatement: 'Văn bản Bào chữa cho Bị đơn',
 };
 
 const FieldLabel: React.FC<{ fieldName: string }> = ({ fieldName }) => {
@@ -147,7 +148,7 @@ export const DocumentGenerator: React.FC = () => {
                             </div>
                             <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2 -mr-2">
                                {currentFields.map(field => {
-                                   const isTextArea = field.toLowerCase().includes('content') || field.toLowerCase().includes('summary') || field.toLowerCase().includes('request') || field.toLowerCase().includes('actions') || field.toLowerCase().includes('analysis') || field.toLowerCase().includes('basis');
+                                   const isTextArea = field.toLowerCase().includes('content') || field.toLowerCase().includes('summary') || field.toLowerCase().includes('request') || field.toLowerCase().includes('actions') || field.toLowerCase().includes('analysis') || field.toLowerCase().includes('basis') || field.toLowerCase().includes('arguments') || field.toLowerCase().includes('evidence') || field.toLowerCase().includes('circumstances');
                                    return (
                                        <div key={field}>
                                            <label htmlFor={field} className="block text-sm font-semibold text-slate-700 mb-1"><FieldLabel fieldName={field} /></label>

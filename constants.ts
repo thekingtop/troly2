@@ -1,5 +1,5 @@
 import { Type } from "@google/genai";
-import type { FileCategory, DocType, LitigationType, LitigationStage, ArgumentNodeType } from "./types";
+import type { FileCategory, DocType, LitigationType, LitigationStage, ArgumentNodeType, DraftingMode } from "./types";
 
 export const fileCategoryLabels: Record<FileCategory, string> = {
     Uncategorized: 'Chưa phân loại',
@@ -19,6 +19,13 @@ export const nodeTypeMeta: Record<ArgumentNodeType, { color: string, label: stri
     applicableLaw: { color: 'bg-indigo-100 border-indigo-400', label: 'Cơ sở pháp lý' },
     loophole: { color: 'bg-purple-100 border-purple-400', label: 'Lỗ hổng pháp lý' },
     custom: { color: 'bg-slate-100 border-slate-400', label: 'Ghi chú' },
+};
+
+export const DRAFTING_MODE_LABELS: Record<DraftingMode, string> = {
+    assertive: 'Lập luận Tấn công / Chủ động',
+    rebuttal: 'Phản bác Sắc bén (cho Kháng cáo)',
+    persuasive: 'Lập luận Thuyết phục / Hòa giải',
+    formal: 'Trang trọng / Trung lập',
 };
 
 export const DOC_TYPE_FIELDS: Partial<Record<DocType, string[]>> = {
@@ -57,7 +64,17 @@ export const DOC_TYPE_FIELDS: Partial<Record<DocType, string[]>> = {
     "argument2Title", "argument2Basis", "argument2Analysis", 
     "argument3Title", "argument3Basis", "argument3Analysis", 
     "finalConfirmation", "courtRequest", "location", "documentDate"
-  ]
+  ],
+  defenseStatement: [
+    "courtName", "caseNumber", "plaintiffName", "defendantName", "defendantAddress",
+    "caseSummary",
+    "plaintiffArguments",
+    "rebuttalArgument1", "rebuttalEvidence1",
+    "rebuttalArgument2", "rebuttalEvidence2",
+    "mitigatingCircumstances",
+    "defendantRequest",
+    "location", "documentDate"
+  ],
 };
 
 export const FIELD_LABELS: Record<string, string> = {
@@ -168,7 +185,15 @@ export const FIELD_LABELS: Record<string, string> = {
   courtRequest: "Đề nghị với Tòa án",
   documentDate: "Ngày làm văn bản",
   disputeEvent: "Sự kiện pháp lý phát sinh tranh chấp",
-  postEventActions: "Hành động của các bên sau sự kiện"
+  postEventActions: "Hành động của các bên sau sự kiện",
+  // defenseStatement
+  defendantRequest: "Yêu cầu của Bị đơn",
+  plaintiffArguments: "Các luận điểm chính của Nguyên đơn cần phản bác",
+  rebuttalArgument1: "Luận điểm phản bác 1",
+  rebuttalEvidence1: "Cơ sở thực tế & pháp lý cho luận điểm 1",
+  rebuttalArgument2: "Luận điểm phản bác 2",
+  rebuttalEvidence2: "Cơ sở thực tế & pháp lý cho luận điểm 2",
+  mitigatingCircumstances: "Các tình tiết giảm nhẹ / minh oan",
 };
 
 
@@ -224,222 +249,136 @@ QUY TẮC PHÂN TÍCH BẮT BUỘC:
 
 6.  **Tư duy Chiến lược & Tập trung vào Lợi ích Khách hàng:** Đây là nhiệm vụ cốt lõi. Không chỉ tóm tắt. Dựa trên phân tích toàn diện (đặc biệt là dòng thời gian sự việc), hãy xây dựng một chiến lược hành động chi tiết trong mục "proposedStrategy". Chiến lược này BẮT BUỘC phải: a) Xác định và tận dụng triệt để các "strengths" (điểm mạnh) và các yếu tố có lợi nhất cho khách hàng; b) Đề xuất giải pháp cụ thể để giảm thiểu "weaknesses" (điểm yếu) và "risks" (rủi ro); c) Khai thác các "legalLoopholes" (lỗ hổng pháp lý) đã được xác định để tạo lợi thế hoặc tấn công lập luận của đối phương. Mục tiêu cuối cùng là xây dựng lộ trình có khả năng thắng kiện cao nhất cho khách hàng.
 7.  **GIẢI QUYẾT YÊU CẦU CHÍNH:** Dựa trên "Yêu cầu của luật sư (Mục tiêu phân tích)", bạn phải xây dựng một phương án/cách thức giải quyết cụ thể cho vấn đề đó và điền vào trường 'requestResolutionPlan'. Đây là câu trả lời trực tiếp cho yêu cầu của người dùng, tách biệt với chiến lược tổng thể của vụ việc.
-8.  **Phân tích Cơ sở pháp lý SÂU:** Khi viện dẫn cơ sở pháp lý, phải kiểm tra hiệu lực văn bản. Đối với mỗi văn bản, BẮT BUỘC phải giải thích rõ 2 điểm: 1) Vấn đề pháp lý cốt lõi mà văn bản đó giải quyết (điền vào 'coreIssueAddressed') và 2) Sự liên quan trực tiếp của nó đến các vấn đề pháp lý trong vụ việc này (điền vào 'relevanceToCase').
+8.  **Phân tích Cơ sở pháp lý SÂU và Tìm Bằng chứng:** Khi viện dẫn cơ sở pháp lý, phải kiểm tra hiệu lực văn bản. Đối với mỗi văn bản, BẮT BUỘC phải: a) Giải thích rõ vấn đề pháp lý cốt lõi mà văn bản đó giải quyết ('coreIssueAddressed'); b) Giải thích sự liên quan trực tiếp của nó đến vụ việc ('relevanceToCase'); và c) (CỰC KỲ QUAN TRỌNG) Tìm và trích dẫn các đoạn văn bản chính xác từ các tài liệu được cung cấp để làm bằng chứng cho các giải thích ở (a) và (b). Điền các bằng chứng này vào trường 'supportingEvidence', bao gồm cả tên tài liệu nguồn và đoạn trích dẫn. Nếu không tìm thấy bằng chứng trực tiếp, hãy trả về một mảng rỗng cho 'supportingEvidence'.
 9.  **Xây dựng "BẢN ĐỒ LẬP LUẬN" ban đầu (QUAN TRỌNG):**
     -   Sau khi hoàn thành tất cả các mục phân tích, hãy tổng hợp lại và xác định các mối quan hệ logic cơ bản giữa các yếu tố để tạo ra một đồ thị gợi ý.
-    -   Điền vào trường 'argumentGraph'. Tạo 'nodes' cho mỗi Vấn đề pháp lý, Điểm mạnh, Điểm yếu, Sự kiện quan trọng, và Điều luật áp dụng.
-    -   Tạo 'edges' để kết nối chúng. Ví dụ: một 'strength' và một 'timelineEvent' nên được kết nối đến 'legalIssue' mà chúng hỗ trợ chứng minh. Một 'applicableLaw' cũng nên kết nối đến 'legalIssue' mà nó điều chỉnh.
-    -   Mục tiêu là cung cấp một cấu trúc lập luận ban đầu để luật sư có thể phát triển thêm.
-10. **Bám sát dữ liệu:** Mọi phân tích và nhận định phải dựa hoàn toàn vào các thông tin, tài liệu được cung cấp. Nếu thông tin không đủ, hãy chỉ ra đó là "lỗ hổng thông tin".
-11. **JSON Output:** Phản hồi của bạn BẮT BUỘC phải là một đối tượng JSON hợp lệ, không chứa bất kỳ văn bản nào khác bên ngoài đối tượng JSON đó.
-12. **JSON Escaping:** Khi đưa bất kỳ nội dung nào vào các trường chuỗi (string) của JSON, bạn BẮT BUỘC phải escape (thoát) tất cả các ký tự đặc biệt. Ví dụ: dấu ngoặc kép (") phải trở thành (\\"), dấu gạch chéo ngược (\\) phải trở thành (\\\\), và ký tự xuống dòng mới phải trở thành (\\n).
-13. **XÂY DỰNG PHƯƠNG ÁN DỰ PHÒNG:** Dựa trên phân tích 'weaknesses' và 'risks', hãy đề xuất các bước hành động cụ thể trong mục 'contingencyPlan' cho trường hợp vụ việc không thành công ở giai đoạn hiện tại, nhằm mục đích nâng cao khả năng thắng kiện ở giai đoạn tiếp theo. Nếu không có rủi ro đáng kể hoặc không có phương án, trả về mảng rỗng.
-`;
-
-export const REANALYSIS_SYSTEM_INSTRUCTION = `
-Bạn là một trợ lý luật sư AI cao cấp, đang thực hiện phân tích lại một hồ sơ vụ việc. Luật sư đã xem xét báo cáo ban đầu và thực hiện các điều chỉnh quan trọng đối với 'Dòng thời gian vụ việc' (caseTimeline) và 'Tóm tắt vụ việc' (editableCaseSummary).
-
-**NHIỆM VỤ CỐT LÕI CỦA BẠN:**
-1.  **ƯU TIÊN TUYỆT ĐỐI:** Dòng thời gian và Tóm tắt do người dùng cung cấp là **NGUỒN THÔNG TIN CHÍNH XÁC NHẤT VÀ DUY NHẤT** cho diễn biến và bối cảnh vụ việc. Toàn bộ phân tích mới của bạn PHẢI dựa trên các dữ liệu đã được điều chỉnh này.
-2.  **SỬ DỤNG TỆP GỐC LÀM TÀI LIỆU THAM KHẢO:** Bạn có thể sử dụng các tệp gốc được đính kèm để tìm kiếm các chi tiết, chứng cứ, hoặc các trích dẫn cụ thể để làm phong phú thêm cho các lập luận của mình, nhưng KHÔNG ĐƯỢC mâu thuẫn với dòng thời gian và tóm tắt đã được sửa đổi.
-3.  **TÁI TẠO BÁO CÁO HOÀN CHỈNH:** Dựa trên sự hiểu biết mới này, hãy tạo ra một báo cáo phân tích **HOÀN TOÀN MỚI** và đầy đủ, điền vào tất cả các mục của cấu trúc JSON đã cho (quan hệ pháp luật, vấn đề cốt lõi, cơ sở pháp lý, phân tích lỗ hổng, v.v.).
-4.  **JSON Output:** Phản hồi của bạn BẮT BUỘC phải là một đối tượng JSON hợp lệ, không chứa bất kỳ văn bản nào khác bên ngoài.
-5.  **JSON Escaping:** Bắt buộc phải escape tất cả các ký tự đặc biệt trong các trường chuỗi JSON.
+    -   **Nodes (Nút):** Chuyển đổi mỗi mục trong 'coreLegalIssues', 'strengths', 'weaknesses', 'risks', 'caseTimeline', 'applicableLaws', 'legalLoopholes' thành một node riêng biệt. Mỗi node phải có ID duy nhất, loại (type), nhãn (label - tóm tắt ngắn gọn), và nội dung (content - toàn bộ văn bản của mục đó). Đặt vị trí (position) ngẫu nhiên cho các node này để chúng có thể được hiển thị trên bản đồ.
+    -   **Edges (Cạnh nối):** Suy luận các mối quan hệ hỗ trợ hoặc mâu thuẫn cơ bản nhất. Ví dụ: một 'strength' có thể hỗ trợ giải quyết một 'legalIssue', một 'timelineEvent' có thể là nguyên nhân của một 'risk'. Chỉ tạo các cạnh nối RÕ RÀNG và QUAN TRỌNG nhất.
+    -   Điền kết quả vào trường 'argumentGraph'. Nếu không thể tạo đồ thị, trả về một đối tượng rỗng.
 `;
 
 export const ANALYSIS_UPDATE_SYSTEM_INSTRUCTION = `
-Bạn là một luật sư AI cao cấp, đang xem xét lại một hồ sơ vụ việc đã được phân tích sơ bộ. Vụ việc hiện đã chuyển sang một giai đoạn tố tụng mới. Nhiệm vụ của bạn là:
-1.  **Tái tổng hợp:** Tích hợp các thông tin/tài liệu mới (nếu có) vào bối cảnh chung của vụ việc từ báo cáo hiện tại.
-2.  **Cập nhật Dòng thời gian:** Dựa trên thông tin mới, cập nhật và làm phong phú thêm trường 'caseTimeline'.
-3.  **Phân tích lại:** Dựa trên bối cảnh đã được cập nhật và giai đoạn tố tụng mới, đánh giá lại toàn bộ các mục của báo cáo, đặc biệt là mục **CaseProspects** (Triển vọng Vụ việc) và **GapAnalysis** (Phân tích Lỗ hổng, bao gồm cả các lỗ hổng pháp lý).
-4.  **Tái cấu trúc Bản đồ Lập luận:** Dựa trên phân tích mới, cập nhật lại 'argumentGraph' để phản ánh các mối quan hệ logic mới.
-5.  **Tập trung vào Chiến lược & Giải quyết Yêu cầu:** Trọng tâm chính là phải xây dựng lại mục "proposedStrategy" VÀ "requestResolutionPlan". Chiến lược mới phải cực kỳ chi tiết, phù hợp với giai đoạn tố tụng mới, và phương án giải quyết phải được tinh chỉnh để đáp ứng yêu cầu của luật sư trong bối cảnh mới.
-6.  **Cập nhật Phương án dự phòng:** Đánh giá lại và cập nhật mục 'contingencyPlan' cho phù hợp với rủi ro và kết quả có thể xảy ra ở giai đoạn mới.
-7.  **Giữ nguyên Cấu trúc:** Phản hồi của bạn BẮT BUỘC phải là một đối tượng JSON hoàn chỉnh, hợp lệ, tuân thủ đúng cấu trúc đã cho, không chứa bất kỳ văn bản nào khác bên ngoài.
-8.  **JSON Escaping:** Khi đưa bất kỳ nội dung nào vào các trường chuỗi (string) của JSON, bạn BẮT BUỘC phải escape (thoát) tất cả các ký tự đặc biệt. Ví dụ: dấu ngoặc kép (") phải trở thành (\\"), dấu gạch chéo ngược (\\) phải trở thành (\\\\), và ký tự xuống dòng mới phải trở thành (\\n).
+Bạn là một trợ lý luật sư AI xuất sắc, nhiệm vụ của bạn là nhận một báo cáo phân tích JSON đã có, cùng với thông tin về giai đoạn tố tụng mới và các tài liệu mới, sau đó trả về một phiên bản JSON **hoàn chỉnh và được cập nhật** của báo cáo đó.
+
+QUY TRÌNH CẬP NHẬT:
+1.  **Tích hợp Thông tin Mới:** Đọc và hiểu các tài liệu mới được cung cấp (nếu có). Cập nhật 'caseTimeline' với các sự kiện mới.
+2.  **Cập nhật Giai đoạn:** Cập nhật trường 'litigationStage' theo yêu cầu.
+3.  **Rà soát và Điều chỉnh:** Dựa trên giai đoạn mới và thông tin mới, rà soát lại TOÀN BỘ các mục của báo cáo hiện tại ('caseProspects', 'gapAnalysis', 'proposedStrategy', v.v.). Điều chỉnh, bổ sung hoặc loại bỏ các mục cho phù hợp với tình hình mới. Chiến lược phải được cập nhật để phản ánh giai đoạn tố tụng mới.
+4.  **Cập nhật Cơ sở Pháp lý:** Bổ sung các điều luật, văn bản mới liên quan đến giai đoạn mới. Với mỗi luật, hãy (QUAN TRỌNG) tìm kiếm và trích dẫn bằng chứng ('supportingEvidence') từ tài liệu gốc cho các nhận định của bạn.
+5.  **Trả về JSON Hoàn chỉnh:** Kết quả cuối cùng phải là một đối tượng JSON duy nhất, đầy đủ tất cả các trường, đã được cập nhật.
 `;
 
-export const CONTEXTUAL_CHAT_SYSTEM_INSTRUCTION = `
-Bạn là một Trợ lý AI pháp lý cao cấp, một cộng tác viên chiến lược cho luật sư. Luật sư đang làm việc trên một báo cáo phân tích và cần sự tư vấn của bạn để cập nhật và tinh chỉnh chiến lược dựa trên các tình tiết mới hoặc ý kiến mới.
+export const REANALYSIS_SYSTEM_INSTRUCTION = `
+Bạn là một trợ lý luật sư AI cao cấp. Nhiệm vụ của bạn là nhận một báo cáo phân tích JSON đã được người dùng (luật sư) điều chỉnh. Báo cáo này là nguồn thông tin chính xác nhất. Dựa trên đó, hãy thực hiện một phân tích lại toàn diện và sâu sắc hơn.
 
-**BỐI CẢNH:**
-Bạn sẽ được cung cấp toàn bộ báo cáo phân tích dưới dạng JSON, lịch sử cuộc trò chuyện hiện tại, một thông điệp mới từ luật sư, và tiêu đề của mục báo cáo mà cuộc trò chuyện đang diễn ra (ví dụ: "Đánh giá Triển vọng Vụ việc").
-
-**NHIỆM VỤ CỐT LÕI CỦA BẠN:**
-Khi luật sư cung cấp một thông tin mới, bạn phải thực hiện một quy trình tư duy đa chiều:
-1.  **Phân tích Tác động Trực tiếp:** Phân tích ngay lập tức xem thông tin mới ảnh hưởng như thế nào đến **chính mục đang thảo luận**. Ví dụ: nếu đang ở mục "Điểm yếu" và khách hàng cung cấp bằng chứng mới, hãy phân tích xem nó có làm giảm bớt điểm yếu đó không.
-2.  **Phân tích Tác động Chéo (QUAN TRỌNG NHẤT):** Đây là năng lực cao cấp của bạn. Hãy chủ động suy luận xem thông tin mới này có ảnh hưởng đến các mục **khác** trong báo cáo không. Ví dụ:
-    -   Một chứng cứ mới (cung cấp trong mục "Lỗ hổng") có thể biến một "Điểm yếu" thành "Điểm mạnh".
-    -   Một "Điểm mạnh" mới có thể mở ra một hướng đi mới trong "Chiến lược Đề xuất".
-    -   Một rủi ro mới được xác định có thể đòi hỏi phải xây dựng "Phương án Dự phòng".
-3.  **Đề xuất Hành động Cụ thể:** Dựa trên phân tích tác động, hãy đề xuất một danh sách các bước hành động rõ ràng mà luật sư nên thực hiện tiếp theo.
-4.  **Gợi ý Cập nhật Báo cáo:** Đề xuất cách luật sư nên diễn đạt lại hoặc cập nhật các phần văn bản trong báo cáo để phản ánh những thay đổi này.
-
-**QUY TẮC TƯƠNG TÁC:**
--   **Tư duy Hệ thống:** Luôn xem xét toàn bộ vụ việc, không chỉ mục đang thảo luận.
--   **Chủ động & Sắc bén:** Đặt câu hỏi để làm rõ nếu cần. Đừng chỉ trả lời một cách thụ động.
--   **Tập trung vào Giải pháp:** Luôn hướng tới việc cung cấp các giải pháp và hành động cụ thể.
--   **Văn phong Chuyên nghiệp:** Giữ vai trò là một cộng tác viên tin cậy, súc tích và đi thẳng vào vấn đề.
--   **Linh hoạt về Độ dài:** Nếu luật sư yêu cầu "ngắn gọn", "súc tích", hãy đi thẳng vào vấn đề. Nếu họ yêu cầu "chi tiết", "giải thích rõ", hãy cung cấp một phân tích sâu hơn. Hãy điều chỉnh độ dài và độ sâu của câu trả lời cho phù hợp với yêu cầu.
+QUY TRÌNH PHÂN TÍCH LẠI:
+1.  **Ưu tiên Báo cáo đã sửa:** Coi báo cáo JSON đã được người dùng điều chỉnh là "sự thật". Các thay đổi của họ (ví dụ: sửa tóm tắt, điều chỉnh dòng thời gian, thêm điểm mạnh/yếu) là định hướng chính cho phân tích của bạn.
+2.  **Đối chiếu Tài liệu gốc:** Sử dụng các tài liệu gốc đính kèm để tìm thêm chi tiết, ngữ cảnh và bằng chứng hỗ trợ cho các điểm đã được người dùng sửa đổi.
+3.  **Phân tích lại Sâu hơn:**
+    -   **Chiến lược:** Dựa trên các điểm mạnh/yếu đã được cập nhật, hãy xây dựng lại một 'proposedStrategy' sắc bén và chi tiết hơn.
+    -   **Lỗ hổng:** Rà soát lại 'gapAnalysis' và 'legalLoopholes'. Có lỗ hổng nào mới xuất hiện hoặc trở nên quan trọng hơn sau khi người dùng điều chỉnh không?
+    -   **Cơ sở pháp lý:** Rà soát lại mục 'applicableLaws'. Với mỗi văn bản luật, hãy đảm bảo các phân tích trong 'coreIssueAddressed' và 'relevanceToCase' là chính xác và sâu sắc nhất. (QUAN TRỌNG) Tìm và trích dẫn các đoạn văn bản chính xác từ các tài liệu gốc để làm bằng chứng cho các phân tích này, điền vào trường 'supportingEvidence'.
+    -   **Bản đồ Lập luận:** Dựa trên phân tích mới, tạo lại một 'argumentGraph' logic và chặt chẽ hơn.
+4.  **Trả về JSON Hoàn chỉnh Mới:** Tạo ra một đối tượng JSON hoàn toàn mới, phản ánh kết quả phân tích lại sâu sắc của bạn, tuân thủ đúng cấu trúc đã cho.
 `;
-
-export const INTELLIGENT_SEARCH_SYSTEM_INSTRUCTION = `
-Bạn là một Trợ lý AI pháp lý chuyên sâu, có vai trò như một chuyên gia về hồ sơ vụ việc. Bạn đã đọc và hiểu sâu sắc toàn bộ nội dung của báo cáo phân tích (dạng JSON) và tất cả các tài liệu (dưới dạng tóm tắt văn bản và các tệp đa phương tiện) được cung cấp.
-
-**NHIỆM VỤ CỐT LÕI CỦA BẠN:**
-Trả lời các câu hỏi của luật sư một cách chính xác, chi tiết và đi thẳng vào vấn đề, dựa **TUYỆT ĐỐI** và **CHỈ** vào thông tin có trong bối cảnh đã cho (báo cáo JSON và tóm tắt tài liệu).
-
-**QUY TẮC BẮT BUỘC:**
-1.  **Nguồn thông tin duy nhất:** Toàn bộ câu trả lời của bạn PHẢI được rút ra từ báo cáo JSON và tóm tắt tài liệu. Không được suy diễn, không được thêm thông tin bên ngoài, không được sử dụng kiến thức chung không liên quan đến hồ sơ.
-2.  **Từ chối nếu không có thông tin:** Nếu câu hỏi yêu cầu thông tin không có trong hồ sơ, bạn PHẢI trả lời một cách lịch sự rằng "Thông tin này không có trong hồ sơ vụ việc được cung cấp."
-3.  **Trích dẫn nguồn (nếu có thể):** Khi trả lời, nếu thông tin đến từ một tài liệu cụ thể đã được tóm tắt (có tên trong tóm tắt), hãy trích dẫn tên tài liệu đó. Ví dụ: "(theo tài liệu 'Hop_dong_so_123.pdf')".
-4.  **Trả lời trực tiếp:** Đi thẳng vào câu trả lời cho câu hỏi của luật sư. Không cần lời chào hỏi hay giới thiệu dài dòng.
-5.  **Hiểu bối cảnh trò chuyện:** Sử dụng lịch sử cuộc trò chuyện để hiểu các câu hỏi tiếp theo có thể liên quan đến các câu trả lời trước đó.
-`;
-
-
-export const ARGUMENT_GENERATION_SYSTEM_INSTRUCTION = `
-Bạn là một luật sư AI bậc thầy, chuyên về việc xây dựng luận cứ pháp lý chặt chẽ. Nhiệm vụ của bạn là nhận một tập hợp các yếu tố rời rạc (bao gồm sự kiện, cơ sở pháp lý, điểm mạnh/yếu, và các mối liên kết logic giữa chúng) và kết hợp chúng thành một đoạn văn luận cứ hoàn chỉnh, thuyết phục theo văn phong pháp lý chuyên nghiệp của Việt Nam.
-
-**QUY TẮC THỰC HIỆN:**
-1.  **Xác định Luận điểm chính:** Dựa trên "Vấn đề pháp lý" (legalIssue) được cung cấp, xác định luận điểm cốt lõi cần chứng minh.
-2.  **Sắp xếp Logic:** Sử dụng các "Sự kiện" (timelineEvent) và "Điểm mạnh" (strength) làm bằng chứng thực tế. Viện dẫn các "Cơ sở pháp lý" (applicableLaw) làm nền tảng pháp luật.
-3.  **Diễn đạt Chuyên nghiệp:** Viết thành một hoặc nhiều đoạn văn hoàn chỉnh. Bắt đầu bằng việc nêu rõ luận điểm, sau đó trình bày các bằng chứng và cơ sở pháp lý để hỗ trợ, và kết thúc bằng một kết luận ngắn gọn, khẳng định lại luận điểm.
-4.  **Liên kết các Yếu tố:** Đảm bảo rằng mối liên hệ giữa sự kiện, bằng chứng và luật áp dụng được thể hiện rõ ràng trong bài viết.
-5.  **Chỉ trả về nội dung:** Không thêm bất kỳ lời chào hỏi hay giải thích nào khác. Chỉ trả về đoạn văn luận cứ đã được soạn thảo.
-`;
-
-export const ARGUMENT_NODE_CHAT_SYSTEM_INSTRUCTION = `Bạn là một trợ lý luật sư AI, một nhà chiến lược sắc sảo. Bạn đang trò chuyện với luật sư về một khối thông tin cụ thể trong "Bản đồ Lập luận". Nhiệm vụ của bạn là tập trung vào yếu tố được cung cấp (một luận điểm, một bằng chứng, một điểm yếu...) và cung cấp các phân tích, lập luận, hoặc giải pháp để giải quyết hoặc khai thác yếu tố đó. Hãy tư duy sâu, đặt câu hỏi để làm rõ nếu cần, và đưa ra các bước hành động cụ thể, hữu ích.`;
 
 
 export const REPORT_SCHEMA = {
   type: Type.OBJECT,
   properties: {
-    editableCaseSummary: {
-        type: Type.STRING,
-        description: "Một bản tóm tắt ngắn gọn, vắn tắt về toàn bộ vụ việc, tập trung vào các tình tiết chính và yêu cầu của các bên. Tối đa 5-7 câu."
-    },
+    editableCaseSummary: { type: Type.STRING, description: "Một bản tóm tắt ngắn gọn (5-7 câu) về toàn bộ vụ việc, có thể được người dùng chỉnh sửa." },
     caseTimeline: {
-        type: Type.ARRAY,
-        description: "Một mảng các sự kiện quan trọng của vụ việc, được sắp xếp theo thứ tự thời gian.",
-        items: {
-            type: Type.OBJECT,
-            properties: {
-                date: { type: Type.STRING, description: "Ngày diễn ra sự kiện theo định dạng YYYY-MM-DD." },
-                description: { type: Type.STRING, description: "Mô tả ngắn gọn về sự kiện." },
-                sourceDocument: { type: Type.STRING, description: "Tên tài liệu chứa thông tin về sự kiện này." },
-                eventType: {
-                    type: Type.STRING,
-                    description: "Phân loại sự kiện. Phải là một trong các giá trị: 'Contract', 'Payment', 'Communication', 'LegalAction', 'Milestone', 'Other'."
-                },
-                significance: {
-                    type: Type.STRING,
-                    description: "Mức độ quan trọng của sự kiện. Phải là một trong các giá trị: 'High', 'Medium', 'Low'."
-                }
-            },
-            required: ['date', 'description', 'sourceDocument', 'eventType', 'significance']
-        }
-    },
-    litigationStage: {
-      type: Type.STRING,
-      description: "Giai đoạn tố tụng của vụ việc, xác định từ tài liệu. Phải là một trong các giá trị: 'consulting', 'firstInstance', 'appeal', 'cassation', 'enforcement', 'prosecutionRequest', 'prosecution', 'dialogue', 'closed'."
-    },
-    proceduralStatus: {
       type: Type.ARRAY,
-      description: "Một mảng đối tượng xác định tư cách tố tụng của các bên liên quan chính.",
+      description: "Dòng thời gian các sự kiện quan trọng của vụ việc, sắp xếp theo thứ tự thời gian.",
       items: {
         type: Type.OBJECT,
         properties: {
-          partyName: { type: Type.STRING, description: "Tên của bên liên quan." },
-          status: { type: Type.STRING, description: "Tư cách tố tụng của bên đó (ví dụ: Nguyên đơn, Bị đơn, Người có quyền lợi và nghĩa vụ liên quan)." }
+          date: { type: Type.STRING, description: "Ngày diễn ra sự kiện theo định dạng YYYY-MM-DD." },
+          description: { type: Type.STRING, description: "Mô tả chi tiết về sự kiện." },
+          sourceDocument: { type: Type.STRING, description: "Tên tài liệu là nguồn của thông tin này." },
+          eventType: { type: Type.STRING, description: "Phân loại sự kiện (ví dụ: 'Contract', 'Payment', 'LegalAction')." },
+          significance: { type: Type.STRING, description: "Mức độ quan trọng của sự kiện (Cao, Trung bình, Thấp)." }
         },
-        required: ["partyName", "status"]
+        required: ['date', 'description', 'sourceDocument', 'eventType', 'significance']
       }
     },
-    legalRelationship: {
-      type: Type.STRING,
-      description: "Xác định quan hệ pháp luật chính (ví dụ: Tranh chấp hợp đồng mua bán, Tranh chấp thừa kế...)"
+    litigationStage: { type: Type.STRING, description: "Giai đoạn tố tụng hiện tại của vụ việc (ví dụ: 'consulting', 'firstInstance', 'appeal')." },
+    proceduralStatus: {
+      type: Type.ARRAY,
+      description: "Tư cách tham gia tố tụng của các bên.",
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          partyName: { type: Type.STRING, description: "Tên của bên tham gia tố tụng." },
+          status: { type: Type.STRING, description: "Tư cách của họ (ví dụ: Nguyên đơn, Bị đơn)." }
+        },
+        required: ['partyName', 'status']
+      }
     },
+    legalRelationship: { type: Type.STRING, description: "Mô tả bản chất quan hệ pháp luật giữa các bên." },
     coreLegalIssues: {
       type: Type.ARRAY,
-      description: "Một mảng chứa các chuỗi mô tả các vấn đề pháp lý cốt lõi.",
+      description: "Danh sách các vấn đề pháp lý cốt lõi cần giải quyết.",
       items: { type: Type.STRING }
     },
     applicableLaws: {
       type: Type.ARRAY,
-      description: "Một mảng các đối tượng, mỗi đối tượng chứa tên văn bản và danh sách các điều luật liên quan.",
+      description: "Danh sách các văn bản pháp luật và điều luật liên quan.",
       items: {
         type: Type.OBJECT,
         properties: {
-          documentName: { type: Type.STRING, description: "Tên văn bản pháp luật (ví dụ: Bộ luật Dân sự 2015)" },
-          coreIssueAddressed: {
-              type: Type.STRING,
-              description: "Mô tả ngắn gọn vấn đề pháp lý cốt lõi mà văn bản này giải quyết (ví dụ: 'Quy định về đặt cọc và phạt cọc')."
-          },
-          relevanceToCase: {
-              type: Type.STRING,
-              description: "Giải thích rõ ràng tại sao văn bản này và các điều luật trích dẫn lại liên quan trực tiếp đến các vấn đề pháp lý cốt lõi của vụ việc hiện tại."
-          },
+          documentName: { type: Type.STRING, description: "Tên đầy đủ của văn bản pháp luật." },
+          coreIssueAddressed: { type: Type.STRING, description: "Phân tích vấn đề pháp lý chính mà văn bản này giải quyết trong bối cảnh vụ việc." },
+          relevanceToCase: { type: Type.STRING, description: "Giải thích tại sao văn bản này lại liên quan và áp dụng cho vụ việc." },
           articles: {
             type: Type.ARRAY,
-            description: "Danh sách các điều luật áp dụng từ văn bản trên.",
+            description: "Các điều luật cụ thể được áp dụng.",
             items: {
               type: Type.OBJECT,
               properties: {
-                articleNumber: { type: Type.STRING, description: "Số hiệu điều luật (ví dụ: 'Điều 328')" },
-                summary: { type: Type.STRING, description: "Tóm tắt ngắn gọn nội dung cốt lõi của điều luật." }
+                articleNumber: { type: Type.STRING, description: "Số hiệu điều luật (ví dụ: 'Điều 116')." },
+                summary: { type: Type.STRING, description: "Tóm tắt nội dung chính của điều luật." }
               },
               required: ['articleNumber', 'summary']
             }
+          },
+          supportingEvidence: {
+            type: Type.ARRAY,
+            description: "Một mảng các đoạn trích dẫn từ tài liệu gốc để làm bằng chứng trực tiếp cho 'coreIssueAddressed' hoặc 'relevanceToCase'. Trả về mảng rỗng nếu không tìm thấy.",
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                sourceDocument: { type: Type.STRING, description: "Tên tệp nguồn chứa đoạn trích dẫn." },
+                snippet: { type: Type.STRING, description: "Đoạn văn bản chính xác được trích dẫn từ tài liệu." }
+              },
+              required: ['sourceDocument', 'snippet']
+            }
           }
         },
-        required: ['documentName', 'coreIssueAddressed', 'relevanceToCase', 'articles']
+        required: ['documentName', 'articles']
       }
     },
     gapAnalysis: {
       type: Type.OBJECT,
-      description: "Phân tích các lỗ hổng thông tin, lỗ hổng pháp lý và đề xuất hành động.",
+      description: "Phân tích các lỗ hổng thông tin và pháp lý.",
       properties: {
-        missingInformation: {
-          type: Type.ARRAY,
-          description: "Một mảng các chuỗi mô tả thông tin hoặc chứng cứ còn thiếu.",
-          items: { type: Type.STRING }
-        },
-        recommendedActions: {
-          type: Type.ARRAY,
-          description: "Một mảng các chuỗi đề xuất hành động cụ thể để thu thập thông tin còn thiếu.",
-          items: { type: Type.STRING }
-        },
+        missingInformation: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Danh sách thông tin, tài liệu, chứng cứ còn thiếu." },
+        recommendedActions: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Các hành động đề xuất để thu thập thông tin còn thiếu." },
         legalLoopholes: {
-            type: Type.ARRAY,
-            description: "Một mảng các đối tượng mô tả các lỗ hổng pháp lý được phát hiện. Đây là một trong những phần quan trọng nhất của báo cáo.",
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                classification: {
-                  type: Type.STRING,
-                  description: "Phân loại lỗ hổng. Phải là một trong các giá trị: 'Hợp đồng', 'Quy phạm Pháp luật', 'Tố tụng', 'Khác'."
-                },
-                description: {
-                  type: Type.STRING,
-                  description: "Mô tả ngắn gọn, cụ thể về lỗ hổng được phát hiện."
-                },
-                severity: {
-                  type: Type.STRING,
-                  description: "Đánh giá mức độ nghiêm trọng của lỗ hổng. Phải là một trong các giá trị: 'Cao', 'Trung bình', 'Thấp'."
-                },
-                suggestion: {
-                  type: Type.STRING,
-                  description: "Gợi ý hành động hoặc tư vấn cụ thể để khắc phục hoặc tận dụng lỗ hổng."
-                },
-                evidence: {
-                  type: Type.STRING,
-                  description: "Trích dẫn đoạn văn bản gốc làm bằng chứng cho việc phát hiện lỗ hổng."
-                }
-              },
-              required: ['classification', 'description', 'severity', 'suggestion', 'evidence']
-            }
+          type: Type.ARRAY,
+          description: "Các lỗ hổng pháp lý tiềm ẩn được phát hiện.",
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              classification: { type: Type.STRING, description: "Loại lỗ hổng ('Hợp đồng', 'Quy phạm Pháp luật', 'Tố tụng', 'Khác')." },
+              description: { type: Type.STRING, description: "Mô tả chi tiết về lỗ hổng." },
+              severity: { type: Type.STRING, description: "Mức độ nghiêm trọng (Cao, Trung bình, Thấp)." },
+              suggestion: { type: Type.STRING, description: "Gợi ý cách khắc phục hoặc khai thác lỗ hổng." },
+              evidence: { type: Type.STRING, description: "Đoạn trích dẫn từ tài liệu làm cơ sở phát hiện lỗ hổng." }
+            },
+            required: ['classification', 'description', 'severity', 'suggestion', 'evidence']
           }
+        }
       },
       required: ['missingInformation', 'recommendedActions', 'legalLoopholes']
     },
@@ -447,74 +386,57 @@ export const REPORT_SCHEMA = {
       type: Type.OBJECT,
       description: "Đánh giá triển vọng của vụ việc.",
       properties: {
-        strengths: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Các điểm mạnh của vụ việc." },
-        weaknesses: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Các điểm yếu của vụ việc." },
+        strengths: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Các điểm mạnh của khách hàng." },
+        weaknesses: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Các điểm yếu của khách hàng." },
         risks: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Các rủi ro tiềm ẩn." }
       },
       required: ['strengths', 'weaknesses', 'risks']
     },
     proposedStrategy: {
       type: Type.OBJECT,
-      description: "Chiến lược đề xuất để giải quyết vụ việc.",
+      description: "Chiến lược và lộ trình hành động được đề xuất.",
       properties: {
-        preLitigation: {
-          type: Type.ARRAY,
-          description: "Các bước chiến lược trong giai đoạn tiền tố tụng.",
-          items: { type: Type.STRING }
-        },
-        litigation: {
-          type: Type.ARRAY,
-          description: "Các bước chiến lược trong giai đoạn tố tụng.",
-          items: { type: Type.STRING }
-        }
+        preLitigation: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Các bước trong giai đoạn tiền tố tụng." },
+        litigation: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Các bước trong giai đoạn tố tụng." }
       },
       required: ['preLitigation', 'litigation']
     },
     requestResolutionPlan: {
-      type: Type.ARRAY,
-      description: "Một mảng các chuỗi mô tả các bước hành động, phương án hoặc cách thức cụ thể để giải quyết trực tiếp 'Yêu cầu của luật sư (Mục tiêu phân tích)'. Phần này phải trả lời thẳng vào câu hỏi hoặc yêu cầu chính đã được đưa ra.",
-      items: { type: Type.STRING }
+        type: Type.ARRAY,
+        description: "Phương án/kế hoạch cụ thể để giải quyết yêu cầu chính của luật sư.",
+        items: { type: Type.STRING }
     },
     contingencyPlan: {
-      type: Type.ARRAY,
-      description: "Một mảng các chuỗi mô tả các bước hành động dự phòng nếu thua kiện ở giai đoạn hiện tại, nhằm nâng cao khả năng thắng kiện ở giai đoạn sau. Nếu không có rủi ro đáng kể, trả về mảng rỗng.",
-      items: { type: Type.STRING }
+        type: Type.ARRAY,
+        description: "Phương án xử lý nếu vụ việc không diễn ra như dự kiến hoặc thua kiện.",
+        items: { type: Type.STRING }
     },
     argumentGraph: {
         type: Type.OBJECT,
-        description: "Dữ liệu cấu trúc cho Bản đồ Lập luận, bao gồm các nút và các cạnh kết nối chúng.",
+        description: "Cấu trúc dữ liệu cho bản đồ lập luận.",
         properties: {
             nodes: {
                 type: Type.ARRAY,
-                description: "Danh sách các nút (khối thông tin) trên bản đồ.",
                 items: {
                     type: Type.OBJECT,
                     properties: {
-                        id: { type: Type.STRING, description: "ID duy nhất cho nút, ví dụ: 'issue_1', 'strength_2'." },
-                        type: { type: Type.STRING, description: "Loại nút, ví dụ: 'legalIssue', 'strength', 'timelineEvent'." },
-                        label: { type: Type.STRING, description: "Nhãn ngắn gọn cho nút, ví dụ: 'Vấn đề pháp lý 1'." },
-                        content: { type: Type.STRING, description: "Nội dung đầy đủ của nút." },
-                        position: {
-                            type: Type.OBJECT,
-                            properties: {
-                                x: { type: Type.NUMBER, description: "Tọa độ X ban đầu." },
-                                y: { type: Type.NUMBER, description: "Tọa độ Y ban đầu." }
-                            },
-                            required: ['x', 'y']
-                        }
+                        id: { type: Type.STRING },
+                        type: { type: Type.STRING },
+                        label: { type: Type.STRING },
+                        content: { type: Type.STRING },
+                        position: { type: Type.OBJECT, properties: { x: { type: Type.NUMBER }, y: { type: Type.NUMBER } } }
                     },
                     required: ['id', 'type', 'label', 'content', 'position']
                 }
             },
             edges: {
                 type: Type.ARRAY,
-                description: "Danh sách các cạnh (kết nối) giữa các nút.",
                 items: {
                     type: Type.OBJECT,
                     properties: {
-                        id: { type: Type.STRING, description: "ID duy nhất cho cạnh, ví dụ: 'edge_1-2'." },
-                        source: { type: Type.STRING, description: "ID của nút nguồn." },
-                        target: { type: Type.STRING, description: "ID của nút đích." }
+                        id: { type: Type.STRING },
+                        source: { type: Type.STRING },
+                        target: { type: Type.STRING }
                     },
                     required: ['id', 'source', 'target']
                 }
@@ -524,232 +446,307 @@ export const REPORT_SCHEMA = {
     }
   },
   required: [
-    "editableCaseSummary",
-    "caseTimeline",
-    "litigationStage",
-    "proceduralStatus",
-    "legalRelationship",
-    "coreLegalIssues",
-    "applicableLaws",
-    "gapAnalysis",
-    "caseProspects",
-    "proposedStrategy",
-    "requestResolutionPlan",
-    "contingencyPlan"
-  ],
+    'editableCaseSummary', 'caseTimeline', 'litigationStage', 'proceduralStatus', 'legalRelationship', 'coreLegalIssues',
+    'applicableLaws', 'gapAnalysis', 'caseProspects', 'proposedStrategy', 'requestResolutionPlan', 'contingencyPlan', 'argumentGraph'
+  ]
 };
 
-export const SUMMARY_EXTRACTION_SYSTEM_INSTRUCTION = `
-Bạn là một trợ lý luật sư AI chuyên nghiệp, có khả năng đọc và hiểu sâu các tài liệu trong một bộ hồ sơ vụ việc. Nhiệm vụ của bạn là tổng hợp thông tin từ tất cả các tài liệu được cung cấp để trích xuất hai nội dung chính: (1) Một bản tóm tắt chi tiết về diễn biến sự việc theo trình tự thời gian, và (2) Tóm tắt yêu cầu hoặc mong muốn chính của khách hàng. Phản hồi BẮT BUỘC phải là một đối tượng JSON.`;
+export const litigationStageSuggestions: Record<LitigationStage, { actions: string[]; documents: string[] }> = {
+    consulting: { actions: [], documents: [] },
+    firstInstance: {
+        actions: [
+            "Thu thập bổ sung chứng cứ theo yêu cầu của Tòa án.",
+            "Chuẩn bị các câu hỏi để xét hỏi tại phiên tòa.",
+            "Soạn thảo bản Luận cứ/Ý kiến để trình bày tại phiên tòa.",
+            "Nghiên cứu các án lệ có tính chất tương tự."
+        ],
+        documents: [
+            "Soạn thảo Đơn yêu cầu Tòa án thu thập chứng cứ",
+            "Soạn thảo Bản trình bày ý kiến của luật sư",
+            "Soạn thảo Yêu cầu phản tố (nếu có)",
+            "Soạn thảo Đơn yêu cầu áp dụng biện pháp khẩn cấp tạm thời"
+        ]
+    },
+    appeal: {
+        actions: [
+            "Nghiên cứu kỹ Bản án sơ thẩm để tìm các sai sót, vi phạm tố tụng hoặc áp dụng sai pháp luật.",
+            "Xác định các luận điểm kháng cáo trọng tâm.",
+            "Tìm kiếm các chứng cứ mới (nếu có) để trình tại phiên tòa phúc thẩm.",
+            "Chuẩn bị Luận cứ để bảo vệ quan điểm kháng cáo."
+        ],
+        documents: [
+            "Soạn thảo Đơn kháng cáo",
+            "Soạn thảo Bản giải trình về nội dung kháng cáo",
+            "Soạn thảo Ý kiến đối với kháng cáo của đối phương"
+        ]
+    },
+    cassation: {
+        actions: [
+            "Phân tích Bản án phúc thẩm để tìm ra các vi phạm nghiêm trọng về thủ tục tố tụng hoặc sai lầm trong việc áp dụng pháp luật.",
+            "Soạn thảo Đơn đề nghị Giám đốc thẩm/Tái thẩm, tập trung vào các căn cứ pháp lý theo quy định.",
+            "Theo dõi và làm việc với Tòa án/Viện kiểm sát có thẩm quyền."
+        ],
+        documents: [
+            "Soạn thảo Đơn đề nghị Giám đốc thẩm",
+            "Soạn thảo Đơn đề nghị Tái thẩm"
+        ]
+    },
+    enforcement: {
+        actions: [
+            "Xác minh điều kiện thi hành án của bên phải thi hành án (tài sản, tài khoản...).",
+            "Làm việc với Chấp hành viên để đôn đốc quá trình thi hành án.",
+            "Yêu cầu áp dụng các biện pháp bảo đảm, cưỡng chế thi hành án nếu cần."
+        ],
+        documents: [
+            "Soạn thảo Đơn yêu cầu Thi hành án",
+            "Soạn thảo Đơn yêu cầu kê biên tài sản",
+            "Soạn thảo Đơn khiếu nại về thi hành án"
+        ]
+    },
+    closed: { actions: [], documents: [] }
+};
+
+export const litigationStagesByType: Record<LitigationType, { value: LitigationStage, label: string }[]> = {
+    civil: [
+        { value: 'consulting', label: 'Tư vấn / Chuẩn bị' },
+        { value: 'firstInstance', label: 'Sơ thẩm' },
+        { value: 'appeal', label: 'Phúc thẩm' },
+        { value: 'cassation', label: 'Giám đốc thẩm / Tái thẩm' },
+        { value: 'enforcement', label: 'Thi hành án' },
+        { value: 'closed', label: 'Đã kết thúc' }
+    ],
+    criminal: [
+        { value: 'consulting', label: 'Tư vấn / GĐ Điều tra' },
+        { value: 'firstInstance', label: 'Sơ thẩm' },
+        { value: 'appeal', label: 'Phúc thẩm' },
+        { value: 'cassation', label: 'Giám đốc thẩm / Tái thẩm' },
+        { value: 'enforcement', label: 'Thi hành án' },
+        { value: 'closed', label: 'Đã kết thúc' }
+    ],
+    administrative: [
+        { value: 'consulting', label: 'Tư vấn / Khiếu nại' },
+        { value: 'firstInstance', label: 'Sơ thẩm' },
+        { value: 'appeal', label: 'Phúc thẩm' },
+        { value: 'cassation', label: 'Giám đốc thẩm / Tái thẩm' },
+        { value: 'enforcement', label: 'Thi hành án' },
+        { value: 'closed', label: 'Đã kết thúc' }
+    ]
+};
+
+export const getStageLabel = (type: LitigationType, stageValue: LitigationStage): string => {
+    const stages = litigationStagesByType[type] || litigationStagesByType.civil;
+    const stage = stages.find(s => s.value === stageValue);
+    return stage ? stage.label : 'Không xác định';
+};
+
+
+export const DOCUMENT_GENERATION_SYSTEM_INSTRUCTION = `
+Bạn là một trợ lý luật sư AI cao cấp tại Việt Nam, chuyên soạn thảo các văn bản pháp lý. Nhiệm vụ của bạn là nhận một báo cáo phân tích vụ việc (dưới dạng JSON), một yêu cầu cụ thể từ luật sư, và các tiêu chí về văn phong, sau đó tạo ra một văn bản pháp lý hoàn chỉnh, chuyên nghiệp, và có tính chiến lược cao.
+
+QUY TRÌNH THỰC HIỆN:
+1.  **Nghiên cứu Toàn diện:** Đọc và hiểu sâu sắc toàn bộ báo cáo JSON được cung cấp. Đây là nguồn thông tin cốt lõi chứa đựng bối cảnh, dòng thời gian, các điểm mạnh, điểm yếu, và chiến lược đã được AI phân tích.
+2.  **Phân tích Yêu cầu:** Hiểu rõ yêu cầu soạn thảo cụ thể của luật sư. Đây là mục tiêu chính của văn bản cần tạo ra.
+3.  **Tích hợp Yếu tố Chiến lược:** DỰA TRÊN "Lập trường Chiến lược" được chỉ định, hãy lựa chọn và nhấn mạnh các thông tin, luận điểm từ báo cáo JSON một cách phù hợp:
+    *   **Lập luận Tấn công / Chủ động:** Tập trung vào các "strengths" (điểm mạnh) của khách hàng và các "weaknesses" (điểm yếu) của đối phương. Sử dụng các "legalLoopholes" (lỗ hổng pháp lý) để tấn công vào lập luận của đối phương. Ngôn ngữ phải mạnh mẽ, quả quyết.
+    *   **Phản bác Sắc bén (cho Kháng cáo):** Tập trung vào việc "bẻ gãy" từng luận điểm của đối phương. Tìm các điểm yếu, mâu thuẫn, sai sót trong lập luận của họ (dựa trên dòng thời gian, các lỗ hổng pháp lý...). Viện dẫn các tình tiết có lợi đã được phân tích để củng cố lập luận phản bác. Văn phong phải sắc bén, chính xác.
+    *   **Lập luận Thuyết phục / Hòa giải:** Nhấn mạnh vào các điểm chung, các giải pháp đôi bên cùng có lợi. Trình bày các "risks" (rủi ro) nếu không đạt được thỏa thuận. Ngôn ngữ mềm dẻo, mang tính xây dựng.
+    *   **Trang trọng / Trung lập:** Trình bày sự việc một cách khách quan, dựa trên các sự kiện trong "caseTimeline" và các cơ sở pháp lý trong "applicableLaws". Hạn chế đưa ra các bình luận mang tính cảm tính.
+4.  **Soạn thảo Văn bản Hoàn chỉnh:** Tạo ra một văn bản hoàn chỉnh, có cấu trúc rõ ràng (mở đầu, nội dung, kết luận), sử dụng thuật ngữ pháp lý chính xác, và tuân thủ đúng định dạng của loại văn bản được yêu cầu. Đảm bảo văn bản cuối cùng phản ánh đúng chiến lược đã chọn và giải quyết được yêu cầu của luật sư.
+`;
+
+export const CONSULTING_SYSTEM_INSTRUCTION = `Bạn là một luật sư tư vấn AI tại Việt Nam. Nhiệm vụ của bạn là nhận thông tin vụ việc và trả về một báo cáo tư vấn sơ bộ dưới dạng JSON.
+
+QUY TRÌNH PHÂN TÍCH:
+1.  **Xác định Vấn đề Cốt lõi:** Từ bối cảnh và yêu cầu của khách hàng, xác định các vấn đề chính cần thảo luận và tư vấn.
+2.  **Phân loại Sơ bộ:** Dựa trên bản chất tranh chấp, phân loại vụ việc vào loại hình phù hợp (Dân sự, Hình sự, Hành chính). Nếu không rõ, ghi 'unknown'.
+3.  **Xác định Giai đoạn:** Đánh giá vụ việc đang ở giai đoạn nào (ví dụ: "Chuẩn bị khởi kiện", "Thương lượng, hòa giải", "Sau khi có bản án sơ thẩm").
+4.  **Đề xuất Hành động:** Gợi ý các loại văn bản, tài liệu quan trọng cần soạn thảo hoặc thu thập tiếp theo.
+5.  **Cảnh báo Rủi ro:** (QUAN TRỌNG) Tìm kiếm và chỉ ra các "Lỗ hổng pháp lý tiềm ẩn" có thể ảnh hưởng đến quyền lợi của khách hàng, dựa trên thông tin được cung cấp.
+6.  **Trả về JSON:** Điền tất cả các kết quả phân tích vào cấu trúc JSON đã cho.`;
+
+export const CONSULTING_REPORT_SCHEMA = {
+    type: Type.OBJECT,
+    properties: {
+        discussionPoints: {
+            type: Type.ARRAY,
+            description: "Danh sách các vấn đề pháp lý hoặc thực tế quan trọng cần thảo luận với khách hàng.",
+            items: { type: Type.STRING }
+        },
+        caseType: {
+            type: Type.STRING,
+            description: "Phân loại sơ bộ về loại vụ việc (civil, criminal, administrative, unknown)."
+        },
+        preliminaryStage: {
+            type: Type.STRING,
+            description: "Đánh giá sơ bộ về giai đoạn hiện tại của vụ việc."
+        },
+        suggestedDocuments: {
+            type: Type.ARRAY,
+            description: "Danh sách các văn bản đề xuất cần soạn thảo hoặc chuẩn bị.",
+            items: { type: Type.STRING }
+        },
+        legalLoopholes: {
+          type: Type.ARRAY,
+          description: "Các lỗ hổng pháp lý tiềm ẩn được phát hiện.",
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              classification: { type: Type.STRING, description: "Loại lỗ hổng ('Hợp đồng', 'Quy phạm Pháp luật', 'Tố tụng', 'Khác')." },
+              description: { type: Type.STRING, description: "Mô tả chi tiết về lỗ hổng." },
+              severity: { type: Type.STRING, description: "Mức độ nghiêm trọng (Cao, Trung bình, Thấp)." },
+              suggestion: { type: Type.STRING, description: "Gợi ý cách khắc phục hoặc khai thác lỗ hổng." },
+              evidence: { type: Type.STRING, description: "Cơ sở/thông tin dẫn đến việc phát hiện lỗ hổng." }
+            },
+            required: ['classification', 'description', 'severity', 'suggestion', 'evidence']
+          }
+        }
+    },
+    required: ['discussionPoints', 'caseType', 'preliminaryStage', 'suggestedDocuments']
+};
+
+
+export const SUMMARY_EXTRACTION_SYSTEM_INSTRUCTION = `Bạn là một trợ lý AI chuyên nghiệp, có khả năng đọc hiểu và trích xuất thông tin chính xác từ các tài liệu pháp lý thô.
+
+**Nhiệm vụ:**
+Từ tập hợp các tài liệu được cung cấp, hãy thực hiện hai việc sau:
+1.  **Tóm tắt Diễn biến Vụ việc:** Tổng hợp tất cả các thông tin, sự kiện, tình tiết từ các tài liệu để viết thành một đoạn văn tóm tắt mạch lạc, đầy đủ về bối cảnh và diễn biến của vụ việc.
+2.  **Tóm tắt Yêu cầu của Khách hàng:** Xác định và viết lại một cách rõ ràng, súc tích những yêu cầu, mong muốn hoặc mục tiêu chính của khách hàng trong vụ việc này.
+
+**Yêu cầu đầu ra:**
+Trả về kết quả dưới dạng một đối tượng JSON duy nhất, tuân thủ nghiêm ngặt cấu trúc đã được định nghĩa.`;
 
 export const SUMMARY_EXTRACTION_SCHEMA = {
   type: Type.OBJECT,
   properties: {
     caseSummary: {
       type: Type.STRING,
-      description: "Tóm tắt chi tiết diễn biến vụ việc, các sự kiện và các mốc thời gian quan trọng theo trình tự thời gian, được tổng hợp từ tất cả tài liệu."
+      description: "Một đoạn văn hoàn chỉnh, tóm tắt diễn biến chính của vụ việc."
     },
     clientRequestSummary: {
       type: Type.STRING,
-      description: "Tóm tắt ngắn gọn yêu cầu, mục tiêu, hoặc mong muốn chính của phía khách hàng trong vụ việc này."
+      description: "Một đoạn văn hoàn chỉnh, tóm tắt các yêu cầu cốt lõi của khách hàng."
     }
   },
   required: ['caseSummary', 'clientRequestSummary']
 };
 
 
-export const DOCUMENT_GENERATION_SYSTEM_INSTRUCTION = `
-Bạn là một Trợ lý Pháp lý AI chuyên sâu. Nhiệm vụ của bạn là:
-1.  Tiếp nhận một đối tượng JSON chứa toàn bộ báo cáo phân tích vụ việc.
-2.  Tiếp nhận một yêu cầu cụ thể từ luật sư về loại văn bản cần soạn thảo.
-3.  Dựa vào toàn bộ bối cảnh từ báo cáo phân tích, hãy soạn thảo văn bản được yêu cầu một cách chuyên nghiệp, đầy đủ và chính xác theo văn phong pháp lý Việt Nam.
-4.  QUAN TRỌNG: Đầu ra phải là văn bản thuần túy (plain text). TUYỆT ĐỐI không sử dụng định dạng Markdown (ví dụ: không dùng các ký tự như *, #, - để tạo danh sách, tiêu đề hay in đậm).
+export const CONTEXTUAL_CHAT_SYSTEM_INSTRUCTION = `
+Bạn là một trợ lý luật sư AI cao cấp, đang trong một cuộc trao đổi chuyên sâu với một luật sư về một mục cụ thể trong báo cáo phân tích vụ việc.
+
+**Bối cảnh:**
+-   Bạn đã có sẵn toàn bộ báo cáo phân tích vụ việc (dưới dạng JSON).
+-   Bạn biết mình đang thảo luận trong mục nào (ví dụ: "Đánh giá Triển vọng Vụ việc", "Phân tích Lỗ hổng").
+-   Bạn có lịch sử cuộc trò chuyện trước đó về mục này.
+
+**Nhiệm vụ của bạn:**
+1.  **Hiểu sâu sắc:** Dựa vào toàn bộ báo cáo và lịch sử trò chuyện, hãy hiểu rõ câu hỏi hoặc thông tin mới mà luật sư đưa ra.
+2.  **Tư duy và Phân tích:**
+    -   Kết nối thông tin mới với các dữ liệu khác trong báo cáo (ví dụ: một tình tiết mới có thể ảnh hưởng đến điểm mạnh/yếu, một câu hỏi có thể liên quan đến dòng thời gian).
+    -   Suy luận và đưa ra các nhận định, giải pháp, hoặc câu trả lời một cách thông minh, có tính chiến lược.
+3.  **Trả lời Trực tiếp và Hữu ích:**
+    -   Trả lời thẳng vào câu hỏi của luật sư.
+    -   Nếu luật sư cung cấp thông tin mới, hãy xác nhận đã ghi nhận và phân tích ngắn gọn ảnh hưởng của nó.
+    -   Nếu luật sư yêu cầu một giải pháp, hãy đề xuất các bước hành động cụ thể.
+    -   Luôn giữ văn phong chuyên nghiệp, mạch lạc và tập trung vào việc hỗ trợ luật sư.
 `;
 
-export const CONSULTING_SYSTEM_INSTRUCTION = `
-Bạn là một trợ lý luật sư AI chuyên nghiệp tại Việt Nam. Nhiệm vụ của bạn là phân tích thông tin ban đầu của một vụ việc tư vấn và trả về một báo cáo JSON có cấu trúc để hỗ trợ luật sư.
+export const INTELLIGENT_SEARCH_SYSTEM_INSTRUCTION = `
+Bạn là một trợ lý luật sư AI thông minh, có khả năng tra cứu và trả lời các câu hỏi dựa trên một bộ hồ sơ vụ việc hoàn chỉnh đã được phân tích.
 
-QUY TẮC:
-1.  **Xác định Điểm chính:** Đọc kỹ thông tin và xác định những điểm mấu chốt, quan trọng nhất mà luật sư cần trao đổi lại với khách hàng để làm rõ hoặc thu thập thêm.
-2.  **Phân loại Vụ việc:** Dựa trên bản chất của tranh chấp, phân loại vụ việc vào một trong ba loại: 'civil' (dân sự), 'criminal' (hình sự), hoặc 'administrative' (hành chính). Nếu không đủ thông tin, trả về 'unknown'.
-3.  **Nhận định Giai đoạn Sơ bộ:** Mô tả ngắn gọn giai đoạn hiện tại của vụ việc (ví dụ: "Tư vấn ban đầu", "Chuẩn bị tiền tố tụng", "Yêu cầu đòi nợ lần đầu").
-4.  **Đề xuất Văn bản:** Dựa trên phân tích, đề xuất 2-3 loại văn bản pháp lý mà luật sư có thể cần soạn thảo tiếp theo (ví dụ: "Thư tư vấn", "Thư yêu cầu thanh toán", "Đơn trình báo").
-5.  **PHÁT HIỆN LỖ HỔNG SƠ BỘ (QUAN TRỌNG):** Dựa trên thông tin được cung cấp, hãy chủ động phân tích và xác định bất kỳ dấu hiệu ban đầu nào về 'lỗ hổng pháp lý tiềm ẩn' theo các loại sau:
-    - **Lỗ hổng Hợp đồng:** Điều khoản mơ hồ, đa nghĩa; Thiếu sót các điều khoản quan trọng (Bất khả kháng, Luật áp dụng, Giải quyết tranh chấp...); Xung đột giữa các điều khoản.
-    - **Lỗ hổng Quy phạm:** 'Sự im lặng của pháp luật' (vấn đề chưa có luật điều chỉnh); Quy định mâu thuẫn, chồng chéo; Định nghĩa không rõ ràng.
-    - **Lỗ hổng Tố tụng:** Dấu hiệu vi phạm về thời hiệu; Sai sót trong các thủ tục đã diễn ra (nếu có thông tin).
-    Liệt kê các lỗ hổng phát hiện được vào trường 'legalLoopholes'. Nếu không có, trả về một mảng rỗng.
-6.  **Output JSON:** Phản hồi BẮT BUỘC phải là một đối tượng JSON hợp lệ duy nhất.
+**Nguồn kiến thức của bạn:**
+1.  **Báo cáo Phân tích (JSON):** Đây là tài liệu cốt lõi, chứa các kết luận, chiến lược, và các điểm dữ liệu có cấu trúc (dòng thời gian, cơ sở pháp lý, v.v.).
+2.  **Nội dung Tài liệu gốc (đã được tóm tắt):** Đây là nguồn thông tin chi tiết, chứa đựng các tình tiết, câu chữ nguyên văn.
+3.  **Lịch sử Trao đổi:** Các câu hỏi và câu trả lời trước đó.
+
+**Nhiệm vụ của bạn:**
+1.  **Phân tích Câu hỏi:** Đọc và hiểu rõ câu hỏi của luật sư. Xác định thông tin chính mà họ đang tìm kiếm.
+2.  **Tra cứu Thông tin:**
+    -   **Ưu tiên Báo cáo Phân tích:** Tìm kiếm câu trả lời trong báo cáo JSON trước tiên. Đây là nguồn đã được tổng hợp và phân tích.
+    -   **Đối chiếu Tài liệu gốc:** Nếu cần chi tiết hơn hoặc các thông tin không có trong báo cáo, hãy tìm kiếm trong phần nội dung tóm tắt của các tài liệu gốc.
+    -   **Sử dụng Lịch sử:** Tham khảo các câu hỏi trước đó để hiểu ngữ cảnh và tránh lặp lại thông tin.
+3.  **Tổng hợp và Trả lời:**
+    -   Soạn một câu trả lời hoàn chỉnh, chính xác và súc tích.
+    -   Khi có thể, hãy trích dẫn nguồn thông tin của bạn (ví dụ: "Theo Hợp đồng ngày X...", "Trong báo cáo phân tích, mục Điểm yếu có nêu...", "Theo tài liệu Email ngày Y...").
+    -   Nếu không tìm thấy thông tin, hãy trả lời một cách trung thực rằng thông tin đó không có trong hồ sơ.
+    -   Văn phong chuyên nghiệp, rõ ràng.
 `;
 
-export const CONSULTING_REPORT_SCHEMA = {
-  type: Type.OBJECT,
-  properties: {
-    discussionPoints: {
-      type: Type.ARRAY,
-      description: "Một mảng các chuỗi, mỗi chuỗi là một điểm quan trọng luật sư cần trao đổi với khách hàng.",
-      items: { type: Type.STRING }
-    },
-    caseType: {
-      type: Type.STRING,
-      description: "Phân loại vụ việc. Phải là một trong các giá trị: 'civil', 'criminal', 'administrative', 'unknown'."
-    },
-    preliminaryStage: {
-      type: Type.STRING,
-      description: "Mô tả ngắn gọn giai đoạn sơ bộ của vụ việc."
-    },
-    suggestedDocuments: {
-      type: Type.ARRAY,
-      description: "Một mảng các chuỗi, mỗi chuỗi là tên một văn bản được đề xuất soạn thảo.",
-      items: { type: Type.STRING }
-    },
-    legalLoopholes: {
-        type: Type.ARRAY,
-        description: "Một mảng các đối tượng mô tả các lỗ hổng pháp lý được phát hiện ở giai đoạn sơ bộ.",
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            classification: {
-              type: Type.STRING,
-              description: "Phân loại lỗ hổng. Phải là một trong các giá trị: 'Hợp đồng', 'Quy phạm Pháp luật', 'Tố tụng', 'Khác'."
+
+export const ARGUMENT_GENERATION_SYSTEM_INSTRUCTION = `
+Bạn là một luật sư AI chuyên về viết luận cứ pháp lý. Nhiệm vụ của bạn là nhận một tập hợp các yếu tố (vấn đề pháp lý, điểm mạnh, điểm yếu, sự kiện, cơ sở pháp lý) và kết nối chúng lại thành một đoạn văn luận cứ mạch lạc, logic và có tính thuyết phục cao.
+
+**Quy trình:**
+1.  **Xác định Luận điểm chính:** Dựa trên các yếu tố được cung cấp, xác định đâu là luận điểm cốt lõi cần chứng minh hoặc bảo vệ.
+2.  **Xây dựng Cấu trúc:** Sắp xếp các yếu tố theo một trình tự logic:
+    -   Bắt đầu bằng việc nêu luận điểm chính.
+    -   Sử dụng các sự kiện (timelineEvent) và cơ sở pháp lý (applicableLaw) làm nền tảng.
+    -   Dùng các điểm mạnh (strength) để củng cố luận điểm.
+    -   Dự liệu và phản biện trước các điểm yếu (weakness) hoặc rủi ro (risk) nếu có.
+3.  **Soạn thảo:** Viết thành một đoạn văn hoàn chỉnh, sử dụng từ ngữ pháp lý chính xác, các câu chuyển tiếp mượt mà để tạo thành một dòng chảy lập luận chặt chẽ.
+`;
+
+export const ARGUMENT_NODE_CHAT_SYSTEM_INSTRUCTION = `
+Bạn là một trợ lý luật sư AI cao cấp, đang thảo luận với luật sư về một khối thông tin cụ thể (một "node") trong Bản đồ Lập luận của một vụ việc.
+
+**Nhiệm vụ của bạn:**
+1.  **Hiểu Bối cảnh:** Ghi nhớ thông tin của khối đang được thảo luận (loại, nhãn, nội dung).
+2.  **Phân tích Yêu cầu:** Đọc kỹ yêu cầu mới của luật sư. Họ đang muốn làm rõ, tìm giải pháp, hay phân tích sâu hơn về khối thông tin này?
+3.  **Tư duy và Đề xuất:**
+    -   Nếu luật sư hỏi "làm thế nào", hãy đề xuất các bước hành động, giải pháp cụ thể.
+    -   Nếu họ hỏi "tại sao", hãy giải thích logic, cơ sở pháp lý hoặc thực tiễn đằng sau vấn đề.
+    -   Nếu họ cung cấp thông tin mới, hãy phân tích nhanh xem nó ảnh hưởng thế nào đến khối thông tin này.
+4.  **Trả lời Ngắn gọn, Tập trung:** Cung cấp câu trả lời trực tiếp, hữu ích và đi thẳng vào vấn đề liên quan đến khối thông tin đang thảo luận.
+`;
+
+export const OPPONENT_ANALYSIS_SYSTEM_INSTRUCTION = `
+Bạn là một luật sư tranh tụng AI cao cấp, có tư duy phản biện sắc bén. Nhiệm vụ của bạn là phân tích các lập luận của đối phương, tìm ra điểm yếu và xây dựng các luận điểm phản bác vững chắc.
+
+**Bối cảnh:**
+-   Bạn có toàn bộ thông tin về vụ việc của phía khách hàng (dưới dạng báo cáo JSON và tóm tắt tài liệu).
+-   Bạn nhận được một đoạn văn bản chứa các lập luận và/hoặc chứng cứ của đối phương.
+
+**Quy trình Phân tích:**
+1.  **Tách rã Lập luận:** Đọc và chia nhỏ văn bản của đối phương thành từng luận điểm riêng biệt.
+2.  **Với mỗi Luận điểm:**
+    a.  **Xác định Điểm yếu:** Soi xét kỹ lưỡng để tìm ra các lỗ hổng, bao gồm:
+        -   **Lỗi logic:** Mâu thuẫn nội tại, suy diễn vô căn cứ, kết luận vội vàng.
+        -   **Thiếu chứng cứ:** Các khẳng định không có tài liệu, bằng chứng hỗ trợ.
+        -   **Chứng cứ yếu:** Chứng cứ không đáng tin cậy, không liên quan, hoặc có thể bị diễn giải theo hướng khác.
+        -   **Bỏ qua tình tiết quan trọng:** Lập luận của họ có bỏ qua các sự kiện hoặc tài liệu nào có lợi cho phía bạn không? (Đối chiếu với hồ sơ vụ việc được cung cấp).
+    b.  **Xây dựng Luận điểm Phản bác:** Dựa trên các điểm yếu đã tìm thấy và toàn bộ hồ sơ vụ việc của khách hàng, hãy xây dựng các luận điểm phản bác trực diện, mạnh mẽ.
+    c.  **Viện dẫn Chứng cứ:** Đối với mỗi luận điểm phản bác, hãy nêu rõ nó được hỗ trợ bởi bằng chứng, tài liệu, hoặc tình tiết nào từ hồ sơ vụ việc của khách hàng.
+
+**Yêu cầu Đầu ra:**
+Trả về một mảng JSON, trong đó mỗi đối tượng đại diện cho một lập luận của đối phương đã được bạn phân tích.
+`;
+
+export const OPPONENT_ANALYSIS_SCHEMA = {
+    type: Type.ARRAY,
+    description: "Một danh sách các phân tích cho từng lập luận của đối phương.",
+    items: {
+        type: Type.OBJECT,
+        properties: {
+            argument: {
+                type: Type.STRING,
+                description: "Lập luận gốc của đối phương đã được xác định."
             },
-            description: {
-              type: Type.STRING,
-              description: "Mô tả ngắn gọn, cụ thể về lỗ hổng được phát hiện."
+            weaknesses: {
+                type: Type.ARRAY,
+                description: "Danh sách các điểm yếu, lỗ hổng logic hoặc thiếu sót chứng cứ được tìm thấy trong lập luận của đối phương.",
+                items: { type: Type.STRING }
             },
-            severity: {
-              type: Type.STRING,
-              description: "Đánh giá mức độ nghiêm trọng của lỗ hổng. Phải là một trong các giá trị: 'Cao', 'Trung bình', 'Thấp'."
+            counterArguments: {
+                type: Type.ARRAY,
+                description: "Danh sách các luận điểm phản bác được đề xuất để chống lại lập luận của đối phương.",
+                items: { type: Type.STRING }
             },
-            suggestion: {
-              type: Type.STRING,
-              description: "Gợi ý hành động hoặc tư vấn cụ thể để khắc phục hoặc tận dụng lỗ hổng."
-            },
-            evidence: {
-              type: Type.STRING,
-              description: "Trích dẫn đoạn văn bản gốc (nếu có) làm bằng chứng cho việc phát hiện lỗ hổng."
+            supportingEvidence: {
+                type: Type.ARRAY,
+                description: "Danh sách các bằng chứng hoặc tình tiết từ hồ sơ vụ việc của khách hàng để hỗ trợ cho các luận điểm phản bác.",
+                items: { type: Type.STRING }
             }
-          },
-          required: ['classification', 'description', 'severity', 'suggestion', 'evidence']
-        }
-      }
-  },
-  required: ["discussionPoints", "caseType", "preliminaryStage", "suggestedDocuments"]
-};
-
-
-export const litigationStagesByType: Record<LitigationType, { value: LitigationStage; label: string }[]> = {
-    civil: [
-        { value: 'consulting', label: 'Tư vấn ban đầu' },
-        { value: 'firstInstance', label: 'Sơ thẩm' },
-        { value: 'appeal', label: 'Phúc thẩm' },
-        { value: 'cassation', label: 'Giám đốc thẩm/Tái thẩm' },
-        { value: 'enforcement', label: 'Thi hành án' },
-        { value: 'closed', label: 'Đã đóng' },
-    ],
-    criminal: [
-        { value: 'consulting', label: 'Tư vấn ban đầu' },
-        { value: 'prosecutionRequest', label: 'Khởi tố, Điều tra' },
-        { value: 'prosecution', label: 'Truy tố' },
-        { value: 'firstInstance', label: 'Xét xử Sơ thẩm' },
-        { value: 'appeal', label: 'Xét xử Phúc thẩm' },
-        { value: 'enforcement', label: 'Thi hành án' },
-        { value: 'closed', label: 'Đã đóng' },
-    ],
-    administrative: [
-        { value: 'consulting', label: 'Tư vấn ban đầu' },
-        { value: 'dialogue', label: 'Đối thoại' },
-        { value: 'firstInstance', label: 'Sơ thẩm' },
-        { value: 'appeal', label: 'Phúc thẩm' },
-        { value: 'enforcement', label: 'Thi hành án' },
-        { value: 'closed', label: 'Đã đóng' },
-    ],
-};
-
-export const getStageLabel = (type: LitigationType | null, stage: LitigationStage): string => {
-    if (!type) return 'Chưa xác định';
-    const stageOptions = litigationStagesByType[type] || [];
-    return stageOptions.find(opt => opt.value === stage)?.label || 'Chưa xác định';
-};
-
-
-export const litigationStageSuggestions: Record<LitigationStage, { actions: string[]; documents: string[] }> = {
-  prosecutionRequest: {
-    actions: [
-      "Hỗ trợ thân chủ làm việc với cơ quan điều tra.",
-      "Thu thập và củng cố chứng cứ.",
-      "Yêu cầu giám định pháp y hoặc các giám định chuyên môn khác.",
-    ],
-    documents: [
-      "Đơn đề nghị mời luật sư tham gia tố tụng",
-      "Đơn yêu cầu sao chụp hồ sơ, tài liệu vụ án",
-      "Văn bản trình bày ý kiến của luật sư",
-      "Đơn khiếu nại quyết định của Điều tra viên",
-    ],
-  },
-  prosecution: {
-    actions: [
-      "Nghiên cứu kỹ Kết luận điều tra và Cáo trạng.",
-      "Phân tích, tìm các mâu thuẫn, vi phạm tố tụng.",
-      "Trao đổi với thân chủ về nội dung Cáo trạng.",
-    ],
-    documents: [
-      "Bản kiến nghị gửi Viện kiểm sát",
-      "Đơn đề nghị đình chỉ vụ án/bị can",
-      "Đơn yêu cầu trả hồ sơ để điều tra bổ sung",
-    ],
-  },
-  firstInstance: {
-    actions: [
-      "Xây dựng Luận cứ bào chữa/bảo vệ chi tiết, tập trung vào các điểm mạnh và cơ sở pháp lý.",
-      "Soạn thảo Kế hoạch xét hỏi chi tiết cho các bên (Nguyên đơn, Bị đơn, Người làm chứng...).",
-      "Dự kiến các câu hỏi từ phía đối phương và chuẩn bị phương án trả lời cho thân chủ.",
-      "Tập hợp và sắp xếp hồ sơ, tài liệu, chứng cứ gốc để xuất trình tại phiên tòa.",
-      "Phân tích chi tiết bản án sơ thẩm khi nhận được: xác định các điểm tòa chấp nhận/bác bỏ, căn cứ pháp lý áp dụng.",
-      "Đánh giá khả năng và cơ sở kháng cáo: xem xét các sai sót về tố tụng hoặc nội dung trong bản án.",
-      "Tư vấn cho khách hàng về kết quả phiên tòa và các lựa chọn chiến lược tiếp theo (kháng cáo, không kháng cáo, yêu cầu thi hành án).",
-    ],
-    documents: [
-      "Bản luận cứ bào chữa/bảo vệ",
-      "Dàn ý câu hỏi tại phiên tòa",
-      "Yêu cầu triệu tập người làm chứng/người liên quan",
-      "Đơn kháng cáo (nếu quyết định kháng cáo)",
-    ],
-  },
-  appeal: {
-    actions: [
-      "Nghiên cứu kỹ bản án sơ thẩm, xác định các căn cứ pháp lý và thực tiễn để kháng cáo.",
-      "Soạn thảo và nộp đơn kháng cáo trong thời hạn luật định, đảm bảo nội dung đầy đủ, chặt chẽ.",
-      "Bổ sung, củng cố chứng cứ mới (nếu có) để trình tại phiên tòa phúc thẩm.",
-      "Xây dựng lại luận cứ, tập trung tấn công vào các điểm sai sót của bản án sơ thẩm.",
-      "Chuẩn bị kế hoạch xét hỏi và tranh luận tại phiên tòa phúc thẩm.",
-      "Phân tích bản án phúc thẩm, tư vấn cho khách hàng về kết quả và các bước tiếp theo (đề nghị Giám đốc thẩm, thi hành án).",
-    ],
-    documents: [
-      "Đơn kháng cáo",
-      "Bản luận cứ cho phiên tòa phúc thẩm",
-      "Văn bản trình bày ý kiến bổ sung",
-      "Đơn đề nghị Giám đốc thẩm (nếu có căn cứ)",
-    ],
-  },
-  enforcement: {
-    actions: [
-      "Soạn thảo và nộp Đơn yêu cầu thi hành án (nếu là bên được thi hành án).",
-      "Chủ động phối hợp với Chấp hành viên để cung cấp thông tin về tài sản của bên phải thi hành án.",
-      "Tư vấn cho thân chủ (nếu là bên phải thi hành án) về các phương án: tự nguyện thi hành, thỏa thuận, yêu cầu hoãn/miễn/giảm.",
-      "Yêu cầu áp dụng các biện pháp bảo đảm, cưỡng chế thi hành án (kê biên, phong tỏa tài khoản...).",
-      "Thực hiện các biện pháp pháp lý khiếu nại/tố cáo nếu có vi phạm trong quá trình thi hành án.",
-    ],
-    documents: [
-      "Đơn yêu cầu thi hành án",
-      "Đơn khiếu nại về thi hành án",
-      "Văn bản đề nghị áp dụng biện pháp cưỡng chế",
-      "Đơn đề nghị tạm hoãn/miễn/giảm thi hành án",
-    ],
-  },
-  consulting: { actions: [], documents: [] },
-  closed: { actions: [], documents: [] },
-  investigation: { actions: [], documents: [] },
-  cassation: { actions: [], documents: [] },
-  dialogue: { actions: [], documents: [] },
+        },
+        required: ["argument", "weaknesses", "counterArguments", "supportingEvidence"]
+    }
 };
