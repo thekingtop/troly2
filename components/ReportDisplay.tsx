@@ -232,6 +232,7 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
     const [isChatLoading, setIsChatLoading] = useState<keyof AnalysisReport | null>(null);
     const [editableSummary, setEditableSummary] = useState(report?.editableCaseSummary || '');
     const [isEditingSummary, setIsEditingSummary] = useState(false);
+    const [isCapturingTimeline, setIsCapturingTimeline] = useState(false);
 
     useEffect(() => {
         setEditableSummary(report?.editableCaseSummary || '');
@@ -246,6 +247,34 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
         if (report) {
             const updatedReport = { ...report, caseTimeline: updatedEvents };
             onUpdateReport(updatedReport);
+        }
+    };
+
+    const handleDownloadTimelineImage = async () => {
+        const timelineElement = document.getElementById('timeline-capture-area');
+        if (!timelineElement) {
+            console.error("Timeline element not found for capture.");
+            return;
+        }
+        setIsCapturingTimeline(true);
+        try {
+            const canvas = await html2canvas(timelineElement, { 
+                scale: 2, // for high quality
+                useCORS: true,
+                backgroundColor: '#ffffff' // Ensure a solid white background
+            });
+            const dataUrl = canvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.download = 'dong_thoi_gian_vu_viec.png';
+            link.href = dataUrl;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } catch (err) {
+            console.error("Error generating timeline image:", err);
+            alert("Đã xảy ra lỗi khi tạo ảnh từ dòng thời gian.");
+        } finally {
+            setIsCapturingTimeline(false);
         }
     };
 
@@ -352,9 +381,24 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
 
             {report.caseTimeline && report.caseTimeline.length > 0 && (
                 <>
-                    <ReportSection title="Dòng thời gian Vụ việc">
-                        <CaseTimeline events={report.caseTimeline} highlightTerm={highlightTerm} onUpdateEvents={handleUpdateEvents} />
-                    </ReportSection>
+                    <div id="timeline-capture-area">
+                        <ReportSection 
+                            title="Dòng thời gian Vụ việc"
+                            headerAction={
+                                <button 
+                                    onClick={handleDownloadTimelineImage} 
+                                    disabled={isCapturingTimeline}
+                                    className="flex items-center gap-2 px-3 py-1.5 text-xs bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 disabled:opacity-50"
+                                    title="Tải về dòng thời gian dưới dạng ảnh"
+                                >
+                                    {isCapturingTimeline ? <Loader /> : <DownloadIcon className="w-4 h-4" />}
+                                    <span>Tải ảnh</span>
+                                </button>
+                            }
+                        >
+                            <CaseTimeline events={report.caseTimeline} highlightTerm={highlightTerm} onUpdateEvents={handleUpdateEvents} />
+                        </ReportSection>
+                    </div>
                     <div className="flex justify-center p-2 -mt-4 mb-2">
                         <button
                           onClick={handleReanalyzeClick}
