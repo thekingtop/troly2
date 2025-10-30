@@ -2,6 +2,7 @@ import { GoogleGenAI, Part, Type } from "@google/genai";
 import type { AnalysisReport, FileCategory, UploadedFile, DocType, FormData, LitigationStage, LitigationType, ConsultingReport, ParagraphGenerationOptions, ChatMessage, ArgumentNode } from '../types.ts';
 import { 
     SYSTEM_INSTRUCTION, 
+    REANALYSIS_SYSTEM_INSTRUCTION,
     ANALYSIS_UPDATE_SYSTEM_INSTRUCTION, 
     REPORT_SCHEMA, 
     DOCUMENT_GENERATION_SYSTEM_INSTRUCTION, 
@@ -338,6 +339,59 @@ export const analyzeCaseFiles = async (
     throw handleGeminiError(error, context);
   }
 };
+
+export const reanalyzeCaseWithCorrections = async (
+  correctedReport: AnalysisReport,
+  files: UploadedFile[]
+): Promise<AnalysisReport> => {
+  try {
+    const { fileContentParts, multimodalParts } = await getFileContentParts(files);
+    const filesContent = fileContentParts.length > 0 ? fileContentParts.join('\n\n') : 'Không có tài liệu nào được cung cấp.';
+    
+    // The main context is the corrected report itself.
+    const promptText = `**BÁO CÁO ĐÃ ĐƯỢC NGƯỜI DÙNG ĐIỀU CHỈNH (NGUỒN THÔNG TIN CHÍNH):**
+\`\`\`json
+${JSON.stringify(correctedReport, null, 2)}
+\`\`\`
+
+**TÀI LIỆU GỐC (DÙNG ĐỂ THAM KHẢO CHI TIẾT):**
+${filesContent}
+
+**YÊU CẦU:**
+Dựa trên báo cáo đã được điều chỉnh ở trên làm nguồn thông tin chính xác nhất, hãy tiến hành phân tích lại toàn diện và trả về một đối tượng báo cáo JSON hoàn chỉnh và mới.`;
+
+    const allParts: Part[] = [...multimodalParts, { text: promptText }];
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: { parts: allParts },
+      config: {
+        systemInstruction: REANALYSIS_SYSTEM_INSTRUCTION,
+        responseMimeType: "application/json",
+        responseSchema: REPORT_SCHEMA,
+        temperature: 0.2,
+      },
+    });
+
+    if (!response || typeof response.text !== 'string' || !response.text.trim()) {
+        throw new Error("AI không trả về nội dung phân tích lại JSON hợp lệ.");
+    }
+    const jsonText = response.text.trim().replace(/^```json\s*|```$/g, '');
+    const newReport = JSON.parse(jsonText);
+
+    // Preserve user-added laws and chat history from the corrected report
+    newReport.userAddedLaws = correctedReport.userAddedLaws || [];
+    newReport.prospectsChat = correctedReport.prospectsChat || [];
+    newReport.gapAnalysisChat = correctedReport.gapAnalysisChat || [];
+    newReport.strategyChat = correctedReport.strategyChat || [];
+    newReport.resolutionPlanChat = correctedReport.resolutionPlanChat || [];
+    
+    return newReport;
+  } catch (error) {
+    throw handleGeminiError(error, 'phân tích lại hồ sơ');
+  }
+};
+
 
 export const analyzeConsultingCase = async (
     files: UploadedFile[],
