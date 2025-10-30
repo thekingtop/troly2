@@ -151,6 +151,8 @@ export interface AnalysisReport {
   intelligentSearchChat?: ChatMessage[]; // For Intelligent Q&A
   argumentGraph?: ArgumentGraph; // Data for the Argument Map
   opponentAnalysis?: OpponentArgument[]; // For Opponent Argument Analysis
+  applicableLawsChat?: ChatMessage[];
+  contingencyPlanChat?: ChatMessage[];
 }
 
 // --- New Consulting Report Structure ---
