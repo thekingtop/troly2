@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import type { CaseTimelineEvent } from '../types.ts';
 
 // --- Icon Components for Event Types ---
@@ -9,7 +9,7 @@ const ContractIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 );
 const PaymentIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125h16.5c.621 0 1.125.504 1.125 1.125v.375m-18 0h18M12 12.75h.008v.008H12v-.008Zm0 3h.008v.008H12v-.008Zm-3-3h.008v.008H9v-.008Zm0 3h.008v.008H9v-.008Zm-3-3h.008v.008H6v-.008Zm0 3h.008v.008H6v-.008Zm9-3h.008v.008H15v-.008Zm0 3h.008v.008H15v-.008Z" />
     </svg>
 );
 const CommunicationIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
@@ -24,106 +24,130 @@ const LegalActionIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 );
 const MilestoneIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 18.75h-9a9 9 0 1 0 9 0Z M16.5 18.75h-9a9 9 0 1 1 9 0ZM12 12.75V18m0-12.75v-.008" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Zm0 0c0 1.657 1.007 3 2.25 3S21 13.657 21 12a9 9 0 1 0-2.636 6.364M16.5 12V8.25" />
     </svg>
 );
 const OtherIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" />
     </svg>
 );
 
-const eventMeta: Record<CaseTimelineEvent['eventType'], { icon: React.ReactNode; color: string; }> = {
-    Contract: { icon: <ContractIcon className="w-5 h-5"/>, color: 'border-purple-500' },
-    Payment: { icon: <PaymentIcon className="w-5 h-5"/>, color: 'border-green-500' },
-    Communication: { icon: <CommunicationIcon className="w-5 h-5"/>, color: 'border-blue-500' },
-    LegalAction: { icon: <LegalActionIcon className="w-5 h-5"/>, color: 'border-red-500' },
-    Milestone: { icon: <MilestoneIcon className="w-5 h-5"/>, color: 'border-amber-500' },
-    Other: { icon: <OtherIcon className="w-5 h-5"/>, color: 'border-slate-500' },
-};
-
-const significanceLabels: Record<CaseTimelineEvent['significance'], string> = {
-    High: 'Cao',
-    Medium: 'Trung bình',
-    Low: 'Thấp',
-};
-
 const HighlightedText: React.FC<{ text: string | undefined; term: string }> = React.memo(({ text, term }) => {
-    if (!term.trim() || !text) return <>{text}</>;
+    if (!term.trim() || !text) {
+        return <>{text}</>;
+    }
     const escapedTerm = term.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
     const regex = new RegExp(`(${escapedTerm})`, 'gi');
     const parts = text.split(regex);
     return (
         <>
             {parts.map((part, i) =>
-                regex.test(part) ? <mark key={i} className="bg-yellow-300 text-yellow-900 px-0.5 rounded-sm">{part}</mark> : <React.Fragment key={i}>{part}</React.Fragment>
+                regex.test(part) ? (
+                    <mark key={i} className="bg-yellow-300 text-yellow-900 px-0.5 rounded-sm">{part}</mark>
+                ) : (
+                    <React.Fragment key={i}>{part}</React.Fragment>
+                )
             )}
         </>
     );
 });
 
-
-const TimelineEventCard: React.FC<{ event: CaseTimelineEvent; isLeft: boolean; highlightTerm: string }> = ({ event, isLeft, highlightTerm }) => {
-    const { icon, color } = eventMeta[event.eventType] || eventMeta.Other;
-    
-    const significanceClasses: Record<CaseTimelineEvent['significance'], string> = {
-        High: 'bg-red-100 text-red-800 border-red-200',
-        Medium: 'bg-amber-100 text-amber-800 border-amber-200',
-        Low: 'bg-slate-100 text-slate-800 border-slate-200',
-    };
-
-    const cardPosition = isLeft ? 'text-right' : 'text-left';
-
-    return (
-        <div className={`w-[calc(50%-1.25rem)] mb-8 flex flex-col items-stretch ${isLeft ? 'self-start' : 'self-end'}`}>
-             <div className="relative p-4 bg-white border rounded-lg soft-shadow">
-                <div className={`absolute top-3 ${isLeft ? 'right-3' : 'left-3'}`}>
-                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${significanceClasses[event.significance]}`}>
-                        <HighlightedText text={significanceLabels[event.significance]} term={highlightTerm} />
-                    </span>
-                </div>
-                <div className="flex items-center gap-3 mb-2">
-                    <span className={`flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 ${color}`}>
-                        {icon}
-                    </span>
-                    <time className="font-bold text-slate-800 text-base">
-                        <HighlightedText text={event.date} term={highlightTerm} />
-                    </time>
-                </div>
-                <p className="text-sm text-slate-700 my-2">
-                    <HighlightedText text={event.description} term={highlightTerm} />
-                </p>
-                <p className="text-xs text-slate-500 italic mt-2">
-                    Nguồn: <HighlightedText text={event.sourceDocument} term={highlightTerm} />
-                </p>
-                <div className={`absolute top-1/2 -mt-2 w-4 h-4 bg-white border transform rotate-45 ${isLeft ? 'right-[-8.5px] border-t border-r' : 'left-[-8.5px] border-b border-l'}`}></div>
-            </div>
-        </div>
-    );
+const getEventMeta = (type: CaseTimelineEvent['eventType']) => {
+    switch (type) {
+        case 'Contract': return { icon: <ContractIcon className="w-5 h-5" />, color: 'bg-indigo-500' };
+        case 'Payment': return { icon: <PaymentIcon className="w-5 h-5" />, color: 'bg-green-500' };
+        case 'Communication': return { icon: <CommunicationIcon className="w-5 h-5" />, color: 'bg-sky-500' };
+        case 'LegalAction': return { icon: <LegalActionIcon className="w-5 h-5" />, color: 'bg-red-500' };
+        case 'Milestone': return { icon: <MilestoneIcon className="w-5 h-5" />, color: 'bg-amber-500' };
+        default: return { icon: <OtherIcon className="w-5 h-5" />, color: 'bg-slate-500' };
+    }
 };
 
-
-export const CaseTimeline: React.FC<{ events: CaseTimelineEvent[]; highlightTerm: string }> = ({ events, highlightTerm }) => {
-    if (!events || events.length === 0) {
-        return <p className="text-slate-500 text-center py-4">Không có sự kiện nào được tìm thấy trong dòng thời gian.</p>;
+const getSignificanceClasses = (significance: CaseTimelineEvent['significance']) => {
+    switch (significance) {
+        case 'High': return 'border-red-500 bg-red-50';
+        case 'Medium': return 'border-amber-500 bg-amber-50';
+        case 'Low': return 'border-slate-400 bg-slate-50';
+        default: return 'border-slate-400 bg-slate-50';
     }
-    
-    // Sort events by date just in case they aren't already
-    const sortedEvents = [...events].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+};
 
-    return (
-        <div className="relative wrap p-4">
-            <div className="absolute left-1/2 -translate-x-1/2 h-full border-2 border-slate-200 border-dashed rounded-full"></div>
-            <div className="flex flex-col items-stretch">
-                {sortedEvents.map((event, index) => (
-                    <TimelineEventCard
-                        key={index}
-                        event={event}
-                        isLeft={index % 2 === 0}
-                        highlightTerm={highlightTerm}
-                    />
-                ))}
+interface CaseTimelineProps {
+  events: CaseTimelineEvent[];
+  highlightTerm: string;
+  onUpdateEvents: (updatedEvents: CaseTimelineEvent[]) => void;
+}
+
+export const CaseTimeline: React.FC<CaseTimelineProps> = ({ events, highlightTerm, onUpdateEvents }) => {
+  const dragItem = useRef<number | null>(null);
+  const [dragOverItemIndex, setDragOverItemIndex] = useState<number | null>(null);
+  const [draggedItemIndex, setDraggedItemIndex] = useState<number | null>(null);
+
+  const handleSort = () => {
+    if (dragItem.current === null || dragOverItemIndex === null || dragItem.current === dragOverItemIndex) return;
+    
+    const eventsCopy = [...events];
+    const draggedItemContent = eventsCopy.splice(dragItem.current, 1)[0];
+    eventsCopy.splice(dragOverItemIndex, 0, draggedItemContent);
+    
+    dragItem.current = null;
+    
+    onUpdateEvents(eventsCopy);
+  };
+
+  return (
+    <div className="relative pl-8" onDragLeave={() => setDragOverItemIndex(null)}>
+      <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-slate-200"></div>
+      {events.map((event, index) => {
+        const meta = getEventMeta(event.eventType);
+        const significanceClasses = getSignificanceClasses(event.significance);
+        const isItemDragging = draggedItemIndex === index;
+        const isDragOver = dragOverItemIndex === index;
+        const itemClasses = `relative mb-6 p-4 rounded-lg cursor-grab active:cursor-grabbing border-l-4 transition-all duration-200 ${significanceClasses} ${isItemDragging ? 'dragging' : ''} ${isDragOver ? 'drag-placeholder' : ''}`;
+
+        return (
+          <div 
+            key={`${event.date}-${index}`}
+            draggable
+            onDragStart={() => {
+              dragItem.current = index;
+              setDraggedItemIndex(index);
+            }}
+            onDragEnter={(e) => {
+              e.preventDefault();
+              setDragOverItemIndex(index);
+            }}
+            onDragEnd={() => {
+              handleSort();
+              setDraggedItemIndex(null);
+              setDragOverItemIndex(null);
+            }}
+            onDragOver={(e) => e.preventDefault()}
+            className={itemClasses}
+          >
+            <div className={`absolute -left-[34px] top-1/2 -translate-y-1/2 flex items-center justify-center w-6 h-6 rounded-full text-white ${meta.color}`}>
+              {meta.icon}
             </div>
-        </div>
-    );
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="font-bold text-slate-800 text-sm">
+                  <HighlightedText text={event.date} term={highlightTerm} />
+                </p>
+                <p className="text-slate-700 mt-1">
+                  <HighlightedText text={event.description} term={highlightTerm} />
+                </p>
+              </div>
+              <span className="text-xs font-semibold text-slate-500 bg-slate-200/70 px-2 py-1 rounded-full flex-shrink-0 ml-4">
+                <HighlightedText text={event.eventType} term={highlightTerm} />
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-2">
+              <span className="font-semibold">Nguồn:</span> <HighlightedText text={event.sourceDocument} term={highlightTerm} />
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  );
 };
