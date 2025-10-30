@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { FileUpload } from './components/FileUpload.tsx';
 import { ReportDisplay } from './components/ReportDisplay.tsx';
 import { Loader } from './components/Loader.tsx';
-import { analyzeCaseFiles, generateContextualDocument, categorizeMultipleFiles, generateReportSummary, refineText, extractSummariesFromFiles } from './services/geminiService.ts';
+import { analyzeCaseFiles, generateContextualDocument, categorizeMultipleFiles, generateReportSummary, refineText, extractSummariesFromFiles, reanalyzeCaseWithCorrections } from './services/geminiService.ts';
 import { db, getAllCasesSorted, saveCase, deleteCaseById, clearAndBulkAddCases } from './services/db.ts';
 import type { AnalysisReport, UploadedFile, SavedCase, SerializableFile, LitigationStage, LitigationType, FileCategory, ApplicableLaw, LegalLoophole, ParagraphGenerationOptions } from './types.ts';
 import { ConsultingWorkflow } from './components/ConsultingWorkflow.tsx';
@@ -217,6 +217,7 @@ const App: React.FC = () => {
   const [mainAction, setMainAction] = useState<MainAction>({ text: 'Phân tích Vụ việc', disabled: true, action: 'analyze', loadingText: 'Đang phân tích...' });
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [isReanalyzing, setIsReanalyzing] = useState(false);
   
   // --- Contextual Drafting State ---
   const [draftRequest, setDraftRequest] = useState('');
@@ -263,6 +264,7 @@ const App: React.FC = () => {
     setDraftError(null);
     setDraftOptions({ detail: 'detailed' });
     setIsLoading(false);
+    setIsReanalyzing(false);
     setIsProcessing(false);
     setIsPreprocessingFinished(false);
     setCaseContentForDisplay('');
@@ -345,7 +347,9 @@ const App: React.FC = () => {
 
             setProgress(currentProgress);
 
-            if (currentProgress < 10) {
+            if (isReanalyzing) {
+                setProgressMessage('AI đang phân tích lại dựa trên các điều chỉnh của bạn...');
+            } else if (currentProgress < 10) {
                 setProgressMessage('Đang khởi tạo môi trường phân tích...');
             } else if (currentProgress < 40) {
                 setProgressMessage('AI đang đọc và liên kết dữ liệu từ các tệp...');
@@ -376,7 +380,7 @@ const App: React.FC = () => {
     return () => {
         if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
     };
-  }, [isLoading]);
+  }, [isLoading, isReanalyzing]);
   
   const performMainAnalysis = useCallback(async (filesToAnalyze: UploadedFile[]) => {
     setIsLoading(true);
@@ -513,6 +517,35 @@ const App: React.FC = () => {
       setIsLoading(false);
     }
   }, [originalReport, currentLitigationType, currentLitigationStage, files, query]);
+
+  const handleReanalyzeWithCorrections = useCallback(async (correctedReport: AnalysisReport) => {
+    if (!correctedReport) {
+        setError("Không có báo cáo để phân tích lại.");
+        return;
+    }
+    setIsReanalyzing(true);
+    setError(null);
+    setReport(null); // Clear the report to show a loading state for reanalysis
+    
+    setIsLoading(true); // Re-use isLoading for progress bar
+    setProgress(0);
+
+    try {
+        const reanalysisResult = await reanalyzeCaseWithCorrections(correctedReport, files);
+        setReport(reanalysisResult);
+        setOriginalReport(reanalysisResult); // Update the base for future updates
+        alert("Báo cáo đã được phân tích lại và cập nhật thành công!");
+    } catch (err) {
+        console.error(err);
+        setError(err instanceof Error ? err.message : "Đã xảy ra lỗi không xác định khi phân tích lại.");
+        setReport(correctedReport); // Restore the corrected report if re-analysis fails
+        setOriginalReport(correctedReport);
+    } finally {
+        setIsReanalyzing(false);
+        setIsLoading(false); // Stop the progress bar
+    }
+}, [files]);
+
 
   const handleMainActionClick = () => {
     if (mainAction.action === 'analyze') handleStartFileProcessing();
@@ -923,6 +956,8 @@ const App: React.FC = () => {
                                             onUpdateReport={handleUpdateReport}
                                             caseSummary={caseContentForDisplay}
                                             clientRequestSummary={clientRequestForDisplay}
+                                            onReanalyze={handleReanalyzeWithCorrections}
+                                            isReanalyzing={isReanalyzing || isLoading}
                                         />
                                        
                                         {showStageSuggestions && currentStageSuggestions.actions.length > 0 && (
