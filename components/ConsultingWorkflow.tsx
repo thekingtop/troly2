@@ -256,7 +256,8 @@ export const ConsultingWorkflow: React.FC<ConsultingWorkflowProps> = ({ onPrevie
         }
     };
     
-    const isAnalyzeDisabled = isAnalyzing || isProcessing || isSummarizingField || (files.length === 0 && !disputeContent.trim() && !clientRequest.trim());
+// FIX: Coerce `isSummarizingField` to a boolean to ensure `isAnalyzeDisabled` is always a boolean.
+    const isAnalyzeDisabled = isAnalyzing || isProcessing || !!isSummarizingField || (files.length === 0 && !disputeContent.trim() && !clientRequest.trim());
 
     return (
         <div className="animate-fade-in">

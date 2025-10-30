@@ -13,6 +13,7 @@ import {
     SUMMARY_EXTRACTION_SYSTEM_INSTRUCTION,
     SUMMARY_EXTRACTION_SCHEMA,
     CONTEXTUAL_CHAT_SYSTEM_INSTRUCTION,
+    INTELLIGENT_SEARCH_SYSTEM_INSTRUCTION,
     ARGUMENT_GENERATION_SYSTEM_INSTRUCTION,
     ARGUMENT_NODE_CHAT_SYSTEM_INSTRUCTION,
     nodeTypeMeta
@@ -385,7 +386,8 @@ Dựa trên báo cáo đã được điều chỉnh ở trên làm nguồn thôn
     newReport.gapAnalysisChat = correctedReport.gapAnalysisChat || [];
     newReport.strategyChat = correctedReport.strategyChat || [];
     newReport.resolutionPlanChat = correctedReport.resolutionPlanChat || [];
-    
+    newReport.intelligentSearchChat = correctedReport.intelligentSearchChat || [];
+
     return newReport;
   } catch (error) {
     throw handleGeminiError(error, 'phân tích lại hồ sơ');
@@ -724,7 +726,7 @@ export const continueContextualChat = async (
 ): Promise<string> => {
   try {
     // Exclude chat histories from the context to prevent redundancy and save tokens
-    const { prospectsChat, gapAnalysisChat, strategyChat, resolutionPlanChat, ...reportContext } = report;
+    const { prospectsChat, gapAnalysisChat, strategyChat, resolutionPlanChat, intelligentSearchChat, ...reportContext } = report;
 
     const conversationHistoryPrompt = chatHistory
       .map(msg => `${msg.role === 'user' ? 'Luật sư' : 'Trợ lý AI'}: ${msg.content}`)
@@ -766,6 +768,62 @@ TRỢ LÝ AI:
   } catch (error) {
     throw handleGeminiError(error, `trao đổi về "${contextTitle}"`);
   }
+};
+
+export const intelligentSearchQuery = async (
+  report: AnalysisReport,
+  files: UploadedFile[],
+  chatHistory: ChatMessage[],
+  newUserQuery: string
+): Promise<string> => {
+    try {
+        const { fileContentParts, multimodalParts } = await getFileContentParts(files);
+        const filesContent = fileContentParts.length > 0 ? fileContentParts.join('\n\n') : 'Không có tệp nào được tải lên.';
+
+        // Exclude chat histories from the context to prevent redundancy
+        const { prospectsChat, gapAnalysisChat, strategyChat, resolutionPlanChat, intelligentSearchChat, ...reportContext } = report;
+
+        const conversationHistoryPrompt = chatHistory
+          .map(msg => `${msg.role === 'user' ? 'Luật sư' : 'Trợ lý AI'}: ${msg.content}`)
+          .join('\n');
+
+        const prompt = `**BỐI CẢNH VỤ VIỆC**
+
+1.  **BÁO CÁO PHÂN TÍCH (JSON):**
+    \`\`\`json
+    ${JSON.stringify(reportContext, null, 2)}
+    \`\`\`
+
+2.  **TÓM TẮT NỘI DUNG TÀI LIỆU:**
+    ${filesContent}
+
+**LỊCH SỬ TRAO ĐỔI:**
+---
+${conversationHistoryPrompt}
+---
+
+**CÂU HỎI MỚI CỦA LUẬT SƯ:**
+${newUserQuery}
+`;
+
+        const allParts: Part[] = [...multimodalParts, { text: prompt }];
+
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: { parts: allParts },
+            config: {
+                systemInstruction: INTELLIGENT_SEARCH_SYSTEM_INSTRUCTION,
+                temperature: 0.3,
+            }
+        });
+
+        if (!response || typeof response.text !== 'string') {
+            throw new Error("AI không thể trả lời câu hỏi của bạn.");
+        }
+        return response.text.trim();
+    } catch (error) {
+        throw handleGeminiError(error, 'hỏi đáp về hồ sơ');
+    }
 };
 
 export const generateArgumentText = async (

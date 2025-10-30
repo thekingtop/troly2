@@ -2,9 +2,9 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { FileUpload } from './components/FileUpload.tsx';
 import { ReportDisplay } from './components/ReportDisplay.tsx';
 import { Loader } from './components/Loader.tsx';
-import { analyzeCaseFiles, generateContextualDocument, categorizeMultipleFiles, generateReportSummary, refineText, extractSummariesFromFiles, reanalyzeCaseWithCorrections } from './services/geminiService.ts';
+import { analyzeCaseFiles, generateContextualDocument, categorizeMultipleFiles, generateReportSummary, refineText, extractSummariesFromFiles, reanalyzeCaseWithCorrections, intelligentSearchQuery } from './services/geminiService.ts';
 import { db, getAllCasesSorted, saveCase, deleteCaseById, clearAndBulkAddCases } from './services/db.ts';
-import type { AnalysisReport, UploadedFile, SavedCase, SerializableFile, LitigationStage, LitigationType, FileCategory, ApplicableLaw, LegalLoophole, ParagraphGenerationOptions } from './types.ts';
+import type { AnalysisReport, UploadedFile, SavedCase, SerializableFile, LitigationStage, LitigationType, FileCategory, ApplicableLaw, LegalLoophole, ParagraphGenerationOptions, ChatMessage } from './types.ts';
 import { ConsultingWorkflow } from './components/ConsultingWorkflow.tsx';
 import { AnalysisIcon } from './components/icons/AnalysisIcon.tsx';
 import { PreviewModal } from './components/PreviewModal.tsx';
@@ -28,6 +28,8 @@ import { DocumentIcon } from './components/icons/DocumentIcon.tsx';
 import { ProcessingProgress } from './components/ProcessingProgress.tsx';
 import { ArgumentMapView } from './components/ArgumentMapView.tsx';
 import { ArgumentMapIcon } from './components/icons/ArgumentMapIcon.tsx';
+import { IntelligentSearch } from './components/IntelligentSearch.tsx';
+import { QuestionIcon } from './components/icons/QuestionIcon.tsx';
 
 
 // Declare global variables from CDN scripts to satisfy TypeScript
@@ -37,7 +39,7 @@ declare var jspdf: any;
 declare var html2canvas: any;
 
 type MainActionType = 'analyze' | 'update' | 'none';
-type View = 'caseInfo' | 'dashboard' | 'fileManagement' | 'calendar' | 'caseAnalysis' | 'client' | 'documentGenerator' | 'quickDraft' | 'argumentMap';
+type View = 'caseInfo' | 'dashboard' | 'fileManagement' | 'calendar' | 'caseAnalysis' | 'client' | 'documentGenerator' | 'quickDraft' | 'argumentMap' | 'intelligentSearch';
 
 
 interface MainAction {
@@ -95,6 +97,7 @@ const base64ToFile = (base64: string, filename: string, mimeType: string): File 
   
 const navItems = [
     { id: 'caseAnalysis', icon: AnalysisIcon, label: 'Phân tích Vụ việc' },
+    { id: 'intelligentSearch', icon: QuestionIcon, label: 'Hỏi đáp Thông minh' },
     { id: 'argumentMap', icon: ArgumentMapIcon, label: 'Bản đồ Lập luận' },
     { id: 'documentGenerator', icon: DocumentIcon, label: 'Soạn thảo Văn bản' },
     { id: 'quickDraft', icon: MagicIcon, label: 'Soạn thảo Nhanh' },
@@ -230,6 +233,11 @@ const App: React.FC = () => {
   const [isDrafting, setIsDrafting] = useState(false);
   const [isRefining, setIsRefining] = useState<'concise' | 'detailed' | null>(null);
   const [draftError, setDraftError] = useState<string | null>(null);
+  
+  // --- Intelligent Search State ---
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+
 
   // --- UI State ---
   const [activeView, setActiveView] = useState<View>('caseAnalysis');
@@ -269,6 +277,7 @@ const App: React.FC = () => {
     setIsPreprocessingFinished(false);
     setCaseContentForDisplay('');
     setClientRequestForDisplay('');
+    setSearchError(null);
 
     setActiveView('caseAnalysis');
     const defaultLitigationType: LitigationType = 'civil';
@@ -545,6 +554,40 @@ const App: React.FC = () => {
         setIsLoading(false); // Stop the progress bar
     }
 }, [files]);
+
+ const handleIntelligentSearch = useCallback(async (userQuery: string) => {
+    if (!report) {
+        setSearchError("Không có báo cáo nào để thực hiện tìm kiếm.");
+        return;
+    }
+    setSearchError(null);
+    setIsSearching(true);
+    
+    const newUserMessage: ChatMessage = { role: 'user', content: userQuery };
+    const currentChat = report.intelligentSearchChat || [];
+    const updatedChatHistory = [...currentChat, newUserMessage];
+
+    // Optimistically update the UI
+    const updatedReport = { ...report, intelligentSearchChat: updatedChatHistory };
+    setReport(updatedReport);
+    setOriginalReport(updatedReport);
+    
+    try {
+        const aiResponse = await intelligentSearchQuery(report, files, updatedChatHistory, userQuery);
+        const aiMessage: ChatMessage = { role: 'model', content: aiResponse };
+        const finalChatHistory = [...updatedChatHistory, aiMessage];
+        
+        const finalReport = { ...report, intelligentSearchChat: finalChatHistory };
+        setReport(finalReport);
+        setOriginalReport(finalReport);
+    } catch (err) {
+        const message = err instanceof Error ? err.message : "Lỗi không xác định";
+        setSearchError(message);
+        // Revert the optimistic update on error if needed, or show error in UI
+    } finally {
+        setIsSearching(false);
+    }
+}, [report, files]);
 
 
   const handleMainActionClick = () => {
@@ -1065,6 +1108,8 @@ const App: React.FC = () => {
                 );
             case 'argumentMap':
                 return <ArgumentMapView report={report} onUpdateReport={handleUpdateReport} />;
+            case 'intelligentSearch':
+                return <IntelligentSearch report={report} onSearch={handleIntelligentSearch} isLoading={isSearching} error={searchError} />;
             case 'documentGenerator':
                 return <div className="flex-1 overflow-y-auto"><DocumentGenerator /></div>;
             case 'quickDraft':

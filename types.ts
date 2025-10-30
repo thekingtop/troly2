@@ -131,6 +131,7 @@ export interface AnalysisReport {
   gapAnalysisChat?: ChatMessage[]; // For Gap Analysis chat
   strategyChat?: ChatMessage[]; // For Proposed Strategy chat
   resolutionPlanChat?: ChatMessage[]; // For Request Resolution Plan chat
+  intelligentSearchChat?: ChatMessage[]; // For Intelligent Q&A
   argumentGraph?: ArgumentGraph; // Data for the Argument Map
 }
 
