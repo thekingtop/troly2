@@ -20,8 +20,6 @@ import {
     OPPONENT_ANALYSIS_SCHEMA,
     nodeTypeMeta,
     DRAFTING_MODE_LABELS,
-    PARTICIPANT_IDENTIFICATION_SYSTEM_INSTRUCTION,
-    PARTICIPANT_IDENTIFICATION_SCHEMA
 } from '../constants.ts';
 
 const API_KEY = import.meta.env.VITE_API_KEY;
@@ -256,49 +254,9 @@ export const categorizeMultipleFiles = async (files: File[]): Promise<Record<str
     }
 };
 
-export const identifyChatParticipants = async (files: UploadedFile[]): Promise<string[]> => {
-    const imageFiles = files.filter(f => f.file.type.startsWith('image/'));
-    if (imageFiles.length === 0) {
-        return [];
-    }
-
-    try {
-        const imageParts: Part[] = await Promise.all(
-            imageFiles.map(f => fileToGenerativePart(f.file))
-        );
-        
-        const promptText = "Please analyze these chat screenshots and identify all unique participant names. Return only the JSON object with the names.";
-
-        const allParts: Part[] = [...imageParts, { text: promptText }];
-
-        const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: { parts: allParts },
-            config: {
-                systemInstruction: PARTICIPANT_IDENTIFICATION_SYSTEM_INSTRUCTION,
-                responseMimeType: "application/json",
-                responseSchema: PARTICIPANT_IDENTIFICATION_SCHEMA,
-                temperature: 0,
-            },
-        });
-
-        if (!response || typeof response.text !== 'string' || !response.text.trim()) {
-            throw new Error("AI không trả về dữ liệu người tham gia hợp lệ.");
-        }
-        const jsonText = response.text.trim().replace(/^```json\s*|```$/g, '');
-        const result = JSON.parse(jsonText);
-        
-        return [...new Set<string>(result.participants || [])];
-
-    } catch (error) {
-        throw handleGeminiError(error, 'nhận diện các bên trong cuộc trò chuyện');
-    }
-};
-
-
 export const extractSummariesFromFiles = async (
   files: UploadedFile[],
-  clientName?: string | null
+  clientPosition?: 'left' | 'right' | null
 ): Promise<{ caseSummary: string; clientRequestSummary: string }> => {
   try {
     const { fileContentParts, multimodalParts } = await getFileContentParts(files);
@@ -310,8 +268,9 @@ export const extractSummariesFromFiles = async (
     const filesContent = fileContentParts.join('\n\n');
     
     let clientContext = '';
-    if (clientName) {
-        clientContext = `\n\n**Bối cảnh quan trọng:** Phân tích này là để bảo vệ quyền lợi cho thân chủ là **"${clientName}"**. Mọi tóm tắt, đặc biệt là phần "Yêu cầu của khách hàng", cần được nhìn nhận từ góc độ của họ.`;
+    if (clientPosition) {
+        const positionText = clientPosition === 'left' ? 'bên TRÁI' : 'bên PHẢI';
+        clientContext = `\n\n**Bối cảnh quan trọng:** Phân tích này là để bảo vệ quyền lợi cho thân chủ. Trong các hình ảnh tin nhắn, thân chủ là người có tin nhắn hiển thị ở **${positionText}**. Mọi tóm tắt, đặc biệt là phần "Yêu cầu của khách hàng", cần được nhìn nhận từ góc độ của họ.`;
     }
 
     const promptText = `Vui lòng phân tích các tài liệu sau đây và trích xuất tóm tắt diễn biến vụ việc và yêu cầu của khách hàng.${clientContext}\n\n**Hồ sơ tài liệu đính kèm:**\n${filesContent}`;
@@ -354,7 +313,7 @@ export const analyzeCaseFiles = async (
   files: UploadedFile[],
   query: string,
   updateContext?: AnalysisUpdateContext,
-  clientName?: string | null
+  clientPosition?: 'left' | 'right' | null
 ): Promise<AnalysisReport> => {
   try {
     const { fileContentParts, multimodalParts } = await getFileContentParts(files);
@@ -364,8 +323,9 @@ export const analyzeCaseFiles = async (
     const systemInstruction = updateContext ? ANALYSIS_UPDATE_SYSTEM_INSTRUCTION : SYSTEM_INSTRUCTION;
     
     let clientContext = '';
-    if (clientName) {
-        clientContext = `\n- Thân chủ cần bảo vệ: **${clientName}**. Toàn bộ phân tích, chiến lược, và đánh giá phải được thực hiện từ góc nhìn bảo vệ quyền và lợi ích hợp pháp tối đa cho thân chủ này.`;
+    if (clientPosition) {
+        const positionText = clientPosition === 'left' ? 'bên TRÁI' : 'bên PHẢI';
+        clientContext = `\n- Thân chủ cần bảo vệ: Trong các hình ảnh tin nhắn, thân chủ là người có tin nhắn hiển thị ở **${positionText}**. Toàn bộ phân tích, chiến lược, và đánh giá phải được thực hiện từ góc nhìn bảo vệ quyền và lợi ích hợp pháp tối đa cho thân chủ này.`;
     }
 
 
