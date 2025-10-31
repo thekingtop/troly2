@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { FileUpload } from './components/FileUpload.tsx';
 import { ReportDisplay } from './components/ReportDisplay.tsx';
 import { Loader } from './components/Loader.tsx';
-import { analyzeCaseFiles, generateContextualDocument, categorizeMultipleFiles, generateReportSummary, refineText, extractSummariesFromFiles, reanalyzeCaseWithCorrections, intelligentSearchQuery } from './services/geminiService.ts';
+import { analyzeCaseFiles, generateContextualDocument, categorizeMultipleFiles, generateReportSummary, refineText, extractSummariesFromFiles, reanalyzeCaseWithCorrections, intelligentSearchQuery, identifyChatParticipants } from './services/geminiService.ts';
 import { db, getAllCasesSorted, saveCase, deleteCaseById, clearAndBulkAddCases } from './services/db.ts';
 import type { AnalysisReport, UploadedFile, SavedCase, SerializableFile, LitigationStage, LitigationType, FileCategory, ApplicableLaw, LegalLoophole, ParagraphGenerationOptions, ChatMessage, DraftingMode } from './types.ts';
 import { ConsultingWorkflow } from './components/ConsultingWorkflow.tsx';
@@ -30,6 +30,7 @@ import { ArgumentMapView } from './components/ArgumentMapView.tsx';
 import { ArgumentMapIcon } from './components/icons/ArgumentMapIcon.tsx';
 import { IntelligentSearch } from './components/IntelligentSearch.tsx';
 import { QuestionIcon } from './components/icons/QuestionIcon.tsx';
+import { UserGroupIcon } from './components/icons/UserGroupIcon.tsx';
 
 
 // Declare global variables from CDN scripts to satisfy TypeScript
@@ -257,6 +258,12 @@ const App: React.FC = () => {
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [isReanalyzing, setIsReanalyzing] = useState(false);
+
+  // --- New Client Identification State ---
+  const [chatParticipants, setChatParticipants] = useState<string[]>([]);
+  const [selectedClient, setSelectedClient] = useState<string | null>(null);
+  const [isIdentifying, setIsIdentifying] = useState(false);
+  const [identificationError, setIdentificationError] = useState<string | null>(null);
   
   // --- Contextual Drafting State ---
   const [draftRequest, setDraftRequest] = useState('');
@@ -316,6 +323,10 @@ const App: React.FC = () => {
     setCaseContentForDisplay('');
     setClientRequestForDisplay('');
     setSearchError(null);
+    setChatParticipants([]);
+    setSelectedClient(null);
+    setIsIdentifying(false);
+    setIdentificationError(null);
 
     setActiveView('caseAnalysis');
     const defaultLitigationType: LitigationType = 'civil';
@@ -343,6 +354,12 @@ const App: React.FC = () => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+  
+  useEffect(() => {
+      setChatParticipants([]);
+      setSelectedClient(null);
+      setIdentificationError(null);
+  }, [files]);
 
   useEffect(() => {
     const checkLibs = () => {
@@ -359,19 +376,20 @@ const App: React.FC = () => {
   
   useEffect(() => {
     const isReadyForAnalysis = query.trim().length > 0 && files.length > 0;
+    const clientSelectionPending = chatParticipants.length > 0 && !selectedClient;
     const stageLabel = getStageLabel(currentLitigationType, currentLitigationStage);
 
     if (!report) {
-        setMainAction({ text: 'Bắt đầu Phân tích', disabled: !isReadyForAnalysis || isLoading, action: 'analyze', loadingText: 'Đang xử lý...' });
+        setMainAction({ text: 'Bắt đầu Phân tích', disabled: !isReadyForAnalysis || isLoading || clientSelectionPending, action: 'analyze', loadingText: 'Đang xử lý...' });
     } else {
         const isUpdatableStage = currentLitigationStage !== 'consulting' && currentLitigationStage !== 'closed';
         if (isUpdatableStage) {
-            setMainAction({ text: `Cập nhật cho GĐ: ${stageLabel}`, disabled: isLoading, action: 'update', loadingText: 'Đang cập nhật...' });
+            setMainAction({ text: `Cập nhật cho GĐ: ${stageLabel}`, disabled: isLoading || clientSelectionPending, action: 'update', loadingText: 'Đang cập nhật...' });
         } else {
             setMainAction({ text: 'Đã phân tích', disabled: true, action: 'none', loadingText: '' });
         }
     }
-  }, [report, currentLitigationStage, currentLitigationType, files, query, isLoading]);
+  }, [report, currentLitigationStage, currentLitigationType, files, query, isLoading, chatParticipants, selectedClient]);
 
   useEffect(() => {
     if (isLoading) {
@@ -429,14 +447,14 @@ const App: React.FC = () => {
     };
   }, [isLoading, isReanalyzing]);
   
-  const performMainAnalysis = useCallback(async (filesToAnalyze: UploadedFile[]) => {
+  const performMainAnalysis = useCallback(async (filesToAnalyze: UploadedFile[], clientToProtect: string | null) => {
     setIsLoading(true);
     setReport(null);
     setOriginalReport(null);
     setError(null);
 
     try {
-        const analysisResult = await analyzeCaseFiles(filesToAnalyze, query);
+        const analysisResult = await analyzeCaseFiles(filesToAnalyze, query, undefined, clientToProtect);
         analysisResult.userAddedLaws = analysisResult.userAddedLaws || [];
         setReport(analysisResult);
         setOriginalReport(analysisResult);
@@ -491,15 +509,20 @@ const App: React.FC = () => {
             setIsPreprocessingFinished(true);
         }
     } else {
-        await performMainAnalysis([]);
+        await performMainAnalysis([], selectedClient);
     }
-  }, [files, performMainAnalysis]);
+  }, [files, performMainAnalysis, selectedClient]);
   
   const handleContinueAnalysis = useCallback(async () => {
+    if (chatParticipants.length > 0 && !selectedClient) {
+        setError("Vui lòng chọn thân chủ cần bảo vệ trước khi phân tích.");
+        setIsProcessing(false); // Stop the processing flow
+        return;
+    }
     const successfulFiles = files.filter(f => f.status === 'completed');
     setIsProcessing(false);
-    await performMainAnalysis(successfulFiles);
-  }, [files, performMainAnalysis]);
+    await performMainAnalysis(successfulFiles, selectedClient);
+  }, [files, performMainAnalysis, selectedClient, chatParticipants]);
 
   const handleCancelProcessing = () => {
     setIsProcessing(false);
@@ -511,6 +534,10 @@ const App: React.FC = () => {
   const handleExtractAndDisplaySummaries = useCallback(async () => {
     if (files.length === 0) {
         setSummaryError("Vui lòng tải lên ít nhất một tệp để tóm tắt.");
+        return;
+    }
+     if (chatParticipants.length > 0 && !selectedClient) {
+        setSummaryError("Vui lòng chọn thân chủ cần bảo vệ trước khi tóm tắt.");
         return;
     }
 
@@ -534,7 +561,7 @@ const App: React.FC = () => {
         setFiles(categorizedFiles);
 
         // Step 2: Extract summaries using the now-categorized files
-        const { caseSummary, clientRequestSummary } = await extractSummariesFromFiles(categorizedFiles);
+        const { caseSummary, clientRequestSummary } = await extractSummariesFromFiles(categorizedFiles, selectedClient);
         setCaseContentForDisplay(caseSummary);
         setClientRequestForDisplay(clientRequestSummary);
     } catch (err) {
@@ -543,6 +570,33 @@ const App: React.FC = () => {
         setFiles(prev => prev.map(f => ({ ...f, status: 'failed', error: message })));
     } finally {
         setIsSummarizing(false);
+    }
+  }, [files, selectedClient, chatParticipants]);
+
+   const handleIdentifyParticipants = useCallback(async () => {
+    const imageFiles = files.filter(f => f.file.type.startsWith('image/'));
+    if (imageFiles.length === 0) {
+        setIdentificationError("Không có tệp hình ảnh nào để nhận diện. Vui lòng tải lên ảnh chụp màn hình cuộc trò chuyện.");
+        return;
+    }
+
+    setIsIdentifying(true);
+    setIdentificationError(null);
+    setChatParticipants([]);
+    setSelectedClient(null);
+
+    try {
+        const participants = await identifyChatParticipants(imageFiles);
+        if (participants.length > 0) {
+            setChatParticipants(participants);
+        } else {
+            setIdentificationError("Không thể xác định được các bên từ hình ảnh. Vui lòng đảm bảo ảnh chụp rõ ràng.");
+        }
+    } catch (err) {
+        const message = err instanceof Error ? err.message : 'Lỗi không xác định';
+        setIdentificationError(`Lỗi khi nhận diện: ${message}`);
+    } finally {
+        setIsIdentifying(false);
     }
   }, [files]);
 
@@ -554,7 +608,7 @@ const App: React.FC = () => {
       const updatedReport = await analyzeCaseFiles(files, query, {
         report: originalReport,
         stage: getStageLabel(currentLitigationType, currentLitigationStage)
-      });
+      }, selectedClient);
       updatedReport.userAddedLaws = originalReport.userAddedLaws || []; // Preserve user-added laws on update
       setReport(updatedReport); setOriginalReport(updatedReport);
       alert(`Đã cập nhật thành công cho giai đoạn: ${getStageLabel(currentLitigationType, currentLitigationStage)}`);
@@ -563,7 +617,7 @@ const App: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [originalReport, currentLitigationType, currentLitigationStage, files, query]);
+  }, [originalReport, currentLitigationType, currentLitigationStage, files, query, selectedClient]);
 
   const handleReanalyzeWithCorrections = useCallback(async (correctedReport: AnalysisReport) => {
     if (!correctedReport) {
@@ -629,7 +683,13 @@ const App: React.FC = () => {
 
 
   const handleMainActionClick = () => {
-    if (mainAction.action === 'analyze') handleStartFileProcessing();
+    if (mainAction.action === 'analyze') {
+        if (chatParticipants.length > 0 && !selectedClient) {
+            setError("Vui lòng chọn thân chủ cần bảo vệ trước khi phân tích.");
+            return;
+        }
+        handleStartFileProcessing();
+    }
     else if (mainAction.action === 'update') handleUpdateAnalysis();
   };
   
@@ -961,6 +1021,51 @@ const App: React.FC = () => {
                                 <div className="p-4 border border-slate-200 rounded-lg">
                                     <FileUpload files={files} setFiles={setFiles} onPreview={setPreviewingFile} />
                                 </div>
+
+                                <div className="p-4 border border-slate-200 rounded-lg space-y-3">
+                                    <h3 className="text-sm font-bold text-slate-900">Xác định Thân chủ (Tùy chọn)</h3>
+                                    <p className="text-xs text-slate-600">Nếu hồ sơ có ảnh chụp màn hình tin nhắn, hãy dùng chức năng này để AI phân tích đúng hướng.</p>
+                                    <button 
+                                        onClick={handleIdentifyParticipants} 
+                                        disabled={isIdentifying || files.filter(f => f.file.type.startsWith('image/')).length === 0}
+                                        className="w-full py-2 px-4 font-semibold text-sm rounded-lg transition-all duration-200 flex items-center justify-center gap-2 bg-slate-100 text-slate-800 hover:bg-slate-200 focus:ring-slate-400 border border-slate-300 disabled:opacity-50"
+                                    >
+                                        {isIdentifying ? <><Loader /><span>Đang nhận diện...</span></> : <><UserGroupIcon className="w-4 h-4" /><span>Nhận diện các bên từ ảnh</span></>}
+                                    </button>
+
+                                    {identificationError && <div className="mt-2"><Alert message={identificationError} type="error" /></div>}
+
+                                    {chatParticipants.length > 0 && (
+                                        <div className="pt-2 animate-fade-in">
+                                            <label className="block text-sm font-semibold text-slate-700 mb-2">Vui lòng chọn thân chủ cần bảo vệ:</label>
+                                            <div className="flex flex-wrap gap-2">
+                                                {chatParticipants.map(participant => {
+                                                    const inputId = `participant-${participant.replace(/\s/g, '-')}`;
+                                                    return (
+                                                        <div key={participant}>
+                                                            <input
+                                                                type="radio"
+                                                                id={inputId}
+                                                                name="clientSelection"
+                                                                value={participant}
+                                                                checked={selectedClient === participant}
+                                                                onChange={(e) => setSelectedClient(e.target.value)}
+                                                                className="sr-only"
+                                                            />
+                                                            <label
+                                                                htmlFor={inputId}
+                                                                className={`cursor-pointer px-3 py-1.5 text-sm rounded-md transition-colors border ${selectedClient === participant ? 'bg-blue-600 text-white font-semibold border-blue-600' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'}`}
+                                                            >
+                                                                <span>{participant}</span>
+                                                            </label>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
                                 <div className="p-4 rounded-lg bg-blue-50 border border-blue-200">
                                     <label htmlFor="mainQuery" className="block text-sm font-bold text-blue-900 mb-1">Yêu cầu chính cho AI</label>
                                     <p className="text-xs text-blue-800/80 mb-2">Đây là yêu cầu quan trọng nhất, quyết định hướng phân tích của AI.</p>
@@ -971,7 +1076,7 @@ const App: React.FC = () => {
                                         {isLoading ? <><Loader /><span>{mainAction.loadingText}</span></> : <span>{mainAction.text}</span>}
                                     </button>
                                     <div className="grid grid-cols-2 gap-3">
-                                        <button onClick={handleExtractAndDisplaySummaries} disabled={files.length === 0 || isLoading || isSummarizing} className="py-2.5 px-4 font-semibold text-sm rounded-lg transition-all duration-200 flex items-center justify-center gap-2 bg-slate-100 text-slate-800 hover:bg-slate-200 focus:ring-slate-400 border border-slate-300">
+                                        <button onClick={handleExtractAndDisplaySummaries} disabled={files.length === 0 || isLoading || isSummarizing || (chatParticipants.length > 0 && !selectedClient)} className="py-2.5 px-4 font-semibold text-sm rounded-lg transition-all duration-200 flex items-center justify-center gap-2 bg-slate-100 text-slate-800 hover:bg-slate-200 focus:ring-slate-400 border border-slate-300">
                                             {isSummarizing ? <><Loader /><span>Đang tóm tắt...</span></> : <><MagicIcon className="w-4 h-4" /><span>Tóm tắt Hồ sơ</span></>}
                                         </button>
                                         <button onClick={handleSaveCase} disabled={isSaving} className="py-2.5 px-4 font-semibold text-sm rounded-lg transition-all duration-200 flex items-center justify-center gap-2 bg-slate-100 text-slate-800 hover:bg-slate-200 focus:ring-slate-400 border border-slate-300">
