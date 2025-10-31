@@ -750,3 +750,17 @@ export const OPPONENT_ANALYSIS_SCHEMA = {
         required: ["argument", "weaknesses", "counterArguments", "supportingEvidence"]
     }
 };
+
+export const PARTICIPANT_IDENTIFICATION_SYSTEM_INSTRUCTION = `Bạn là một trợ lý AI chuyên phân tích hình ảnh tin nhắn trò chuyện (như Zalo, Messenger). Nhiệm vụ của bạn là xác định chính xác tên của tất cả những người tham gia cuộc trò chuyện từ các ảnh chụp màn hình được cung cấp. Bỏ qua dấu thời gian, ngày tháng và nội dung tin nhắn. Chỉ tập trung vào các tên được hiển thị là người gửi tin nhắn. Trả về tên dưới dạng đối tượng JSON.`;
+
+export const PARTICIPANT_IDENTIFICATION_SCHEMA = {
+  type: Type.OBJECT,
+  properties: {
+    participants: {
+      type: Type.ARRAY,
+      description: "Một danh sách các tên người tham gia duy nhất được xác định từ ảnh chụp màn hình trò chuyện.",
+      items: { type: Type.STRING }
+    }
+  },
+  required: ['participants']
+};
