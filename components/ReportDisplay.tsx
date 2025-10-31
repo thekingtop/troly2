@@ -437,7 +437,20 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
             </ReportSection>
 
             <ReportSection title="3. Vấn đề pháp lý cốt lõi">
-                <ul className="list-disc list-inside space-y-1.5">{report.coreLegalIssues.map((issue, index) => (<li key={index}><HighlightedText text={issue as string} term={highlightTerm} /></li>))}</ul>
+                <ul className="list-disc list-inside space-y-1.5">
+                    {report.coreLegalIssues.map((issue, index) => (
+                        <li key={index} className="flex justify-between items-start gap-2">
+                            <span><HighlightedText text={issue as string} term={highlightTerm} /></span>
+                            <button 
+                                disabled 
+                                title="Chức năng đang phát triển"
+                                className="flex-shrink-0 text-xs px-2 py-1 bg-slate-200 text-slate-500 rounded-md disabled:opacity-70 disabled:cursor-not-allowed"
+                            >
+                                Tìm án lệ
+                            </button>
+                        </li>
+                    ))}
+                </ul>
             </ReportSection>
             
             {report.requestResolutionPlan && (
