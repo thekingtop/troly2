@@ -19,7 +19,9 @@ import {
     OPPONENT_ANALYSIS_SYSTEM_INSTRUCTION,
     OPPONENT_ANALYSIS_SCHEMA,
     nodeTypeMeta,
-    DRAFTING_MODE_LABELS
+    DRAFTING_MODE_LABELS,
+    PARTICIPANT_IDENTIFICATION_SYSTEM_INSTRUCTION,
+    PARTICIPANT_IDENTIFICATION_SCHEMA
 } from '../constants.ts';
 
 const API_KEY = import.meta.env.VITE_API_KEY;
@@ -254,8 +256,49 @@ export const categorizeMultipleFiles = async (files: File[]): Promise<Record<str
     }
 };
 
+export const identifyChatParticipants = async (files: UploadedFile[]): Promise<string[]> => {
+    const imageFiles = files.filter(f => f.file.type.startsWith('image/'));
+    if (imageFiles.length === 0) {
+        return [];
+    }
+
+    try {
+        const imageParts: Part[] = await Promise.all(
+            imageFiles.map(f => fileToGenerativePart(f.file))
+        );
+        
+        const promptText = "Please analyze these chat screenshots and identify all unique participant names. Return only the JSON object with the names.";
+
+        const allParts: Part[] = [...imageParts, { text: promptText }];
+
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: { parts: allParts },
+            config: {
+                systemInstruction: PARTICIPANT_IDENTIFICATION_SYSTEM_INSTRUCTION,
+                responseMimeType: "application/json",
+                responseSchema: PARTICIPANT_IDENTIFICATION_SCHEMA,
+                temperature: 0,
+            },
+        });
+
+        if (!response || typeof response.text !== 'string' || !response.text.trim()) {
+            throw new Error("AI không trả về dữ liệu người tham gia hợp lệ.");
+        }
+        const jsonText = response.text.trim().replace(/^```json\s*|```$/g, '');
+        const result = JSON.parse(jsonText);
+        
+        return [...new Set<string>(result.participants || [])];
+
+    } catch (error) {
+        throw handleGeminiError(error, 'nhận diện các bên trong cuộc trò chuyện');
+    }
+};
+
+
 export const extractSummariesFromFiles = async (
-  files: UploadedFile[]
+  files: UploadedFile[],
+  clientName?: string | null
 ): Promise<{ caseSummary: string; clientRequestSummary: string }> => {
   try {
     const { fileContentParts, multimodalParts } = await getFileContentParts(files);
@@ -265,7 +308,13 @@ export const extractSummariesFromFiles = async (
     }
 
     const filesContent = fileContentParts.join('\n\n');
-    const promptText = `Vui lòng phân tích các tài liệu sau đây và trích xuất tóm tắt diễn biến vụ việc và yêu cầu của khách hàng.\n\n**Hồ sơ tài liệu đính kèm:**\n${filesContent}`;
+    
+    let clientContext = '';
+    if (clientName) {
+        clientContext = `\n\n**Bối cảnh quan trọng:** Phân tích này là để bảo vệ quyền lợi cho thân chủ là **"${clientName}"**. Mọi tóm tắt, đặc biệt là phần "Yêu cầu của khách hàng", cần được nhìn nhận từ góc độ của họ.`;
+    }
+
+    const promptText = `Vui lòng phân tích các tài liệu sau đây và trích xuất tóm tắt diễn biến vụ việc và yêu cầu của khách hàng.${clientContext}\n\n**Hồ sơ tài liệu đính kèm:**\n${filesContent}`;
 
     const allParts: Part[] = [...multimodalParts, { text: promptText }];
 
@@ -304,7 +353,8 @@ interface AnalysisUpdateContext {
 export const analyzeCaseFiles = async (
   files: UploadedFile[],
   query: string,
-  updateContext?: AnalysisUpdateContext
+  updateContext?: AnalysisUpdateContext,
+  clientName?: string | null
 ): Promise<AnalysisReport> => {
   try {
     const { fileContentParts, multimodalParts } = await getFileContentParts(files);
@@ -312,12 +362,18 @@ export const analyzeCaseFiles = async (
     const currentDate = new Date().toLocaleDateString('vi-VN');
     let promptText: string;
     const systemInstruction = updateContext ? ANALYSIS_UPDATE_SYSTEM_INSTRUCTION : SYSTEM_INSTRUCTION;
+    
+    let clientContext = '';
+    if (clientName) {
+        clientContext = `\n- Thân chủ cần bảo vệ: **${clientName}**. Toàn bộ phân tích, chiến lược, và đánh giá phải được thực hiện từ góc nhìn bảo vệ quyền và lợi ích hợp pháp tối đa cho thân chủ này.`;
+    }
+
 
     if (updateContext) {
-      promptText = `Cập nhật báo cáo phân tích sau đây:\n\n**BÁO CÁO HIỆN TẠI:**\n\`\`\`json\n${JSON.stringify(updateContext.report, null, 2)}\n\`\`\`\n\n**THÔNG TIN CẬP NHẬT:**\n- Giai đoạn tố tụng mới: ${updateContext.stage}\n- Yêu cầu cập nhật: "${query}"\n- Ngày hiện tại: ${currentDate}\n- Hồ sơ/Tài liệu mới: ${filesContent}\n\n**YÊU CẦU:**\nHãy tích hợp các thông tin mới và trả về một phiên bản **hoàn chỉnh và được cập nhật** của báo cáo JSON.`;
+      promptText = `Cập nhật báo cáo phân tích sau đây:\n\n**BÁO CÁO HIỆN TẠI:**\n\`\`\`json\n${JSON.stringify(updateContext.report, null, 2)}\n\`\`\`\n\n**THÔNG TIN CẬP NHẬT:**\n- Giai đoạn tố tụng mới: ${updateContext.stage}\n- Yêu cầu cập nhật: "${query}"${clientContext}\n- Ngày hiện tại: ${currentDate}\n- Hồ sơ/Tài liệu mới: ${filesContent}\n\n**YÊU CẦU:**\nHãy tích hợp các thông tin mới và trả về một phiên bản **hoàn chỉnh và được cập nhật** của báo cáo JSON.`;
     } else {
       const effectiveFilesContent = fileContentParts.length > 0 ? fileContentParts.join('\n\n') : 'Không có tệp nào được tải lên.';
-      promptText = `Phân tích thông tin vụ việc và trả về báo cáo JSON.\n\n**THÔNG TIN VỤ VIỆC:**\n\n**A. Bối cảnh & Yêu cầu:**\n- Ngày hiện tại: ${currentDate}.\n- Yêu cầu của luật sư (Mục tiêu phân tích): **${query}**\n\n**B. Hồ sơ tài liệu đính kèm:**\n${effectiveFilesContent}\n\n**YÊU CẦU ĐẦU RA:**\nTrả về báo cáo dưới dạng một đối tượng JSON duy nhất, hợp lệ, tuân thủ cấu trúc đã định nghĩa.`;
+      promptText = `Phân tích thông tin vụ việc và trả về báo cáo JSON.\n\n**THÔNG TIN VỤ VIỆC:**\n\n**A. Bối cảnh & Yêu cầu:**\n- Ngày hiện tại: ${currentDate}.\n- Yêu cầu của luật sư (Mục tiêu phân tích): **${query}**${clientContext}\n\n**B. Hồ sơ tài liệu đính kèm:**\n${effectiveFilesContent}\n\n**YÊU CẦU ĐẦU RA:**\nTrả về báo cáo dưới dạng một đối tượng JSON duy nhất, hợp lệ, tuân thủ cấu trúc đã định nghĩa.`;
     }
 
     const allParts: Part[] = [...multimodalParts, { text: promptText }];
