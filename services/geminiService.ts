@@ -325,12 +325,12 @@ export const analyzeCaseFiles = async (
     let clientContext = '';
     if (clientPosition) {
         const positionText = clientPosition === 'left' ? 'bên TRÁI' : 'bên PHẢI';
-        clientContext = `\n- Thân chủ cần bảo vệ: Trong các hình ảnh tin nhắn, thân chủ là người có tin nhắn hiển thị ở **${positionText}**. Toàn bộ phân tích, chiến lược, và đánh giá phải được thực hiện từ góc nhìn bảo vệ quyền và lợi ích hợp pháp tối đa cho thân chủ này.`;
+        clientContext = `\n\n**CRITICAL ANALYSIS DIRECTIVE:**\n- **Client Identification:** In any provided chat screenshots, our client is the person whose messages appear on the **${positionText.toUpperCase()}** side.\n- **Your Perspective:** Your entire analysis, from timeline construction to strategy, MUST be conducted from the perspective of ADVOCATING FOR and PROTECTING this specific client. This directive is absolute and overrides any other assumptions about the client's identity.`;
     }
 
 
     if (updateContext) {
-      promptText = `Cập nhật báo cáo phân tích sau đây:\n\n**BÁO CÁO HIỆN TẠI:**\n\`\`\`json\n${JSON.stringify(updateContext.report, null, 2)}\n\`\`\`\n\n**THÔNG TIN CẬP NHẬT:**\n- Giai đoạn tố tụng mới: ${updateContext.stage}\n- Yêu cầu cập nhật: "${query}"${clientContext}\n- Ngày hiện tại: ${currentDate}\n- Hồ sơ/Tài liệu mới: ${filesContent}\n\n**YÊU CẦU:**\nHãy tích hợp các thông tin mới và trả về một phiên bản **hoàn chỉnh và được cập nhật** của báo cáo JSON.`;
+      promptText = `Cập nhật báo cáo phân tích sau đây:\n\n**BÁO CÁO HIỆN TẠI:**\n\`\`\`json\n${JSON.stringify(updateContext.report, null, 2)}\n\`\`\`\n\n**THÔNG TIN CẬP NHẬT:**\n- Giai đoạn tố tụng mới: ${updateContext.stage}\n- Yêu cầu cập nhật: "${query}"\n- Ngày hiện tại: ${currentDate}${clientContext}\n- Hồ sơ/Tài liệu mới: ${filesContent}\n\n**YÊU CẦU:**\nHãy tích hợp các thông tin mới và trả về một phiên bản **hoàn chỉnh và được cập nhật** của báo cáo JSON.`;
     } else {
       const effectiveFilesContent = fileContentParts.length > 0 ? fileContentParts.join('\n\n') : 'Không có tệp nào được tải lên.';
       promptText = `Phân tích thông tin vụ việc và trả về báo cáo JSON.\n\n**THÔNG TIN VỤ VIỆC:**\n\n**A. Bối cảnh & Yêu cầu:**\n- Ngày hiện tại: ${currentDate}.\n- Yêu cầu của luật sư (Mục tiêu phân tích): **${query}**${clientContext}\n\n**B. Hồ sơ tài liệu đính kèm:**\n${effectiveFilesContent}\n\n**YÊU CẦU ĐẦU RA:**\nTrả về báo cáo dưới dạng một đối tượng JSON duy nhất, hợp lệ, tuân thủ cấu trúc đã định nghĩa.`;
@@ -362,23 +362,29 @@ export const analyzeCaseFiles = async (
 
 export const reanalyzeCaseWithCorrections = async (
   correctedReport: AnalysisReport,
-  files: UploadedFile[]
+  files: UploadedFile[],
+  clientPosition?: 'left' | 'right' | null
 ): Promise<AnalysisReport> => {
   try {
     const { fileContentParts, multimodalParts } = await getFileContentParts(files);
     const filesContent = fileContentParts.length > 0 ? fileContentParts.join('\n\n') : 'Không có tài liệu nào được cung cấp.';
     
-    // The main context is the corrected report itself.
+    let clientContext = '';
+    if (clientPosition) {
+        const positionText = clientPosition === 'left' ? 'bên TRÁI' : 'bên PHẢI';
+        clientContext = `\n\n**CRITICAL ANALYSIS DIRECTIVE:**\n- **Client Identification:** In any provided chat screenshots, our client is the person whose messages appear on the **${positionText.toUpperCase()}** side.\n- **Your Perspective:** Your re-analysis MUST correct any previous misinterpretations and align fully with protecting this client's interests. This directive is absolute.`;
+    }
+    
     const promptText = `**BÁO CÁO ĐÃ ĐƯỢC NGƯỜI DÙNG ĐIỀU CHỈNH (NGUỒN THÔNG TIN CHÍNH):**
 \`\`\`json
 ${JSON.stringify(correctedReport, null, 2)}
 \`\`\`
-
+${clientContext}
 **TÀI LIỆU GỐC (DÙNG ĐỂ THAM KHẢO CHI TIẾT):**
 ${filesContent}
 
 **YÊU CẦU:**
-Dựa trên báo cáo đã được điều chỉnh ở trên làm nguồn thông tin chính xác nhất, hãy tiến hành phân tích lại toàn diện và trả về một đối tượng báo cáo JSON hoàn chỉnh và mới.`;
+Dựa trên báo cáo đã được điều chỉnh ở trên làm nguồn thông tin chính xác nhất, và tuân thủ tuyệt đối "CRITICAL ANALYSIS DIRECTIVE" (nếu có), hãy tiến hành phân tích lại toàn diện và trả về một đối tượng báo cáo JSON hoàn chỉnh và mới.`;
 
     const allParts: Part[] = [...multimodalParts, { text: promptText }];
 
