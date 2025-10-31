@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { FileUpload } from './FileUpload.tsx';
 import { Loader } from './Loader.tsx';
 import { MagicIcon } from './icons/MagicIcon.tsx';
@@ -10,6 +10,7 @@ import { saveCase } from '../services/db.ts';
 import { SaveCaseIcon } from './icons/SaveCaseIcon.tsx';
 import { PlusIcon } from './icons/PlusIcon.tsx';
 import { ProcessingProgress } from './ProcessingProgress.tsx';
+import { MicrophoneIcon } from './icons/MicrophoneIcon.tsx';
 
 // --- Internal Icons ---
 const DiscussionIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
@@ -112,6 +113,17 @@ export const ConsultingWorkflow: React.FC<ConsultingWorkflowProps> = ({ onPrevie
     const [isSummarizingField, setIsSummarizingField] = useState<'disputeContent' | 'clientRequest' | null>(null);
     const [summarizationError, setSummarizationError] = useState<string | null>(null);
 
+    const [listeningField, setListeningField] = useState<'disputeContent' | 'clientRequest' | null>(null);
+    const recognitionRef = useRef<any>(null);
+
+    const defaultPrompt = `Soạn một bình luận trả lời ngắn gọn, chuyên nghiệp và thể hiện sự đồng cảm cho một bài đăng trên mạng xã hội. Dựa trên phân tích, hãy nhấn mạnh vào một rủi ro pháp lý nghiêm trọng nhất mà họ đang đối mặt và gợi ý 1-2 bước hành động đầu tiên họ nên làm. Kết thúc bằng việc mời họ liên hệ để được tư vấn chi tiết và giải quyết vấn đề.`;
+
+    useEffect(() => {
+        if (consultingReport && !generationRequest) {
+            setGenerationRequest(defaultPrompt);
+        }
+    }, [consultingReport, generationRequest]);
+
     useEffect(() => {
         if (activeCase?.workflowType === 'consulting') {
             const loadedFiles: UploadedFile[] = (activeCase.files || []).map(sf => ({
@@ -179,6 +191,55 @@ export const ConsultingWorkflow: React.FC<ConsultingWorkflowProps> = ({ onPrevie
         } finally {
             setIsSummarizingField(null);
         }
+    };
+    
+    const handleMicClick = (fieldName: 'disputeContent' | 'clientRequest') => {
+        if (listeningField) {
+            recognitionRef.current?.stop();
+            return;
+        }
+    
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            alert("Trình duyệt của bạn không hỗ trợ tính năng nhận diện giọng nói.");
+            return;
+        }
+    
+        const recognition = new SpeechRecognition();
+        recognitionRef.current = recognition;
+        recognition.lang = 'vi-VN';
+        recognition.interimResults = false;
+        recognition.continuous = true;
+    
+        recognition.onstart = () => {
+            setListeningField(fieldName);
+        };
+    
+        recognition.onend = () => {
+            setListeningField(null);
+            recognitionRef.current = null;
+        };
+    
+        recognition.onerror = (event: any) => {
+            console.error("Lỗi nhận diện giọng nói:", event.error);
+            setListeningField(null);
+        };
+    
+        recognition.onresult = (event: any) => {
+            let finalTranscript = '';
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                 if (event.results[i].isFinal) {
+                    finalTranscript += event.results[i][0].transcript;
+                }
+            }
+    
+            if (finalTranscript) {
+                const targetSetter = fieldName === 'disputeContent' ? setDisputeContent : setClientRequest;
+                targetSetter(prev => (prev ? prev.trim() + ' ' : '') + finalTranscript.trim());
+            }
+        };
+    
+        recognition.start();
     };
 
     const performAnalysis = useCallback(async (filesToAnalyze: UploadedFile[]) => {
@@ -256,8 +317,7 @@ export const ConsultingWorkflow: React.FC<ConsultingWorkflowProps> = ({ onPrevie
         }
     };
     
-// FIX: Coerce `isSummarizingField` to a boolean to ensure `isAnalyzeDisabled` is always a boolean.
-    const isAnalyzeDisabled = isAnalyzing || isProcessing || !!isSummarizingField || (files.length === 0 && !disputeContent.trim() && !clientRequest.trim());
+    const isAnalyzeDisabled = isAnalyzing || isProcessing || !!isSummarizingField || !!listeningField || (files.length === 0 && !disputeContent.trim() && !clientRequest.trim());
 
     return (
         <div className="animate-fade-in">
@@ -285,21 +345,31 @@ export const ConsultingWorkflow: React.FC<ConsultingWorkflowProps> = ({ onPrevie
                             <div>
                                 <div className="flex justify-between items-center mb-1.5">
                                     <label htmlFor="disputeContent" className="text-sm font-semibold text-slate-700">Tóm tắt bối cảnh, tình huống</label>
-                                    <button 
-                                        onClick={() => handleSummarizeField('disputeContent')} 
-                                        disabled={!disputeContent.trim() || !!isSummarizingField} 
-                                        className="flex items-center gap-1.5 px-2 py-1 text-xs text-blue-600 font-semibold hover:bg-blue-50 rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                        title="Dùng AI để tóm tắt và làm rõ nội dung bên dưới"
-                                    >
-                                        {isSummarizingField === 'disputeContent' ? <Loader /> : <MagicIcon className="w-4 h-4" />}
-                                        <span>Tóm tắt bằng AI</span>
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        <button 
+                                            onClick={() => handleMicClick('disputeContent')} 
+                                            className={`flex items-center gap-1.5 px-2 py-1 text-xs font-semibold rounded-md transition-colors ${listeningField === 'disputeContent' ? 'bg-red-100 text-red-700 animate-pulse' : 'text-blue-600 hover:bg-blue-50'}`}
+                                            title="Ghi âm giọng nói"
+                                        >
+                                            <MicrophoneIcon className="w-4 h-4" />
+                                            <span>{listeningField === 'disputeContent' ? 'Dừng...' : 'Ghi âm'}</span>
+                                        </button>
+                                        <button 
+                                            onClick={() => handleSummarizeField('disputeContent')} 
+                                            disabled={!disputeContent.trim() || !!isSummarizingField || !!listeningField} 
+                                            className="flex items-center gap-1.5 px-2 py-1 text-xs text-blue-600 font-semibold hover:bg-blue-50 rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                            title="Dùng AI để tóm tắt và làm rõ nội dung bên dưới"
+                                        >
+                                            {isSummarizingField === 'disputeContent' ? <Loader /> : <MagicIcon className="w-4 h-4" />}
+                                            <span>Tóm tắt</span>
+                                        </button>
+                                    </div>
                                 </div>
                                 <textarea 
                                     id="disputeContent"
                                     value={disputeContent} 
                                     onChange={e => setDisputeContent(e.target.value)} 
-                                    placeholder="Dán hoặc nhập nội dung vụ việc, diễn biến sự kiện vào đây..." 
+                                    placeholder="Dán, nhập hoặc dùng micro để ghi âm nội dung vụ việc, diễn biến sự kiện vào đây..." 
                                     className="input-base w-full h-28 bg-white" 
                                 />
                             </div>
@@ -307,21 +377,31 @@ export const ConsultingWorkflow: React.FC<ConsultingWorkflowProps> = ({ onPrevie
                             <div>
                                 <div className="flex justify-between items-center mb-1.5">
                                     <label htmlFor="clientRequest" className="text-sm font-semibold text-slate-700">Yêu cầu của khách hàng</label>
-                                    <button 
-                                        onClick={() => handleSummarizeField('clientRequest')} 
-                                        disabled={!clientRequest.trim() || !!isSummarizingField} 
-                                        className="flex items-center gap-1.5 px-2 py-1 text-xs text-blue-600 font-semibold hover:bg-blue-50 rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                        title="Dùng AI để tóm tắt và làm rõ nội dung bên dưới"
-                                    >
-                                        {isSummarizingField === 'clientRequest' ? <Loader /> : <MagicIcon className="w-4 h-4" />}
-                                        <span>Tóm tắt bằng AI</span>
-                                    </button>
+                                     <div className="flex items-center gap-2">
+                                        <button 
+                                            onClick={() => handleMicClick('clientRequest')} 
+                                            className={`flex items-center gap-1.5 px-2 py-1 text-xs font-semibold rounded-md transition-colors ${listeningField === 'clientRequest' ? 'bg-red-100 text-red-700 animate-pulse' : 'text-blue-600 hover:bg-blue-50'}`}
+                                            title="Ghi âm giọng nói"
+                                        >
+                                            <MicrophoneIcon className="w-4 h-4" />
+                                            <span>{listeningField === 'clientRequest' ? 'Dừng...' : 'Ghi âm'}</span>
+                                        </button>
+                                        <button 
+                                            onClick={() => handleSummarizeField('clientRequest')} 
+                                            disabled={!clientRequest.trim() || !!isSummarizingField || !!listeningField} 
+                                            className="flex items-center gap-1.5 px-2 py-1 text-xs text-blue-600 font-semibold hover:bg-blue-50 rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                            title="Dùng AI để tóm tắt và làm rõ nội dung bên dưới"
+                                        >
+                                            {isSummarizingField === 'clientRequest' ? <Loader /> : <MagicIcon className="w-4 h-4" />}
+                                            <span>Tóm tắt</span>
+                                        </button>
+                                    </div>
                                 </div>
                                 <textarea 
                                     id="clientRequest"
                                     value={clientRequest} 
                                     onChange={e => setClientRequest(e.target.value)} 
-                                    placeholder="Dán hoặc nhập yêu cầu, mong muốn của khách hàng..." 
+                                    placeholder="Dán, nhập hoặc dùng micro để ghi âm yêu cầu của khách hàng..." 
                                     className="input-base w-full h-20 bg-white" 
                                 />
                             </div>
