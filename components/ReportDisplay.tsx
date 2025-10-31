@@ -114,22 +114,36 @@ interface ReportSectionProps {
     headerAction?: React.ReactNode;
 }
 
-const ReportSection: React.FC<ReportSectionProps> = ({ title, children, chatHistory, onChatToggle, isChatOpen, headerAction }) => (
-    <div className="bg-white p-4 rounded-lg border border-slate-200/80 soft-shadow">
-        <div className="flex justify-between items-center mb-3">
-            <h4 className="text-base font-bold text-slate-800">{title}</h4>
-            <div className="flex items-center gap-2">
-              {headerAction}
-              {chatHistory && onChatToggle && (
-                  <button onClick={onChatToggle} className={`p-1.5 rounded-md transition-colors ${isChatOpen ? 'bg-blue-100 text-blue-600' : 'hover:bg-slate-100'}`} title="Trao đổi với AI về mục này">
-                      <ChatIcon className="w-5 h-5" />
-                  </button>
-              )}
+const ReportSection: React.FC<ReportSectionProps> = ({ title, children, chatHistory, onChatToggle, isChatOpen, headerAction }) => {
+    const hasHistory = chatHistory && chatHistory.length > 0;
+    
+    let buttonClasses = 'p-1.5 rounded-md transition-colors';
+    if (isChatOpen) {
+        buttonClasses += ' bg-blue-100 text-blue-600';
+    } else if (hasHistory) {
+        buttonClasses += ' bg-blue-50 text-blue-600 hover:bg-blue-100';
+    } else {
+        buttonClasses += ' text-slate-500 hover:bg-slate-100';
+    }
+
+    return (
+        <div className="bg-white p-4 rounded-lg border border-slate-200/80 soft-shadow">
+            <div className="flex justify-between items-center mb-3">
+                <h4 className="text-base font-bold text-slate-800">{title}</h4>
+                <div className="flex items-center gap-2">
+                  {headerAction}
+                  {chatHistory && onChatToggle && (
+                      <button onClick={onChatToggle} className={buttonClasses} title="Trao đổi với AI về mục này">
+                          <ChatIcon className="w-5 h-5" />
+                      </button>
+                  )}
+                </div>
             </div>
+            <div className="text-sm text-slate-700 space-y-2">{children}</div>
         </div>
-        <div className="text-sm text-slate-700 space-y-2">{children}</div>
-    </div>
-);
+    );
+};
+
 
 // New dedicated props interface for OpponentAnalysisSection
 interface OpponentAnalysisSectionProps {
@@ -429,7 +443,7 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
             {report.requestResolutionPlan && (
               <ReportSection title="4. Phương án giải quyết theo Yêu cầu" chatHistory={report.resolutionPlanChat} onChatToggle={() => setActiveChat(prev => prev === 'requestResolutionPlan' ? null : 'requestResolutionPlan')} isChatOpen={activeChat === 'requestResolutionPlan'}>
                 <ul className="list-disc list-inside space-y-1.5">{report.requestResolutionPlan.map((item, index) => (<li key={index}><HighlightedText text={item as string} term={highlightTerm} /></li>))}</ul>
-                 {activeChat === 'requestResolutionPlan' && <ChatWindow chatHistory={report.resolutionPlanChat || []} onSendMessage={(msg) => handleChatSendMessage('resolutionPlanChat', 'Phương án giải quyết theo Yêu cầu', msg)} isLoading={isChatLoading === 'resolutionPlanChat'} onClose={() => setActiveChat(null)} title="Trao đổi về Phương án giải quyết" />}
+                 {activeChat === 'requestResolutionPlan' && <ChatWindow chatHistory={report.resolutionPlanChat || []} onSendMessage={(msg) => handleChatSendMessage('resolutionPlanChat', 'Phương án giải quyết theo Yêu cầu', msg)} isLoading={isChatLoading === 'requestResolutionPlan'} onClose={() => setActiveChat(null)} title="Trao đổi về Phương án giải quyết" />}
               </ReportSection>
             )}
 
@@ -501,7 +515,7 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
                  {activeChat === 'applicableLaws' && <ChatWindow chatHistory={report.applicableLawsChat || []} onSendMessage={(msg) => handleChatSendMessage('applicableLawsChat', 'Cơ sở pháp lý áp dụng', msg)} isLoading={isChatLoading === 'applicableLawsChat'} onClose={() => setActiveChat(null)} title="Trao đổi về Cơ sở pháp lý" />}
             </ReportSection>
 
-            <ReportSection title="6. Phân tích Lỗ hổng & Hành động" chatHistory={report.gapAnalysisChat} onChatToggle={() => setActiveChat(prev => prev === 'gapAnalysis' ? null : 'gapAnalysis')} isChatOpen={activeChat === 'gapAnalysis'}>
+            <ReportSection title="6. Phân tích Lỗ hổng & Hành động" chatHistory={report.gapAnalysisChat} onChatToggle={() => setActiveChat(prev => prev === 'gapAnalysisChat' ? null : 'gapAnalysisChat')} isChatOpen={activeChat === 'gapAnalysisChat'}>
                 <div className="space-y-3">
                     <div><h5 className="font-semibold">Thông tin / Chứng cứ còn thiếu:</h5><ul className="list-disc list-inside space-y-1.5">{report.gapAnalysis.missingInformation.map((item, index) => (<li key={index}>{item}</li>))}</ul></div>
                     <div><h5 className="font-semibold">Hành động đề xuất:</h5><ul className="list-disc list-inside space-y-1.5">{report.gapAnalysis.recommendedActions.map((item, index) => (<li key={index}>{item}</li>))}</ul></div>
@@ -526,7 +540,7 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
                         </div>
                     )}
                 </div>
-                {activeChat === 'gapAnalysis' && <ChatWindow chatHistory={report.gapAnalysisChat || []} onSendMessage={(msg) => handleChatSendMessage('gapAnalysisChat', 'Phân tích Lỗ hổng', msg)} isLoading={isChatLoading === 'gapAnalysisChat'} onClose={() => setActiveChat(null)} title="Trao đổi về Phân tích Lỗ hổng"/>}
+                {activeChat === 'gapAnalysisChat' && <ChatWindow chatHistory={report.gapAnalysisChat || []} onSendMessage={(msg) => handleChatSendMessage('gapAnalysisChat', 'Phân tích Lỗ hổng', msg)} isLoading={isChatLoading === 'gapAnalysisChat'} onClose={() => setActiveChat(null)} title="Trao đổi về Phân tích Lỗ hổng"/>}
             </ReportSection>
 
             <ReportSection title="7. Đánh giá Triển vọng Vụ việc" chatHistory={report.prospectsChat} onChatToggle={() => setActiveChat(prev => prev === 'caseProspects' ? null : 'caseProspects')} isChatOpen={activeChat === 'caseProspects'}>
@@ -535,7 +549,7 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
                     <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg"><h5 className="font-semibold text-amber-800 mb-1">Điểm yếu</h5><ul className="list-disc list-inside space-y-1.5 text-amber-900">{report.caseProspects.weaknesses.map((item, index) => (<li key={index}>{item}</li>))}</ul></div>
                     <div className="bg-red-50 border border-red-200 p-3 rounded-lg"><h5 className="font-semibold text-red-800 mb-1">Rủi ro</h5><ul className="list-disc list-inside space-y-1.5 text-red-900">{report.caseProspects.risks.map((item, index) => (<li key={index}>{item}</li>))}</ul></div>
                 </div>
-                {activeChat === 'caseProspects' && <ChatWindow chatHistory={report.prospectsChat || []} onSendMessage={(msg) => handleChatSendMessage('prospectsChat', 'Triển vọng Vụ việc', msg)} isLoading={isChatLoading === 'prospectsChat'} onClose={() => setActiveChat(null)} title="Trao đổi về Triển vọng Vụ việc" />}
+                {activeChat === 'caseProspects' && <ChatWindow chatHistory={report.prospectsChat || []} onSendMessage={(msg) => handleChatSendMessage('prospectsChat', 'Triển vọng Vụ việc', msg)} isLoading={isChatLoading === 'caseProspects'} onClose={() => setActiveChat(null)} title="Trao đổi về Triển vọng Vụ việc" />}
             </ReportSection>
 
             <ReportSection title="8. Đề xuất Lộ trình & Chiến lược" chatHistory={report.strategyChat} onChatToggle={() => setActiveChat(prev => prev === 'proposedStrategy' ? null : 'proposedStrategy')} isChatOpen={activeChat === 'proposedStrategy'}>
@@ -543,7 +557,7 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
                     <div><h5 className="font-semibold">Giai đoạn Tiền tố tụng:</h5><ul className="list-disc list-inside space-y-1.5">{report.proposedStrategy.preLitigation.map((item, index) => (<li key={index}>{item}</li>))}</ul></div>
                     <div><h5 className="font-semibold">Giai đoạn Tố tụng:</h5><ul className="list-disc list-inside space-y-1.5">{report.proposedStrategy.litigation.map((item, index) => (<li key={index}>{item}</li>))}</ul></div>
                 </div>
-                 {activeChat === 'proposedStrategy' && <ChatWindow chatHistory={report.strategyChat || []} onSendMessage={(msg) => handleChatSendMessage('strategyChat', 'Chiến lược Đề xuất', msg)} isLoading={isChatLoading === 'strategyChat'} onClose={() => setActiveChat(null)} title="Trao đổi về Chiến lược Đề xuất" />}
+                 {activeChat === 'proposedStrategy' && <ChatWindow chatHistory={report.strategyChat || []} onSendMessage={(msg) => handleChatSendMessage('strategyChat', 'Chiến lược Đề xuất', msg)} isLoading={isChatLoading === 'proposedStrategy'} onClose={() => setActiveChat(null)} title="Trao đổi về Chiến lược Đề xuất" />}
             </ReportSection>
             
             {report.contingencyPlan && (
