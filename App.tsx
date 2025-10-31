@@ -603,7 +603,7 @@ const App: React.FC = () => {
     setProgress(0);
 
     try {
-        const reanalysisResult = await reanalyzeCaseWithCorrections(correctedReport, files);
+        const reanalysisResult = await reanalyzeCaseWithCorrections(correctedReport, files, clientPosition);
         setReport(reanalysisResult);
         setOriginalReport(reanalysisResult); // Update the base for future updates
         alert("Báo cáo đã được phân tích lại và cập nhật thành công!");
@@ -616,7 +616,7 @@ const App: React.FC = () => {
         setIsReanalyzing(false);
         setIsLoading(false); // Stop the progress bar
     }
-}, [files]);
+}, [files, clientPosition]);
 
  const handleIntelligentSearch = useCallback(async (userQuery: string) => {
     if (!report) {
