@@ -1001,7 +1001,7 @@ const App: React.FC = () => {
                     <>
                         {/* Input Panel */}
                         {!isInputPanelCollapsed && (
-                            <div className="w-5/12 flex-shrink-0 overflow-y-auto pr-2 -mr-2 space-y-4 animate-fade-in">
+                            <div className="w-full lg:w-5/12 xl:w-4/12 flex-shrink-0 overflow-y-auto pr-2 -mr-2 space-y-4 animate-fade-in">
                                 <div className="flex justify-between items-center">
                                     <button onClick={handleGoBackToSelection} className="flex items-center gap-2 text-sm text-slate-500 hover:text-blue-600 font-semibold transition-colors">
                                         <BackIcon className="w-4 h-4" /> Quay lại Bảng điều khiển
@@ -1066,7 +1066,7 @@ const App: React.FC = () => {
                         )}
                         
                         {/* Separator / Button */}
-                        <div className="flex-shrink-0 flex items-center justify-center -mx-3">
+                        <div className="flex-shrink-0 hidden lg:flex items-center justify-center -mx-3">
                             <button
                                 onClick={() => setIsInputPanelCollapsed(p => !p)}
                                 className="z-10 p-1.5 bg-white border border-slate-300 rounded-full shadow-md hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors"
@@ -1077,7 +1077,7 @@ const App: React.FC = () => {
                         </div>
 
                         {/* Results Panel */}
-                        <div className="flex-1 overflow-y-auto border border-slate-200 rounded-lg p-6 flex flex-col">
+                        <div className="flex-1 overflow-y-auto border border-slate-200 rounded-lg p-4 md:p-6 flex flex-col">
                             <div className="flex justify-between items-center mb-4">
                                 <h3 className="text-lg font-bold text-slate-800">Kết quả Phân tích</h3>
                                 {report && !isLoading && (<div className="flex items-center gap-2">
@@ -1250,7 +1250,7 @@ const App: React.FC = () => {
                 isActionInProgress={isBackingUp || isRestoring}
             />
         </div>
-        <main className="flex-1 p-6 flex gap-6 overflow-hidden">
+        <main className="flex-1 p-4 md:p-6 flex flex-col lg:flex-row gap-6 overflow-y-auto lg:overflow-hidden">
              {renderCurrentView()}
         </main>
       </div>

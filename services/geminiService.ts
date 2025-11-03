@@ -19,6 +19,8 @@ import {
     ARGUMENT_NODE_CHAT_SYSTEM_INSTRUCTION,
     OPPONENT_ANALYSIS_SYSTEM_INSTRUCTION,
     OPPONENT_ANALYSIS_SCHEMA,
+    PREDICT_OPPONENT_ARGS_SYSTEM_INSTRUCTION,
+    PREDICT_OPPONENT_ARGS_SCHEMA,
     nodeTypeMeta,
     DRAFTING_MODE_LABELS,
 } from '../constants.ts';
@@ -941,5 +943,50 @@ Dựa vào toàn bộ bối cảnh vụ việc của khách hàng, hãy phân t�
         return JSON.parse(jsonText);
     } catch (error) {
         throw handleGeminiError(error, 'phân tích lập luận của đối phương');
+    }
+};
+
+export const predictOpponentArguments = async (
+    report: AnalysisReport,
+    files: UploadedFile[]
+): Promise<string[]> => {
+    try {
+        const { fileContentParts, multimodalParts } = await getFileContentParts(files);
+        const filesContent = fileContentParts.join('\n\n');
+        const { argumentGraph, opponentAnalysis, ...reportContext } = report;
+
+        const promptText = `
+**HỒ SƠ VỤ VIỆC CỦA PHÍA BÊN KIA:**
+1.  **Báo cáo Phân tích (JSON):**
+    \`\`\`json
+    ${JSON.stringify(reportContext, null, 2)}
+    \`\`\`
+2.  **Tóm tắt Tài liệu Gốc:**
+    ${filesContent}
+
+**YÊU CẦU:**
+Với vai trò là luật sư của phía đối lập, hãy nghiên cứu hồ sơ trên và đưa ra những lập luận mạnh mẽ, khả thi nhất để chống lại họ.`;
+        
+        const allParts: Part[] = [...multimodalParts, { text: promptText }];
+        
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: { parts: allParts },
+            config: {
+                systemInstruction: PREDICT_OPPONENT_ARGS_SYSTEM_INSTRUCTION,
+                responseMimeType: "application/json",
+                responseSchema: PREDICT_OPPONENT_ARGS_SCHEMA,
+                temperature: 0.7,
+            }
+        });
+        
+        if (!response || typeof response.text !== 'string' || !response.text.trim()) {
+            throw new Error("AI không thể giả định lập luận của đối phương.");
+        }
+        const jsonText = response.text.trim().replace(/^```json\s*|```$/g, '');
+        const result = JSON.parse(jsonText);
+        return result.predictedArguments || [];
+    } catch (error) {
+        throw handleGeminiError(error, 'giả định lập luận của đối phương');
     }
 };

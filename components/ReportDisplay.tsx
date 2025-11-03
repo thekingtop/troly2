@@ -1,7 +1,8 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import type { AnalysisReport, ApplicableLaw, LawArticle, UploadedFile, LitigationType, LegalLoophole, ChatMessage, CaseTimelineEvent, OpponentArgument, SupportingEvidence } from '../types.ts';
 import { MagicIcon } from './icons/MagicIcon.tsx';
-import { explainLaw, continueContextualChat, analyzeOpponentArguments } from '../services/geminiService.ts';
+import { explainLaw, continueContextualChat, analyzeOpponentArguments, predictOpponentArguments } from '../services/geminiService.ts';
 import { Loader } from './Loader.tsx';
 import { SearchIcon } from './icons/SearchIcon.tsx';
 import { getStageLabel } from '../constants.ts';
@@ -165,7 +166,22 @@ interface OpponentAnalysisSectionProps {
 const OpponentAnalysisSection: React.FC<OpponentAnalysisSectionProps> = ({ report, files, onUpdateReport, highlightTerm }) => {
     const [opponentArgs, setOpponentArgs] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [isPredicting, setIsPredicting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    const handlePredictArguments = async () => {
+        if (!report) return;
+        setIsPredicting(true);
+        setError(null);
+        try {
+            const predictedArgs = await predictOpponentArguments(report, files);
+            setOpponentArgs(predictedArgs.join('\n\n- ')); // Format as a list
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Lỗi không xác định khi giả định');
+        } finally {
+            setIsPredicting(false);
+        }
+    };
 
     const handleAnalyze = async () => {
         if (!report || !opponentArgs.trim()) return;
@@ -186,7 +202,7 @@ const OpponentAnalysisSection: React.FC<OpponentAnalysisSectionProps> = ({ repor
         <ReportSection title="Phân tích Lập luận Đối phương">
             <div className="space-y-4">
                 <div>
-                    <label htmlFor="opponentArgs" className="block text-sm font-semibold text-slate-700 mb-1.5">Nhập các luận điểm, chứng cứ của đối phương:</label>
+                    <label htmlFor="opponentArgs" className="block text-sm font-semibold text-slate-700 mb-1.5">Nhập hoặc để AI giả định các luận điểm của đối phương:</label>
                     <textarea
                         id="opponentArgs"
                         value={opponentArgs}
@@ -195,9 +211,14 @@ const OpponentAnalysisSection: React.FC<OpponentAnalysisSectionProps> = ({ repor
                         className="w-full h-28 p-2.5 bg-slate-50 border border-slate-300 rounded-md text-sm"
                     />
                 </div>
-                <button onClick={handleAnalyze} disabled={isLoading || !opponentArgs.trim()} className="w-full py-2 px-4 bg-slate-700 text-white font-semibold rounded-lg hover:bg-slate-800 disabled:bg-slate-300 flex items-center justify-center gap-2">
-                    {isLoading ? <><Loader /> <span>Đang phân tích...</span></> : 'Phân tích & Tìm điểm yếu'}
-                </button>
+                <div className="grid grid-cols-2 gap-3">
+                    <button onClick={handlePredictArguments} disabled={isPredicting || isLoading} className="w-full py-2 px-4 bg-slate-100 text-slate-800 font-semibold rounded-lg hover:bg-slate-200 border border-slate-300 disabled:bg-slate-200/50 flex items-center justify-center gap-2">
+                        {isPredicting ? <><Loader /> <span>Đang giả định...</span></> : <> <MagicIcon className="w-4 h-4" /> <span>AI Giả định Lập luận</span></>}
+                    </button>
+                    <button onClick={handleAnalyze} disabled={isLoading || isPredicting || !opponentArgs.trim()} className="w-full py-2 px-4 bg-slate-700 text-white font-semibold rounded-lg hover:bg-slate-800 disabled:bg-slate-400 flex items-center justify-center gap-2">
+                        {isLoading ? <><Loader /> <span>Đang phân tích...</span></> : 'Phân tích & Tìm điểm yếu'}
+                    </button>
+                </div>
                 {error && <p className="text-red-600 text-sm mt-2">{error}</p>}
 
                 {report?.opponentAnalysis && (
