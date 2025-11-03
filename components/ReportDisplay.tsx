@@ -62,6 +62,15 @@ const getLoopholeIcon = (classification: LegalLoophole['classification']) => {
   }
 };
 
+const getLoopholeSeverityClasses = (severity: LegalLoophole['severity']) => {
+    switch (severity) {
+        case 'Cao': return 'border-red-300 bg-red-50/80';
+        case 'Trung bình': return 'border-amber-300 bg-amber-50/80';
+        case 'Thấp': return 'border-slate-300 bg-slate-50/80';
+        default: return 'border-slate-300 bg-slate-50/80';
+    }
+};
+
 const ChatWindow: React.FC<{
     chatHistory: ChatMessage[];
     onSendMessage: (message: string) => void;
@@ -537,7 +546,7 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
                             <h5 className="font-semibold mb-2">Lỗ hổng pháp lý tiềm ẩn:</h5>
                             <div className="space-y-2">
                                 {report.gapAnalysis.legalLoopholes.map((loophole, index) => (
-                                    <div key={index} className="p-2 border border-slate-200 rounded-md bg-slate-50/50">
+                                    <div key={index} className={`p-2 border rounded-md ${getLoopholeSeverityClasses(loophole.severity)}`}>
                                         <div className="flex items-center gap-2 mb-1">
                                             {getLoopholeIcon(loophole.classification)}
                                             <p className="font-semibold text-slate-800 text-xs">{loophole.classification} (Mức độ: {loophole.severity})</p>
