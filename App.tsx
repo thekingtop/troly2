@@ -7,9 +7,7 @@ import { analyzeCaseFiles, generateContextualDocument, categorizeMultipleFiles, 
 import { db, getAllCasesSorted, saveCase, deleteCaseById, clearAndBulkAddCases } from './services/db.ts';
 import type { AnalysisReport, UploadedFile, SavedCase, SerializableFile, LitigationStage, LitigationType, FileCategory, ApplicableLaw, LegalLoophole, ParagraphGenerationOptions, ChatMessage, DraftingMode } from './types.ts';
 import { ConsultingWorkflow } from './components/ConsultingWorkflow.tsx';
-import { AnalysisIcon } from './components/icons/AnalysisIcon.tsx';
 import { PreviewModal } from './components/PreviewModal.tsx';
-import { MagicIcon } from './components/icons/MagicIcon.tsx';
 import { ExportIcon } from './components/icons/ExportIcon.tsx';
 import { TrashIcon } from './components/icons/TrashIcon.tsx';
 import { SaveCaseIcon } from './components/icons/SaveCaseIcon.tsx';
@@ -25,14 +23,12 @@ import { DownloadIcon } from './components/icons/DownloadIcon.tsx';
 import { UploadIcon } from './components/icons/UploadIcon.tsx';
 import { DocumentGenerator } from './components/DocumentGenerator.tsx';
 import { QuickDraftGenerator } from './components/QuickDraftGenerator.tsx';
-import { DocumentIcon } from './components/icons/DocumentIcon.tsx';
 import { ProcessingProgress } from './components/ProcessingProgress.tsx';
 import { ArgumentMapView } from './components/ArgumentMapView.tsx';
-import { ArgumentMapIcon } from './components/icons/ArgumentMapIcon.tsx';
 import { IntelligentSearch } from './components/IntelligentSearch.tsx';
-import { QuestionIcon } from './components/icons/QuestionIcon.tsx';
 import { ChatBubbleLeftIcon } from './components/icons/ChatBubbleLeftIcon.tsx';
 import { ChatBubbleRightIcon } from './components/icons/ChatBubbleRightIcon.tsx';
+import { DocumentIcon } from './components/icons/DocumentIcon.tsx';
 
 
 // Declare global variables from CDN scripts to satisfy TypeScript
@@ -53,33 +49,53 @@ interface MainAction {
     loadingText: string;
 }
 
-// --- New Icon Components for Sidebar ---
-const HomeIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+// --- New Stylized Icon Set ---
+const StyledAnalysisIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 12 8.954-8.955a1.5 1.5 0 0 1 2.122 0l8.954 8.955M3 10.5v.75A2.25 2.25 0 0 0 5.25 13.5h13.5A2.25 2.25 0 0 0 21 11.25v-.75M4.5 13.5V21A2.25 2.25 0 0 0 6.75 23.25h10.5A2.25 2.25 0 0 0 19.5 21V13.5" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0 0 12 4.5c-2.291 0-4.545.16-6.75.47M6.75 6.75h.75v.75h-.75v-.75Zm-1.5 3h.75v.75h-.75v-.75Zm1.5 3h.75v.75h-.75v-.75Zm1.5 3h.75v.75h-.75v-.75Zm-3-6h.75v.75h-.75v-.75Zm0 3h.75v.75h-.75v-.75Zm9.75-3h.75v.75h-.75v-.75Zm-1.5 3h.75v.75h-.75v-.75Zm1.5 3h.75v.75h-.75v-.75Zm1.5 3h.75v.75h-.75v-.75Zm-3-6h.75v.75h-.75v-.75Zm0 3h.75v.75h-.75v-.75Z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5v10.5h-16.5z" />
   </svg>
 );
-const DashboardIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+const StyledQuestionIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" />
+  </svg>
+);
+const StyledArgumentMapIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75" />
+  </svg>
+);
+const StyledDocumentIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+    </svg>
+);
+const StyledMagicIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9.53 16.122a3 3 0 0 0-5.78 1.128 2.25 2.25 0 0 1-2.475 2.118A2.25 2.25 0 0 1 .879 16.5a2.25 2.25 0 0 1 2.25-2.25h1.5a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 0-.75.75v1.5a.75.75 0 0 1-.75.75h-2.25m10.5-11.25h3.375c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125h-3.375a.75.75 0 0 1-.75-.75v-1.5a.75.75 0 0 1 .75-.75Z" />
+    </svg>
+);
+const StyledDashboardIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
   </svg>
 );
-const FileManagementIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+const StyledFileManagementIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9.75h16.5m-16.5 0A2.25 2.25 0 0 1 5.25 7.5h13.5a2.25 2.25 0 0 1 2.25 2.25m-16.5 0v6.75a2.25 2.25 0 0 0 2.25 2.25h12a2.25 2.25 0 0 0 2.25-2.25v-6.75m-16.5 0H3.75" />
   </svg>
 );
-const CalendarIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+const StyledCalendarIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0h18M12 12.75h.008v.008H12v-.008Zm0 3h.008v.008H12v-.008Zm-3-3h.008v.008H9v-.008Zm0 3h.008v.008H9v-.008Zm-3-3h.008v.008H6v-.008Zm0 3h.008v.008H6v-.008Zm9-3h.008v.008H15v-.008Zm0 3h.008v.008H15v-.008Zm3-3h.008v.008H18v-.008Zm0 3h.008v.008H18v-.008Z" />
   </svg>
 );
-const ClientIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+const StyledClientIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m-7.5-2.962A3.75 3.75 0 1 0 9.75 6.25a3.75 3.75 0 0 0-3.75 3.75M10.5 13.5a7.5 7.5 0 0 0-7.5 7.5v.75c0 .414.336.75.75.75h15a.75.75 0 0 0 .75-.75v-.75a7.5 7.5 0 0 0-7.5-7.5h-1.5Z" />
   </svg>
 );
-
 
 // --- Helper Functions & Types ---
 
@@ -100,15 +116,15 @@ const base64ToFile = (base64: string, filename: string, mimeType: string): File 
 };
   
 const navItems = [
-    { id: 'caseAnalysis', icon: AnalysisIcon, label: 'Phân tích Vụ việc' },
-    { id: 'intelligentSearch', icon: QuestionIcon, label: 'Hỏi đáp Thông minh' },
-    { id: 'argumentMap', icon: ArgumentMapIcon, label: 'Bản đồ Lập luận' },
-    { id: 'documentGenerator', icon: DocumentIcon, label: 'Soạn thảo Văn bản' },
-    { id: 'quickDraft', icon: MagicIcon, label: 'Soạn thảo Nhanh' },
-    { id: 'dashboard', icon: DashboardIcon, label: 'Bảng điều khiển' },
-    { id: 'fileManagement', icon: FileManagementIcon, label: 'Quản lý tài liệu' },
-    { id: 'calendar', icon: CalendarIcon, label: 'Lịch họp & Deadline' },
-    { id: 'client', icon: ClientIcon, label: 'Khách hàng' }
+    { id: 'caseAnalysis', icon: StyledAnalysisIcon, label: 'Phân tích Vụ việc' },
+    { id: 'intelligentSearch', icon: StyledQuestionIcon, label: 'Hỏi đáp Thông minh' },
+    { id: 'argumentMap', icon: StyledArgumentMapIcon, label: 'Bản đồ Lập luận' },
+    { id: 'documentGenerator', icon: StyledDocumentIcon, label: 'Soạn thảo Văn bản' },
+    { id: 'quickDraft', icon: StyledMagicIcon, label: 'Soạn thảo Nhanh' },
+    { id: 'dashboard', icon: StyledDashboardIcon, label: 'Bảng điều khiển' },
+    { id: 'fileManagement', icon: StyledFileManagementIcon, label: 'Quản lý tài liệu' },
+    { id: 'calendar', icon: StyledCalendarIcon, label: 'Lịch họp & Deadline' },
+    { id: 'client', icon: StyledClientIcon, label: 'Khách hàng' }
 ] as const;
 
 
@@ -284,7 +300,7 @@ const App: React.FC = () => {
 
 
   // --- UI State ---
-  const [activeView, setActiveView] = useState<View>('caseAnalysis');
+  const [activeView, setActiveView] = useState<View>('dashboard');
   const [previewingFile, setPreviewingFile] = useState<UploadedFile | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isCustomizeModalOpen, setIsCustomizeModalOpen] = useState(false);
@@ -337,6 +353,7 @@ const App: React.FC = () => {
   const handleGoBackToSelection = useCallback(() => {
     setActiveCase(null);
     setIsWorkflowSelectorOpen(false);
+    setActiveView('dashboard');
   }, []);
 
   const loadData = useCallback(async () => {
@@ -986,8 +1003,8 @@ const App: React.FC = () => {
                         {!isInputPanelCollapsed && (
                             <div className="w-5/12 flex-shrink-0 overflow-y-auto pr-2 -mr-2 space-y-4 animate-fade-in">
                                 <div className="flex justify-between items-center">
-                                    <button onClick={() => { if (window.confirm("Bạn có chắc chắn muốn quay lại? Mọi dữ liệu chưa lưu sẽ bị mất.")) { handleGoBackToSelection(); } }} className="flex items-center gap-2 text-sm text-slate-500 hover:text-blue-600 font-semibold transition-colors">
-                                        <BackIcon className="w-4 h-4" /> Quay lại Chọn Nghiệp vụ
+                                    <button onClick={handleGoBackToSelection} className="flex items-center gap-2 text-sm text-slate-500 hover:text-blue-600 font-semibold transition-colors">
+                                        <BackIcon className="w-4 h-4" /> Quay lại Bảng điều khiển
                                     </button>
                                 </div>
                                 <div className="p-4 border border-slate-200 rounded-lg">
@@ -1036,7 +1053,7 @@ const App: React.FC = () => {
                                     </button>
                                     <div className="grid grid-cols-2 gap-3">
                                         <button onClick={handleExtractAndDisplaySummaries} disabled={files.length === 0 || isLoading || isSummarizing || (hasImageFiles && !clientPosition)} className="py-2.5 px-4 font-semibold text-sm rounded-lg transition-all duration-200 flex items-center justify-center gap-2 bg-slate-100 text-slate-800 hover:bg-slate-200 focus:ring-slate-400 border border-slate-300">
-                                            {isSummarizing ? <><Loader /><span>Đang tóm tắt...</span></> : <><MagicIcon className="w-4 h-4" /><span>Tóm tắt Hồ sơ</span></>}
+                                            {isSummarizing ? <><Loader /><span>Đang tóm tắt...</span></> : <><StyledMagicIcon className="w-4 h-4" /><span>Tóm tắt Hồ sơ</span></>}
                                         </button>
                                         <button onClick={handleSaveCase} disabled={isSaving} className="py-2.5 px-4 font-semibold text-sm rounded-lg transition-all duration-200 flex items-center justify-center gap-2 bg-slate-100 text-slate-800 hover:bg-slate-200 focus:ring-slate-400 border border-slate-300">
                                             {isSaving ? <Loader /> : <><SaveCaseIcon className="w-4 h-4" /><span>Lưu vụ việc</span></>}
@@ -1064,7 +1081,7 @@ const App: React.FC = () => {
                             <div className="flex justify-between items-center mb-4">
                                 <h3 className="text-lg font-bold text-slate-800">Kết quả Phân tích</h3>
                                 {report && !isLoading && (<div className="flex items-center gap-2">
-                                    <button onClick={handleGenerateSummary} disabled={isSummarizing} className="flex items-center gap-2 px-3 py-1.5 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 disabled:bg-slate-200">{isSummarizing ? <Loader /> : <MagicIcon className="w-4 h-4" />}Tóm tắt</button>
+                                    <button onClick={handleGenerateSummary} disabled={isSummarizing} className="flex items-center gap-2 px-3 py-1.5 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 disabled:bg-slate-200">{isSummarizing ? <Loader /> : <StyledMagicIcon className="w-4 h-4" />}Tóm tắt</button>
                                     <button onClick={() => setIsCustomizeModalOpen(true)} disabled={isExporting || !libsReady} className="flex items-center gap-2 px-3 py-1.5 text-xs bg-slate-700 text-white rounded-lg hover:bg-slate-800 disabled:bg-slate-400">{!libsReady ? <Loader /> : <ExportIcon className="w-4 h-4" />}{!libsReady ? "Tải..." : "Xuất"}</button>
                                 </div>)}
                             </div>
@@ -1180,10 +1197,10 @@ const App: React.FC = () => {
                                                         />
                                                         <div className="absolute top-3 right-3 flex items-center gap-2 z-10">
                                                             <button onClick={() => handleRefineDraft('concise')} disabled={!!isRefining || !draftContent} className="flex items-center text-xs px-2 py-1 bg-slate-200 text-blue-600 rounded-md hover:bg-slate-300 disabled:opacity-50">
-                                                                {isRefining === 'concise' ? <Loader/> : <MagicIcon className="w-3 h-3 mr-1"/>} Làm gọn
+                                                                {isRefining === 'concise' ? <Loader/> : <StyledMagicIcon className="w-3 h-3 mr-1"/>} Làm gọn
                                                             </button>
                                                             <button onClick={() => handleRefineDraft('detailed')} disabled={!!isRefining || !draftContent} className="flex items-center text-xs px-2 py-1 bg-slate-200 text-blue-600 rounded-md hover:bg-slate-300 disabled:opacity-50">
-                                                                {isRefining === 'detailed' ? <Loader/> : <MagicIcon className="w-3 h-3 mr-1"/>} Chi tiết hóa
+                                                                {isRefining === 'detailed' ? <Loader/> : <StyledMagicIcon className="w-3 h-3 mr-1"/>} Chi tiết hóa
                                                             </button>
                                                             <div className="w-px h-4 bg-slate-300"></div>
                                                             <button onClick={() => { navigator.clipboard.writeText(draftContent); alert('Đã sao chép!'); }} disabled={!draftContent} className="bg-slate-200 text-slate-700 px-2.5 py-1 text-xs font-semibold rounded-md hover:bg-slate-300 disabled:opacity-50">
@@ -1240,16 +1257,50 @@ const App: React.FC = () => {
     );
   };
   
-  const renderWelcomeScreen = () => (
-    <div className="text-center py-24">
-        <h2 className="text-2xl font-bold text-slate-800">Chào mừng đến với Trợ lý Pháp lý</h2>
-        <p className="text-slate-600 mt-2 mb-8">Vui lòng bắt đầu bằng cách tạo một vụ việc mới hoặc mở một vụ việc đã có.</p>
-        <div className="flex justify-center gap-4">
-            <button onClick={() => setIsWorkflowSelectorOpen(true)} className="flex items-center justify-center gap-2 py-2 px-5 bg-blue-600 text-white text-base font-semibold rounded-lg hover:bg-blue-700"><PlusIcon className="w-5 h-5" />Vụ việc Mới</button>
-            <button onClick={() => setIsCaseListOpen(true)} className="flex items-center justify-center gap-2 py-2 px-5 bg-slate-200 text-slate-800 text-base font-semibold rounded-lg hover:bg-slate-300"><FolderIcon className="w-5 h-5" />Mở danh sách</button>
+  const renderDashboard = () => {
+    const recentCases = savedCases.slice(0, 5);
+    return (
+        <div className="animate-fade-in py-8">
+            <div className="text-center">
+                 <h2 className="text-3xl font-bold text-slate-800">Bảng điều khiển</h2>
+                 <p className="text-slate-600 mt-2 mb-10">Bắt đầu một nghiệp vụ mới hoặc tiếp tục với các vụ việc gần đây.</p>
+                 <div className="flex justify-center gap-4">
+                    <button onClick={() => setIsWorkflowSelectorOpen(true)} className="flex items-center justify-center gap-2 py-3 px-6 bg-blue-600 text-white text-base font-semibold rounded-lg hover:bg-blue-700 transition-all transform hover:scale-105 active:scale-95"><PlusIcon className="w-5 h-5" />Vụ việc Mới</button>
+                    <button onClick={() => setIsCaseListOpen(true)} className="flex items-center justify-center gap-2 py-3 px-6 bg-slate-200 text-slate-800 text-base font-semibold rounded-lg hover:bg-slate-300 transition-all transform hover:scale-105 active:scale-95"><FolderIcon className="w-5 h-5" />Mở danh sách</button>
+                </div>
+            </div>
+            
+            {recentCases.length > 0 && (
+                 <div className="mt-16 max-w-4xl mx-auto">
+                    <h3 className="text-xl font-bold text-slate-800 mb-4">Vụ việc gần đây</h3>
+                    <div className="space-y-3">
+                       {recentCases.map(c => (
+                           <div key={c.id} className="p-4 bg-white border rounded-lg flex justify-between items-center gap-4 hover:border-blue-400 hover:bg-slate-50/50 transition-all soft-shadow">
+                               <div>
+                                   <p className="font-semibold text-blue-700 cursor-pointer hover:underline" onClick={() => handleLoadCase(c)}>{c.name}</p>
+                                   <div className="flex items-center gap-3 mt-1.5">
+                                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${c.litigationType === 'criminal' ? 'bg-red-100 text-red-800 border-red-200' : c.litigationType === 'administrative' ? 'bg-yellow-100 text-yellow-800 border-yellow-200' : c.litigationType === 'civil' ? 'bg-sky-100 text-sky-800 border-sky-200' : 'bg-slate-100 text-slate-800 border-slate-200'}`}>
+                                          {c.litigationType === 'civil' ? 'Dân sự' : c.litigationType === 'criminal' ? 'Hình sự' : c.litigationType === 'administrative' ? 'Hành chính' : 'Tư vấn'}
+                                      </span>
+                                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${c.workflowType === 'consulting' ? 'bg-green-100 text-green-800 border-green-200' : 'bg-blue-100 text-blue-800 border-blue-200'}`}>
+                                          {c.workflowType === 'consulting' ? 'Tư vấn' : getStageLabel(c.litigationType || 'civil', c.litigationStage)}
+                                      </span>
+                                      <p className="text-xs text-slate-500">Cập nhật: {new Date(c.updatedAt || c.createdAt).toLocaleString('vi-VN')}</p>
+                                   </div>
+                               </div>
+                               <div className="flex-shrink-0 flex items-center gap-2">
+                                   <button onClick={() => handleLoadCase(c)} className="px-4 py-1.5 text-sm bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700">Mở</button>
+                                   <button onClick={() => handleDeleteCase(c.id)} className="p-2 text-slate-500 hover:text-red-500"><TrashIcon className="w-5 h-5"/></button>
+                               </div>
+                           </div>
+                       ))}
+                    </div>
+                </div>
+            )}
         </div>
-    </div>
-  );
+    );
+};
+
 
   return (
     <div className="min-h-screen text-slate-800">
@@ -1262,7 +1313,7 @@ const App: React.FC = () => {
           </div>
         </header>
         <main>
-            {!activeCase && renderWelcomeScreen()}
+            {!activeCase && renderDashboard()}
             {activeCase?.workflowType === 'litigation' && renderLitigationWorkflow()}
             {activeCase?.workflowType === 'consulting' && <ConsultingWorkflow onPreview={setPreviewingFile} onGoBack={handleGoBackToSelection} activeCase={activeCase} onCasesUpdated={loadData} />}
         
