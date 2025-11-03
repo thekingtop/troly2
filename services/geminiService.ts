@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Part, Type } from "@google/genai";
 import type { AnalysisReport, FileCategory, UploadedFile, DocType, FormData, LitigationStage, LitigationType, ConsultingReport, ParagraphGenerationOptions, ChatMessage, ArgumentNode, DraftingMode, OpponentArgument } from '../types.ts';
 import { 
@@ -110,38 +111,6 @@ const fileToGenerativePart = async (file: File): Promise<Part> => {
   };
 };
 
-const summarizeDocumentContent = async (fileName: string, content: string): Promise<string> => {
-    if (content.length < 2000) {
-        return content;
-    }
-
-    try {
-        const systemInstruction = "Bạn là trợ lý AI chuyên tóm tắt tài liệu pháp lý cho luật sư Việt Nam. Hãy tóm tắt ngắn gọn, tập trung vào các điểm chính. Kết quả phải bằng tiếng Việt.";
-        const prompt = `Vui lòng tóm tắt nội dung của tài liệu sau ("${fileName}"). Tập trung vào: chủ đề chính, các bên liên quan, ngày tháng quan trọng, và các thỏa thuận hoặc tranh chấp cốt lõi. Chỉ trả về nội dung tóm tắt.\n\nNỘI DUNG:\n---\n${content.substring(0, 500000)}\n---`;
-
-        const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: prompt,
-            config: {
-                systemInstruction,
-                temperature: 0.1,
-            }
-        });
-
-        if (response && typeof response.text === 'string') {
-            return response.text.trim();
-        }
-        
-        console.warn(`AI did not return text for summarization of ${fileName}. Proceeding with original content.`);
-        throw new Error("AI response was empty.");
-
-    } catch (error) {
-        console.error(`Lỗi khi tóm tắt nội dung cho ${fileName}:`, error);
-        const truncatedContent = content.length > 15000 ? content.substring(0, 15000) : content;
-        return `[LỖI KHI TÓM TẮT. NỘI DUNG GỐC BỊ CẮT NGẮN.]\n${truncatedContent}...`;
-    }
-};
-
 const getFileContentParts = async (files: UploadedFile[]): Promise<{ fileContentParts: string[], multimodalParts: Part[] }> => {
     const fileContentParts: string[] = [];
     const multimodalParts: Part[] = [];
@@ -179,9 +148,8 @@ const getFileContentParts = async (files: UploadedFile[]): Promise<{ fileContent
         }
       }
       
-      const processedContent = await summarizeDocumentContent(f.file.name, rawFileText);
-      const prefix = rawFileText.length > 2000 ? "TÀI LIỆU (Tóm tắt)" : "TÀI LIỆU";
-      fileContentParts.push(`--- ${prefix}: ${f.file.name} (Loại: ${categoryLabel}) ---\n${processedContent}\n--- HẾT TÀI LIỆU ---`);
+      const prefix = "TÀI LIỆU";
+      fileContentParts.push(`--- ${prefix}: ${f.file.name} (Loại: ${categoryLabel}) ---\n${rawFileText}\n--- HẾT TÀI LIỆU ---`);
     }
     return { fileContentParts, multimodalParts };
 }

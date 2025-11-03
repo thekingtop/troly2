@@ -1,6 +1,6 @@
 {
-  "name": "Trợ lý luật 30-10 ver9",
-  "description": "nâng cấp tóm tắt, phân tích tự động giai đoạn, nguyên đơn, bị đơn, phương án sau thắng kiện/thua kiện",
+  "name": "Trợ lý luật 3-11 ver 10",
+  "description": "Nâng cấp Nghiệp vụ tư vấn, Tăng tốc độ xử lý dữ liệu",
   "requestFramePermissions": [
     "microphone"
   ]

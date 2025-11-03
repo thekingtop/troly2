@@ -1,3 +1,4 @@
+
 import { Type } from "@google/genai";
 import type { FileCategory, DocType, LitigationType, LitigationStage, ArgumentNodeType, DraftingMode } from "./types";
 
@@ -213,7 +214,7 @@ QUY TẮC PHÂN TÍCH BẮT BUỘC:
 6.  **TÌM KIẾM LỖ HỔNG PHÁP LÝ (CỰC KỲ QUAN TRỌNG):**
     Chủ động phân tích và xác định các "lỗ hổng pháp lý tiềm ẩn" theo các loại và ví dụ chi tiết sau đây. Đây là phần quan trọng nhất trong phân tích của bạn, và phải được điền vào mục 'legalLoopholes'.
     
-    **5.1. Lỗ hổng trong Hợp đồng và các Thỏa thuận:**
+    **6.1. Lỗ hổng trong Hợp đồng và các Thỏa thuận:**
     - **Điều khoản mơ hồ, đa nghĩa:**
       - AI cần tìm: Các thuật ngữ quan trọng, định nghĩa chuyên ngành (ví dụ: 'hoàn thành', 'chất lượng đạt chuẩn', 'thời gian hợp lý', 'bên liên quan', 'thực hiện tốt nhất') được sử dụng nhưng không có định nghĩa rõ ràng đi kèm trong phần 'Giải thích từ ngữ' hoặc điều khoản định nghĩa.
       - Các cụm từ mang tính định tính, chủ quan mà không có tiêu chí đo lường hoặc tham chiếu cụ thể.
@@ -226,7 +227,7 @@ QUY TẮC PHÂN TÍCH BẮT BUỘC:
       - Tìm kiếm các từ khóa chỉ sự mâu thuẫn như 'tuy nhiên', 'ngoại trừ', 'trái với' nếu chúng dẫn đến sự không rõ ràng thay vì làm rõ.
       - Ví dụ gợi ý cho AI: Điều 5 ghi bảo hành 12 tháng, Phụ lục 01 ghi 24 tháng.
 
-    **5.2. Lỗ hổng trong Luật và các Văn bản Quy phạm Pháp luật:**
+    **6.2. Lỗ hổng trong Luật và các Văn bản Quy phạm Pháp luật:**
     - **'Sự im lặng của pháp luật':**
       - AI cần tìm: Khi được yêu cầu phân tích một vấn đề hoặc một hoạt động mới/chuyên biệt, AI cần xác định xem có các quy định pháp luật trực tiếp điều chỉnh hay không.
       - Báo cáo khi không tìm thấy các điều khoản, nghị định, thông tư cụ thể về một chủ đề được đưa ra.
@@ -239,7 +240,7 @@ QUY TẮC PHÂN TÍCH BẮT BUỘC:
       - AI cần tìm: Các thuật ngữ pháp lý quan trọng, có tính định tính cao (ví dụ: 'gây ảnh hưởng xấu đến trật tự xã hội', 'trái với thuần phong mỹ tục', 'thiệt hại đáng kể', 'vì lợi ích công cộng') không được định nghĩa hoặc giải thích rõ ràng trong phần 'Giải thích từ ngữ' của văn bản.
       - Các thuật ngữ có thể có nhiều cách hiểu khác nhau mà không có tiêu chí cụ thể để áp dụng.
 
-    **5.3. Lỗ hổng trong Quy trình và Thủ tục Tố tụng:**
+    **6.3. Lỗ hổng trong Quy trình và Thủ tục Tố tụng:**
     - **Vi phạm về thời hiệu:**
       - AI cần tìm: Xác định 'Ngày xảy ra sự kiện' (phát sinh tranh chấp, vi phạm hợp đồng, v.v.) và 'Ngày nộp đơn khởi kiện/yêu cầu'.
       - Đối chiếu với các quy định về 'Thời hiệu khởi kiện' hoặc 'Thời hiệu yêu cầu giải quyết vụ việc' trong các luật tương ứng (ví dụ: Bộ luật Dân sự, Bộ luật Tố tụng Dân sự, Luật Thương mại).
@@ -560,16 +561,21 @@ QUY TRÌNH THỰC HIỆN:
 export const CONSULTING_SYSTEM_INSTRUCTION = `Bạn là một luật sư tư vấn AI tại Việt Nam. Nhiệm vụ của bạn là nhận thông tin vụ việc và trả về một báo cáo tư vấn sơ bộ dưới dạng JSON.
 
 QUY TRÌNH PHÂN TÍCH:
-1.  **Xác định Vấn đề Cốt lõi:** Từ bối cảnh và yêu cầu của khách hàng, xác định các vấn đề chính cần thảo luận và tư vấn.
-2.  **Phân loại Sơ bộ:** Dựa trên bản chất tranh chấp, phân loại vụ việc vào loại hình phù hợp (Dân sự, Hình sự, Hành chính). Nếu không rõ, ghi 'unknown'.
-3.  **Xác định Giai đoạn:** Đánh giá vụ việc đang ở giai đoạn nào (ví dụ: "Chuẩn bị khởi kiện", "Thương lượng, hòa giải", "Sau khi có bản án sơ thẩm").
-4.  **Đề xuất Hành động:** Gợi ý các loại văn bản, tài liệu quan trọng cần soạn thảo hoặc thu thập tiếp theo.
-5.  **Cảnh báo Rủi ro:** (QUAN TRỌNG) Tìm kiếm và chỉ ra các "Lỗ hổng pháp lý tiềm ẩn" có thể ảnh hưởng đến quyền lợi của khách hàng, dựa trên thông tin được cung cấp.
-6.  **Trả về JSON:** Điền tất cả các kết quả phân tích vào cấu trúc JSON đã cho.`;
+1.  **Trả lời Ngắn gọn (QUAN TRỌNG NHẤT):** Đọc kỹ "Yêu cầu của khách hàng" và toàn bộ bối cảnh. Sau đó, soạn một câu trả lời tư vấn ngắn gọn, trực tiếp, súc tích và đi thẳng vào vấn đề. Đây là câu trả lời sơ bộ mà luật sư có thể dùng để trả lời nhanh cho khách hàng. Điền vào trường 'conciseAnswer'.
+2.  **Xác định Vấn đề Cốt lõi:** Từ bối cảnh và yêu cầu của khách hàng, xác định các vấn đề chính cần thảo luận và tư vấn thêm.
+3.  **Phân loại Sơ bộ:** Dựa trên bản chất tranh chấp, phân loại vụ việc vào loại hình phù hợp (Dân sự, Hình sự, Hành chính). Nếu không rõ, ghi 'unknown'.
+4.  **Xác định Giai đoạn:** Đánh giá vụ việc đang ở giai đoạn nào (ví dụ: "Chuẩn bị khởi kiện", "Thương lượng, hòa giải", "Sau khi có bản án sơ thẩm").
+5.  **Đề xuất Hành động:** Gợi ý các loại văn bản, tài liệu quan trọng cần soạn thảo hoặc thu thập tiếp theo.
+6.  **Cảnh báo Rủi ro:** (QUAN TRỌNG) Tìm kiếm và chỉ ra các "Lỗ hổng pháp lý tiềm ẩn" có thể ảnh hưởng đến quyền lợi của khách hàng, dựa trên thông tin được cung cấp.
+7.  **Trả về JSON:** Điền tất cả các kết quả phân tích vào cấu trúc JSON đã cho.`;
 
 export const CONSULTING_REPORT_SCHEMA = {
     type: Type.OBJECT,
     properties: {
+        conciseAnswer: {
+            type: Type.STRING,
+            description: "Một câu trả lời tư vấn ngắn gọn, trực tiếp và súc tích cho yêu cầu của khách hàng."
+        },
         discussionPoints: {
             type: Type.ARRAY,
             description: "Danh sách các vấn đề pháp lý hoặc thực tế quan trọng cần thảo luận với khách hàng.",
@@ -604,7 +610,7 @@ export const CONSULTING_REPORT_SCHEMA = {
           }
         }
     },
-    required: ['discussionPoints', 'caseType', 'preliminaryStage', 'suggestedDocuments']
+    required: ['conciseAnswer', 'discussionPoints', 'caseType', 'preliminaryStage', 'suggestedDocuments']
 };
 
 

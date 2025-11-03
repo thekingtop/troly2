@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { FileUpload } from './components/FileUpload.tsx';
 import { ReportDisplay } from './components/ReportDisplay.tsx';
@@ -42,7 +43,7 @@ declare var html2canvas: any;
 
 type MainActionType = 'analyze' | 'update' | 'none';
 type View = 'caseInfo' | 'dashboard' | 'fileManagement' | 'calendar' | 'caseAnalysis' | 'client' | 'documentGenerator' | 'quickDraft' | 'argumentMap' | 'intelligentSearch';
-type ClientPosition = 'left' | 'right';
+type ClientPosition = 'left' | 'right' | 'not_applicable';
 
 
 interface MainAction {
@@ -452,7 +453,7 @@ const App: React.FC = () => {
     setError(null);
 
     try {
-        const analysisResult = await analyzeCaseFiles(filesToAnalyze, query, undefined, clientSide);
+        const analysisResult = await analyzeCaseFiles(filesToAnalyze, query, undefined, clientSide === 'not_applicable' ? null : clientSide);
         analysisResult.userAddedLaws = analysisResult.userAddedLaws || [];
         setReport(analysisResult);
         setOriginalReport(analysisResult);
@@ -559,7 +560,7 @@ const App: React.FC = () => {
         setFiles(categorizedFiles);
 
         // Step 2: Extract summaries using the now-categorized files
-        const { caseSummary, clientRequestSummary } = await extractSummariesFromFiles(categorizedFiles, clientPosition);
+        const { caseSummary, clientRequestSummary } = await extractSummariesFromFiles(categorizedFiles, clientPosition === 'not_applicable' ? null : clientPosition);
         setCaseContentForDisplay(caseSummary);
         setClientRequestForDisplay(clientRequestSummary);
     } catch (err) {
@@ -579,7 +580,7 @@ const App: React.FC = () => {
       const updatedReport = await analyzeCaseFiles(files, query, {
         report: originalReport,
         stage: getStageLabel(currentLitigationType, currentLitigationStage)
-      }, clientPosition);
+      }, clientPosition === 'not_applicable' ? null : clientPosition);
       updatedReport.userAddedLaws = originalReport.userAddedLaws || []; // Preserve user-added laws on update
       setReport(updatedReport); setOriginalReport(updatedReport);
       alert(`Đã cập nhật thành công cho giai đoạn: ${getStageLabel(currentLitigationType, currentLitigationStage)}`);
@@ -603,7 +604,7 @@ const App: React.FC = () => {
     setProgress(0);
 
     try {
-        const reanalysisResult = await reanalyzeCaseWithCorrections(correctedReport, files, clientPosition);
+        const reanalysisResult = await reanalyzeCaseWithCorrections(correctedReport, files, clientPosition === 'not_applicable' ? null : clientPosition);
         setReport(reanalysisResult);
         setOriginalReport(reanalysisResult); // Update the base for future updates
         alert("Báo cáo đã được phân tích lại và cập nhật thành công!");
@@ -996,8 +997,8 @@ const App: React.FC = () => {
                                 {hasImageFiles && (
                                     <div className="p-4 border border-slate-200 rounded-lg space-y-3 animate-fade-in">
                                         <h3 className="text-sm font-bold text-slate-900">Vị trí của Thân chủ trong Tin nhắn</h3>
-                                        <p className="text-xs text-slate-600">Chọn bên hiển thị tin nhắn của thân chủ để AI phân tích đúng hướng.</p>
-                                        <div className="grid grid-cols-2 gap-3">
+                                        <p className="text-xs text-slate-600">Nếu tệp ảnh là tin nhắn, chọn vị trí của thân chủ. Nếu không, chọn "Không áp dụng".</p>
+                                        <div className="grid grid-cols-3 gap-3">
                                             <button 
                                                 onClick={() => setClientPosition('left')}
                                                 className={`flex flex-col items-center justify-center p-3 text-center border-2 rounded-lg transition-all ${clientPosition === 'left' ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500' : 'border-slate-300 bg-white hover:border-blue-400'}`}
@@ -1005,12 +1006,19 @@ const App: React.FC = () => {
                                                 <ChatBubbleLeftIcon className="w-8 h-8 text-slate-500 mb-1" />
                                                 <span className="text-sm font-semibold">Người bên Trái</span>
                                             </button>
-                                             <button 
+                                            <button 
                                                 onClick={() => setClientPosition('right')}
                                                 className={`flex flex-col items-center justify-center p-3 text-center border-2 rounded-lg transition-all ${clientPosition === 'right' ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500' : 'border-slate-300 bg-white hover:border-blue-400'}`}
                                             >
                                                 <ChatBubbleRightIcon className="w-8 h-8 text-slate-500 mb-1" />
                                                 <span className="text-sm font-semibold">Người bên Phải</span>
+                                            </button>
+                                            <button 
+                                                onClick={() => setClientPosition('not_applicable')}
+                                                className={`flex flex-col items-center justify-center p-3 text-center border-2 rounded-lg transition-all ${clientPosition === 'not_applicable' ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500' : 'border-slate-300 bg-white hover:border-blue-400'}`}
+                                            >
+                                                <DocumentIcon className="w-8 h-8 text-slate-500 mb-1" />
+                                                <span className="text-sm font-semibold">Không áp dụng</span>
                                             </button>
                                         </div>
                                     </div>

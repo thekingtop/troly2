@@ -162,6 +162,7 @@ export interface ConsultingReport {
     preliminaryStage: string;
     suggestedDocuments: string[];
     legalLoopholes?: LegalLoophole[];
+    conciseAnswer?: string;
 }
 
 
