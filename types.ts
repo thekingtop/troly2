@@ -163,6 +163,8 @@ export interface ConsultingReport {
     suggestedDocuments: string[];
     legalLoopholes?: LegalLoophole[];
     conciseAnswer?: string;
+    discussionPointsChats?: ChatMessage[][];
+    legalLoopholesChats?: ChatMessage[][];
 }
 
 

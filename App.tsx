@@ -250,6 +250,15 @@ const RadioGroup: React.FC<{
     </div>
 );
 
+const useWindowSize = () => {
+    const [size, setSize] = React.useState([window.innerWidth, window.innerHeight]);
+    React.useEffect(() => {
+        const handleResize = () => setSize([window.innerWidth, window.innerHeight]);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+    return size;
+};
 
 const App: React.FC = () => {
   // --- Core State ---
@@ -307,6 +316,8 @@ const App: React.FC = () => {
   const [libsReady, setLibsReady] = useState(false);
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const [isInputPanelCollapsed, setIsInputPanelCollapsed] = useState(false);
+  const [width] = useWindowSize();
+  const isDesktop = width >= 1024; // Tailwind's 'lg' breakpoint
   
   // --- Processing State ---
   const [isProcessing, setIsProcessing] = useState(false);
@@ -1001,7 +1012,7 @@ const App: React.FC = () => {
                     <>
                         {/* Input Panel */}
                         {!isInputPanelCollapsed && (
-                            <div className="w-full lg:w-5/12 xl:w-4/12 flex-shrink-0 overflow-y-auto pr-2 -mr-2 space-y-4 animate-fade-in">
+                            <div className="w-full lg:w-5/12 xl:w-4/12 flex-shrink-0 space-y-4 animate-fade-in">
                                 <div className="flex justify-between items-center">
                                     <button onClick={handleGoBackToSelection} className="flex items-center gap-2 text-sm text-slate-500 hover:text-blue-600 font-semibold transition-colors">
                                         <BackIcon className="w-4 h-4" /> Quay lại Bảng điều khiển
@@ -1077,7 +1088,7 @@ const App: React.FC = () => {
                         </div>
 
                         {/* Results Panel */}
-                        <div className="flex-1 overflow-y-auto border border-slate-200 rounded-lg p-4 md:p-6 flex flex-col">
+                        <div className="flex-1 border border-slate-200 rounded-lg p-4 md:p-6 flex flex-col">
                             <div className="flex justify-between items-center mb-4">
                                 <h3 className="text-lg font-bold text-slate-800">Kết quả Phân tích</h3>
                                 {report && !isLoading && (<div className="flex items-center gap-2">
@@ -1086,7 +1097,7 @@ const App: React.FC = () => {
                                 </div>)}
                             </div>
                             
-                            <div className="flex-grow rounded-lg bg-slate-50/50 p-1 min-h-[60vh]">
+                            <div className="flex-grow rounded-lg bg-slate-50/50 p-1">
                                 {isLoading && (
                                     <div className="flex flex-col items-center justify-center h-full text-center text-slate-500 p-8">
                                         <div className="w-full max-w-lg">
@@ -1107,7 +1118,7 @@ const App: React.FC = () => {
                                     </div>
                                 )}
                                 {(report || caseContentForDisplay) && (
-                                    <div className="animate-fade-in h-full overflow-y-auto p-4">
+                                    <div className="animate-fade-in h-full p-4">
                                         <ReportDisplay 
                                             report={report} 
                                             files={files} 
@@ -1235,22 +1246,22 @@ const App: React.FC = () => {
     };
 
     return (
-      <div className="flex w-full bg-white rounded-xl soft-shadow animate-fade-in h-[calc(100vh-6.5rem)]">
+      <div className="flex w-full bg-white rounded-xl soft-shadow animate-fade-in">
         <div 
-            className="flex-shrink-0 h-full relative z-20"
+            className="flex-shrink-0 sticky top-8 self-start h-[calc(100vh-4rem)] z-20"
             onMouseEnter={() => setIsSidebarHovered(true)}
             onMouseLeave={() => setIsSidebarHovered(false)}
         >
             <Sidebar 
                 activeView={activeView} 
                 onNavigate={setActiveView} 
-                isExpanded={isSidebarHovered}
+                isExpanded={isSidebarHovered && isDesktop}
                 onBackup={handleBackup}
                 onRestore={handleRestore}
                 isActionInProgress={isBackingUp || isRestoring}
             />
         </div>
-        <main className="flex-1 p-4 md:p-6 flex flex-col lg:flex-row gap-6 overflow-y-auto lg:overflow-hidden">
+        <main className="flex-1 p-4 md:p-6 flex flex-col lg:flex-row gap-6">
              {renderCurrentView()}
         </main>
       </div>

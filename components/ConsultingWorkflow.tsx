@@ -1,16 +1,17 @@
-
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { FileUpload } from './FileUpload.tsx';
 import { Loader } from './Loader.tsx';
 import { MagicIcon } from './icons/MagicIcon.tsx';
-import { analyzeConsultingCase, generateConsultingDocument, categorizeMultipleFiles, summarizeText } from '../services/geminiService.ts';
-import type { UploadedFile, SavedCase, SerializableFile, ConsultingReport, LitigationType, LegalLoophole } from '../types.ts';
+import { analyzeConsultingCase, generateConsultingDocument, categorizeMultipleFiles, summarizeText, refineQuickAnswer, chatAboutConsultingTopic } from '../services/geminiService.ts';
+import type { UploadedFile, SavedCase, SerializableFile, ConsultingReport, LitigationType, LegalLoophole, ChatMessage } from '../types.ts';
 import { BackIcon } from './icons/BackIcon.tsx';
 import { saveCase } from '../services/db.ts';
 import { SaveCaseIcon } from './icons/SaveCaseIcon.tsx';
 import { PlusIcon } from './icons/PlusIcon.tsx';
 import { ProcessingProgress } from './ProcessingProgress.tsx';
 import { MicrophoneIcon } from './icons/MicrophoneIcon.tsx';
+import { ChatIcon } from './icons/ChatIcon.tsx';
+import { SendIcon } from './icons/SendIcon.tsx';
 
 // --- Internal Icons ---
 const CopyIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
@@ -445,7 +446,11 @@ export const ConsultingWorkflow: React.FC<ConsultingWorkflowProps> = ({ onPrevie
 
                     {consultingReport && (
                         <div className="space-y-6 animate-fade-in">
-                            <AnalysisResultDisplay report={consultingReport} onGenerateRequest={handleGenerate} />
+                            <AnalysisResultDisplay 
+                                report={consultingReport} 
+                                setReport={setConsultingReport}
+                                onGenerateRequest={setGenerationRequest} 
+                            />
                             <GenerationSection
                                 onGenerate={handleGenerate}
                                 isLoading={isGenerating}
@@ -465,26 +470,90 @@ export const ConsultingWorkflow: React.FC<ConsultingWorkflowProps> = ({ onPrevie
 
 // --- Sub-components for ConsultingWorkflow ---
 
+const ChatWindow: React.FC<{
+    chatHistory: ChatMessage[];
+    onSendMessage: (message: string) => void;
+    isLoading: boolean;
+    onClose: () => void;
+    title: string;
+}> = ({ chatHistory, onSendMessage, isLoading, onClose, title }) => {
+    const [userInput, setUserInput] = useState('');
+    const chatEndRef = useRef<HTMLDivElement>(null);
+    useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatHistory]);
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!userInput.trim() || isLoading) return;
+        onSendMessage(userInput);
+        setUserInput('');
+    };
+
+    return (
+      <div className="mt-2 border border-slate-300 bg-slate-50/50 rounded-lg p-3 animate-fade-in">
+        <div className="flex justify-between items-center mb-2">
+            <h5 className="font-bold text-sm text-slate-700">{title}</h5>
+            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 font-bold text-xl leading-none">&times;</button>
+        </div>
+        <div className="h-48 overflow-y-auto space-y-3 p-2 bg-white border rounded-md">
+            {chatHistory.map((msg, index) => (
+                <div key={index} className={`flex gap-2.5 ${msg.role === 'user' ? 'justify-end' : ''}`}>
+                    {msg.role === 'model' && <div className="w-6 h-6 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0"><MagicIcon className="w-4 h-4 text-white"/></div>}
+                    <div className={`max-w-[80%] p-2 rounded-lg text-sm ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-slate-100'}`}><p className="whitespace-pre-wrap">{msg.content}</p></div>
+                </div>
+            ))}
+            {isLoading && <div className="flex gap-2.5"><div className="w-6 h-6 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0"><MagicIcon className="w-4 h-4 text-white"/></div><div className="p-2 rounded-lg bg-slate-100"><Loader /></div></div>}
+            <div ref={chatEndRef} />
+        </div>
+        <form onSubmit={handleSubmit} className="mt-2 flex gap-2">
+            <input type="text" value={userInput} onChange={e => setUserInput(e.target.value)} placeholder="Hỏi sâu hơn..." className="flex-grow p-2 border border-slate-300 rounded-md text-sm" disabled={isLoading} />
+            <button type="submit" disabled={isLoading || !userInput.trim()} className="p-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 disabled:bg-slate-400"><SendIcon className="w-5 h-5"/></button>
+        </form>
+      </div>
+    );
+};
+
+
 const InfoCard: React.FC<{ icon: React.ReactNode; title: string; children: React.ReactNode; }> = ({ icon, title, children }) => (
     <div className="bg-white p-4 rounded-lg border border-slate-200 soft-shadow">
         <div className="flex items-center gap-3 mb-3">
             <div className="flex-shrink-0 bg-blue-100 text-blue-600 p-2 rounded-full">{icon}</div>
             <h4 className="font-bold text-slate-800">{title}</h4>
         </div>
-        <div className="pl-12 text-sm text-slate-700">{children}</div>
+        <div className="pl-12 text-sm text-slate-700 space-y-3">{children}</div>
     </div>
 );
 
-const LegalLoopholesDisplay: React.FC<{ loopholes: LegalLoophole[] }> = ({ loopholes }) => {
-    const getSeverityPillClasses = (severity: LegalLoophole['severity']) => {
-        switch (severity) {
-            case 'Cao': return 'bg-red-100 text-red-800 border-red-300';
-            case 'Trung bình': return 'bg-amber-100 text-amber-800 border-amber-300';
-            case 'Thấp': return 'bg-green-100 text-green-800 border-green-300';
-            default: return 'bg-slate-100 text-slate-800 border-slate-300';
-        }
+const LegalLoopholesDisplay: React.FC<{
+    report: ConsultingReport;
+    setReport: React.Dispatch<React.SetStateAction<ConsultingReport | null>>;
+    activeChat: { type: string, index: number } | null;
+    setActiveChat: React.Dispatch<React.SetStateAction<{ type: string, index: number } | null>>;
+}> = ({ report, setReport, activeChat, setActiveChat }) => {
+    const [isChatLoading, setIsChatLoading] = useState<number | null>(null);
+    const loopholes = report.legalLoopholes || [];
+
+    const handleSendMessage = async (index: number, message: string) => {
+        const currentHistory = report.legalLoopholesChats?.[index] || [];
+        const newUserMessage: ChatMessage = { role: 'user', content: message };
+        const updatedHistory = [...currentHistory, newUserMessage];
+
+        const updatedChats = [...(report.legalLoopholesChats || [])];
+        updatedChats[index] = updatedHistory;
+        setReport(prev => prev ? { ...prev, legalLoopholesChats: updatedChats } : null);
+        setIsChatLoading(index);
+
+        try {
+            const aiResponse = await chatAboutConsultingTopic(report, currentHistory, message, `Lỗ hổng: ${loopholes[index].description}`);
+            const aiMessage: ChatMessage = { role: 'model', content: aiResponse };
+            const finalHistory = [...updatedHistory, aiMessage];
+            const finalChats = [...(report.legalLoopholesChats || [])];
+            finalChats[index] = finalHistory;
+            setReport(prev => prev ? { ...prev, legalLoopholesChats: finalChats } : null);
+        } catch (err) { console.error(err); } 
+        finally { setIsChatLoading(null); }
     };
-     const getSeverityCardClasses = (severity: LegalLoophole['severity']) => {
+    
+    const getSeverityCardClasses = (severity: LegalLoophole['severity']) => {
         switch (severity) {
             case 'Cao': return 'bg-red-50/70 border-red-200';
             case 'Trung bình': return 'bg-amber-50/70 border-amber-200';
@@ -492,61 +561,82 @@ const LegalLoopholesDisplay: React.FC<{ loopholes: LegalLoophole[] }> = ({ looph
             default: return 'bg-slate-50/70 border-slate-200';
         }
     };
-    const groupedLoopholes = loopholes.reduce((acc, loophole) => {
-        const key = loophole.classification;
-        if (!acc[key]) acc[key] = [];
-        acc[key].push(loophole);
-        return acc;
-    }, {} as Record<LegalLoophole['classification'], LegalLoophole[]>);
-    const classificationOrder: LegalLoophole['classification'][] = ['Hợp đồng', 'Quy phạm Pháp luật', 'Tố tụng', 'Khác'];
-    const classificationMeta: Record<LegalLoophole['classification'], { icon: React.ReactNode; color: string; title: string }> = {
-        'Hợp đồng': { icon: <ContractIcon className="w-5 h-5" />, color: 'text-purple-800', title: 'Lỗ hổng Hợp đồng' },
-        'Quy phạm Pháp luật': { icon: <LawIcon className="w-5 h-5" />, color: 'text-teal-800', title: 'Lỗ hổng Luật & QPPL' },
-        'Tố tụng': { icon: <ProcedureIcon className="w-5 h-5" />, color: 'text-indigo-800', title: 'Lỗ hổng Tố tụng' },
-        'Khác': { icon: <InfoIcon className="w-5 h-5" />, color: 'text-slate-800', title: 'Lỗ hổng Khác' },
-    };
-
+    
     return (
-        <div className="space-y-4">
-            {classificationOrder
-                .filter(classification => groupedLoopholes[classification])
-                .map(classification => (
-                    <div key={classification}>
-                        <div className={`flex items-center gap-2 ${classificationMeta[classification].color}`}>
-                            {classificationMeta[classification].icon}
-                            <h5 className="font-semibold text-sm">{classificationMeta[classification].title}</h5>
-                        </div>
-                        <div className="space-y-2 mt-2 pl-7">
-                            {groupedLoopholes[classification].map((item, index) => (
-                                <div key={index} className={`p-2 border rounded-md text-xs ${getSeverityCardClasses(item.severity)}`}>
-                                    <div className="flex justify-between items-center mb-1">
-                                        <p className="font-semibold text-slate-700">{item.description}</p>
-                                        <span className={`font-bold px-2 py-0.5 rounded-full border text-xs ${getSeverityPillClasses(item.severity)}`}>
-                                            {item.severity}
-                                        </span>
-                                    </div>
-                                    <p className="text-slate-600"><span className="font-semibold">Gợi ý:</span> {item.suggestion}</p>
-                                    <blockquote className="mt-1 border-l-2 border-slate-300 pl-2 italic text-slate-500">
-                                      {item.evidence}
-                                    </blockquote>
-                                </div>
-                            ))}
-                        </div>
+        <div className="space-y-3">
+            {loopholes.map((item, index) => (
+                <div key={index} className={`p-3 border rounded-md text-sm ${getSeverityCardClasses(item.severity)}`}>
+                    <div className="flex justify-between items-start gap-2">
+                        <p className="font-semibold text-slate-800">{item.description}</p>
+                        <button onClick={() => setActiveChat(prev => (prev?.type === 'loophole' && prev.index === index) ? null : { type: 'loophole', index })} className="p-1 rounded-full hover:bg-black/10"><ChatIcon className="w-4 h-4 text-slate-600"/></button>
                     </div>
-                ))}
+                    <p className="text-slate-600"><span className="font-semibold">Gợi ý:</span> {item.suggestion}</p>
+                    <blockquote className="mt-1 border-l-2 border-slate-300 pl-2 italic text-slate-500 text-xs">{item.evidence}</blockquote>
+                     {activeChat?.type === 'loophole' && activeChat.index === index && (
+                        <ChatWindow 
+                            chatHistory={report.legalLoopholesChats?.[index] || []}
+                            onSendMessage={(msg) => handleSendMessage(index, msg)}
+                            isLoading={isChatLoading === index}
+                            onClose={() => setActiveChat(null)}
+                            title={`Thảo luận về: ${item.description.substring(0, 30)}...`}
+                        />
+                    )}
+                </div>
+            ))}
         </div>
     );
 };
 
-const AnalysisResultDisplay: React.FC<{ report: ConsultingReport; onGenerateRequest: (req: string) => void; }> = ({ report, onGenerateRequest }) => {
+const AnalysisResultDisplay: React.FC<{ 
+    report: ConsultingReport; 
+    setReport: React.Dispatch<React.SetStateAction<ConsultingReport | null>>;
+    onGenerateRequest: (req: string) => void; 
+}> = ({ report, setReport, onGenerateRequest }) => {
     const caseTypeLabel: Record<LitigationType | 'unknown', string> = {
       civil: 'Dân sự', criminal: 'Hình sự', administrative: 'Hành chính', unknown: 'Chưa xác định'
     };
+    const [isRefining, setIsRefining] = useState<string|null>(null);
+    const [activeChat, setActiveChat] = useState<{ type: 'discussion' | 'loophole', index: number } | null>(null);
+    const [isChatLoading, setIsChatLoading] = useState<number|null>(null);
     
     const handleCopyToClipboard = (text: string) => {
         if (!text) return;
         navigator.clipboard.writeText(text);
         alert('Đã sao chép vào bộ nhớ tạm!');
+    };
+
+    const handleRefineAnswer = async (mode: 'concise' | 'empathetic' | 'formal' | 'zalo_fb') => {
+        if (!report?.conciseAnswer) return;
+        setIsRefining(mode);
+        try {
+            const newAnswer = await refineQuickAnswer(report.conciseAnswer, mode);
+            setReport(prev => prev ? { ...prev, conciseAnswer: newAnswer } : null);
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setIsRefining(null);
+        }
+    };
+    
+    const handleDiscussionChat = async (index: number, message: string) => {
+        const currentHistory = report.discussionPointsChats?.[index] || [];
+        const newUserMessage: ChatMessage = { role: 'user', content: message };
+        const updatedHistory = [...currentHistory, newUserMessage];
+        
+        const updatedChats = [...(report.discussionPointsChats || [])];
+        updatedChats[index] = updatedHistory;
+        setReport(prev => prev ? { ...prev, discussionPointsChats: updatedChats } : null);
+        setIsChatLoading(index);
+
+        try {
+            const aiResponse = await chatAboutConsultingTopic(report, currentHistory, message, `Điểm thảo luận: ${report.discussionPoints[index]}`);
+            const aiMessage: ChatMessage = { role: 'model', content: aiResponse };
+            const finalHistory = [...updatedHistory, aiMessage];
+            const finalChats = [...(report.discussionPointsChats || [])];
+            finalChats[index] = finalHistory;
+            setReport(prev => prev ? { ...prev, discussionPointsChats: finalChats } : null);
+        } catch (err) { console.error(err); }
+        finally { setIsChatLoading(null); }
     };
 
     return (
@@ -555,18 +645,39 @@ const AnalysisResultDisplay: React.FC<{ report: ConsultingReport; onGenerateRequ
                  <InfoCard icon={<LightbulbIcon className="w-5 h-5"/>} title="Câu trả lời Tư vấn Nhanh">
                     <div className="relative">
                         <p className="font-medium text-slate-800 whitespace-pre-wrap pr-8">{report.conciseAnswer}</p>
-                        <button 
-                            onClick={() => handleCopyToClipboard(report.conciseAnswer || '')}
-                            className="absolute top-0 right-0 p-1.5 text-slate-400 hover:text-blue-600 rounded-full hover:bg-slate-100 transition-colors"
-                            title="Sao chép nội dung"
-                        >
-                            <CopyIcon className="w-4 h-4" />
-                        </button>
+                    </div>
+                    <div className="mt-3 pt-3 border-t border-slate-200/60 flex flex-wrap gap-2">
+                        {['concise', 'empathetic', 'formal', 'zalo_fb'].map(mode => {
+                            const labels = { concise: 'Làm gọn', empathetic: 'Thêm đồng cảm', formal: 'Trang trọng hơn', zalo_fb: 'Copy (Zalo/FB)'};
+                            return (
+                                <button key={mode} onClick={() => handleRefineAnswer(mode as any)} disabled={!!isRefining} className="btn-refine">
+                                    {isRefining === mode ? <Loader /> : labels[mode]}
+                                </button>
+                            )
+                        })}
                     </div>
                 </InfoCard>
             )}
             <InfoCard icon={<DiscussionIcon className="w-5 h-5"/>} title="Điểm quan trọng cần trao đổi">
-                <ul className="list-disc list-inside space-y-1.5">{report.discussionPoints.map((p, i) => <li key={i}>{p}</li>)}</ul>
+                <ul className="space-y-1.5">
+                    {report.discussionPoints.map((p, i) => (
+                        <li key={i}>
+                            <div className="flex justify-between items-start gap-2">
+                                <span>- {p}</span>
+                                <button onClick={() => setActiveChat(prev => (prev?.type === 'discussion' && prev.index === i) ? null : { type: 'discussion', index: i })} className="p-1 rounded-full hover:bg-black/10 flex-shrink-0"><ChatIcon className="w-4 h-4 text-slate-600"/></button>
+                            </div>
+                            {activeChat?.type === 'discussion' && activeChat.index === i && (
+                                <ChatWindow 
+                                    chatHistory={report.discussionPointsChats?.[i] || []}
+                                    onSendMessage={(msg) => handleDiscussionChat(i, msg)}
+                                    isLoading={isChatLoading === i}
+                                    onClose={() => setActiveChat(null)}
+                                    title={`Thảo luận về: ${p.substring(0, 30)}...`}
+                                />
+                            )}
+                        </li>
+                    ))}
+                </ul>
             </InfoCard>
             <InfoCard icon={<CaseInfoIcon className="w-5 h-5"/>} title="Thông tin Vụ việc">
                 <p><span className="font-semibold">Loại vụ việc:</span> {caseTypeLabel[report.caseType]}</p>
@@ -574,7 +685,7 @@ const AnalysisResultDisplay: React.FC<{ report: ConsultingReport; onGenerateRequ
             </InfoCard>
             {report.legalLoopholes && report.legalLoopholes.length > 0 && (
                 <InfoCard icon={<ExclamationTriangleIcon className="w-5 h-5"/>} title="Lỗ hổng Pháp lý Tiềm ẩn">
-                     <LegalLoopholesDisplay loopholes={report.legalLoopholes} />
+                     <LegalLoopholesDisplay report={report} setReport={setReport} activeChat={activeChat} setActiveChat={setActiveChat} />
                 </InfoCard>
             )}
             <InfoCard icon={<DocumentSuggestionIcon className="w-5 h-5"/>} title="Đề xuất Tiếp theo">

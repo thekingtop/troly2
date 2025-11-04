@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Part, Type } from "@google/genai";
 import type { AnalysisReport, FileCategory, UploadedFile, DocType, FormData, LitigationStage, LitigationType, ConsultingReport, ParagraphGenerationOptions, ChatMessage, ArgumentNode, DraftingMode, OpponentArgument } from '../types.ts';
 import { 
@@ -23,6 +22,8 @@ import {
     PREDICT_OPPONENT_ARGS_SCHEMA,
     nodeTypeMeta,
     DRAFTING_MODE_LABELS,
+    QUICK_ANSWER_REFINE_SYSTEM_INSTRUCTION,
+    CONSULTING_CHAT_SYSTEM_INSTRUCTION,
 } from '../constants.ts';
 
 const API_KEY = import.meta.env.VITE_API_KEY;
@@ -478,6 +479,89 @@ export const summarizeText = async (textToSummarize: string, context: 'disputeCo
         throw handleGeminiError(error, 'tóm tắt nội dung');
     }
 };
+
+export const refineQuickAnswer = async (
+    originalAnswer: string,
+    mode: 'concise' | 'empathetic' | 'formal' | 'zalo_fb'
+): Promise<string> => {
+    try {
+        const modeDescriptions = {
+            concise: 'ngắn gọn, súc tích hơn',
+            empathetic: 'thể hiện sự đồng cảm, chia sẻ hơn',
+            formal: 'trang trọng, mang tính pháp lý cao hơn',
+            zalo_fb: 'thêm lời chào thân thiện để gửi qua Zalo/Facebook',
+        };
+
+        const prompt = `VĂN BẢN GỐC:\n---\n${originalAnswer}\n---\n\nYÊU CẦU: Hãy viết lại văn bản trên với văn phong ${modeDescriptions[mode]}.`;
+        
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: {
+                systemInstruction: QUICK_ANSWER_REFINE_SYSTEM_INSTRUCTION,
+                temperature: 0.6,
+            }
+        });
+
+        if (!response || typeof response.text !== 'string') {
+            throw new Error("AI không thể tinh chỉnh câu trả lời.");
+        }
+        return response.text.trim();
+
+    } catch (error) {
+        throw handleGeminiError(error, `tinh chỉnh câu trả lời nhanh`);
+    }
+};
+
+export const chatAboutConsultingTopic = async (
+  report: ConsultingReport,
+  chatHistory: ChatMessage[],
+  newMessage: string,
+  contextTitle: string
+): Promise<string> => {
+  try {
+    const conversationHistoryPrompt = chatHistory
+      .map(msg => `${msg.role === 'user' ? 'Luật sư' : 'Trợ lý AI'}: ${msg.content}`)
+      .join('\n');
+
+    const prompt = `
+BÁO CÁO TƯ VẤN (JSON):
+\`\`\`json
+${JSON.stringify(report, null, 2)}
+\`\`\`
+
+BỐI CẢNH THẢO LUẬN:
+"${contextTitle}"
+
+LỊCH SỬ TRAO ĐỔI:
+---
+${conversationHistoryPrompt}
+---
+
+LUẬT SƯ (YÊU CẦU MỚI):
+${newMessage}
+
+TRỢ LÝ AI:
+`;
+
+    const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+        config: {
+            systemInstruction: CONSULTING_CHAT_SYSTEM_INSTRUCTION,
+            temperature: 0.7,
+        }
+    });
+    
+    if (!response || typeof response.text !== 'string') {
+        throw new Error("AI không thể tiếp tục cuộc trò chuyện.");
+    }
+    return response.text.trim();
+  } catch (error) {
+    throw handleGeminiError(error, `trao đổi về "${contextTitle}"`);
+  }
+};
+
 
 export const generateContextualDocument = async (
   report: AnalysisReport,
