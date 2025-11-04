@@ -12,6 +12,7 @@ import { ProcessingProgress } from './ProcessingProgress.tsx';
 import { MicrophoneIcon } from './icons/MicrophoneIcon.tsx';
 import { ChatIcon } from './icons/ChatIcon.tsx';
 import { SendIcon } from './icons/SendIcon.tsx';
+import { ChatBubbleLeftIcon } from './icons/ChatBubbleLeftIcon.tsx';
 
 // --- Internal Icons ---
 const CopyIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
@@ -605,7 +606,7 @@ const AnalysisResultDisplay: React.FC<{
         alert('Đã sao chép vào bộ nhớ tạm!');
     };
 
-    const handleRefineAnswer = async (mode: 'concise' | 'empathetic' | 'formal' | 'zalo_fb') => {
+    const handleRefineAnswer = async (mode: 'concise' | 'empathetic' | 'formal') => {
         if (!report?.conciseAnswer) return;
         setIsRefining(mode);
         try {
@@ -618,6 +619,21 @@ const AnalysisResultDisplay: React.FC<{
         }
     };
     
+    const handleZaloCopy = async () => {
+        if (!report?.conciseAnswer || isRefining) return;
+        setIsRefining('zalo_fb');
+        try {
+            const zaloVersion = await refineQuickAnswer(report.conciseAnswer, 'zalo_fb');
+            navigator.clipboard.writeText(zaloVersion);
+            alert('Đã sao chép phiên bản Zalo/Facebook vào bộ nhớ tạm!');
+        } catch (error) {
+            console.error(error);
+            alert('Lỗi khi tạo phiên bản Zalo/Facebook.');
+        } finally {
+            setIsRefining(null);
+        }
+    };
+
     const handleDiscussionChat = async (index: number, message: string) => {
         const currentHistory = report.discussionPointsChats?.[index] || [];
         const newUserMessage: ChatMessage = { role: 'user', content: message };
@@ -646,15 +662,27 @@ const AnalysisResultDisplay: React.FC<{
                     <div className="relative">
                         <p className="font-medium text-slate-800 whitespace-pre-wrap pr-8">{report.conciseAnswer}</p>
                     </div>
-                    <div className="mt-3 pt-3 border-t border-slate-200/60 flex flex-wrap gap-2">
-                        {['concise', 'empathetic', 'formal', 'zalo_fb'].map(mode => {
-                            const labels = { concise: 'Làm gọn', empathetic: 'Thêm đồng cảm', formal: 'Trang trọng hơn', zalo_fb: 'Copy (Zalo/FB)'};
+                    <div className="mt-3 pt-3 border-t border-slate-200/60 flex flex-wrap items-center gap-2">
+                        {['concise', 'empathetic', 'formal'].map(mode => {
+                            const labels = { concise: 'Làm gọn', empathetic: 'Đồng cảm', formal: 'Trang trọng' };
                             return (
-                                <button key={mode} onClick={() => handleRefineAnswer(mode as any)} disabled={!!isRefining} className="btn-refine">
-                                    {isRefining === mode ? <Loader /> : labels[mode]}
+                                <button
+                                    key={mode}
+                                    onClick={() => handleRefineAnswer(mode as any)}
+                                    disabled={!!isRefining}
+                                    className="px-3 py-1.5 text-xs bg-slate-100 text-slate-700 font-semibold rounded-md hover:bg-slate-200 disabled:opacity-50 transition-colors"
+                                >
+                                    {isRefining === mode ? <Loader /> : labels[mode as keyof typeof labels]}
                                 </button>
-                            )
+                            );
                         })}
+                        <div className="flex-grow" />
+                        <button onClick={handleZaloCopy} disabled={!!isRefining} className="p-2 rounded-full hover:bg-slate-200 disabled:opacity-50" title="Sao chép bản Zalo/Facebook">
+                            {isRefining === 'zalo_fb' ? <Loader /> : <ChatBubbleLeftIcon className="w-5 h-5 text-blue-600" />}
+                        </button>
+                        <button onClick={() => handleCopyToClipboard(report.conciseAnswer || '')} disabled={!!isRefining} className="p-2 rounded-full hover:bg-slate-200 disabled:opacity-50" title="Sao chép">
+                            <CopyIcon className="w-5 h-5 text-slate-600" />
+                        </button>
                     </div>
                 </InfoCard>
             )}
