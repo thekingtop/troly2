@@ -1,4 +1,5 @@
 
+
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { FileUpload } from './components/FileUpload.tsx';
 import { ReportDisplay } from './components/ReportDisplay.tsx';
@@ -17,8 +18,6 @@ import { CustomizeReportModal, ReportSection } from './components/CustomizeRepor
 import { BackIcon } from './components/icons/BackIcon.tsx';
 import { litigationStagesByType, getStageLabel, litigationStageSuggestions, DRAFTING_MODE_LABELS } from './constants.ts';
 import { AppLogo } from './components/icons/AppLogo.tsx';
-import { PanelCollapseIcon } from './components/icons/PanelCollapseIcon.tsx';
-import { PanelExpandIcon } from './components/icons/PanelExpandIcon.tsx';
 import { DownloadIcon } from './components/icons/DownloadIcon.tsx';
 import { UploadIcon } from './components/icons/UploadIcon.tsx';
 import { DocumentGenerator } from './components/DocumentGenerator.tsx';
@@ -94,6 +93,16 @@ const StyledCalendarIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 const StyledClientIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m-7.5-2.962A3.75 3.75 0 1 0 9.75 6.25a3.75 3.75 0 0 0-3.75 3.75M10.5 13.5a7.5 7.5 0 0 0-7.5 7.5v.75c0 .414.336.75.75.75h15a.75.75 0 0 0 .75-.75v-.75a7.5 7.5 0 0 0-7.5-7.5h-1.5Z" />
+  </svg>
+);
+const PanelCollapseIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+  </svg>
+);
+const PanelExpandIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
   </svg>
 );
 
@@ -485,6 +494,8 @@ const App: React.FC = () => {
         analysisResult.userAddedLaws = analysisResult.userAddedLaws || [];
         setReport(analysisResult);
         setOriginalReport(analysisResult);
+        
+        setIsInputPanelCollapsed(true);
         
         // After analysis, clear the pre-check summaries
         setCaseContentForDisplay('');
