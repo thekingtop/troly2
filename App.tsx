@@ -1020,10 +1020,10 @@ const App: React.FC = () => {
         switch(activeView) {
             case 'caseAnalysis':
                 return (
-                    <>
-                        {/* Input Panel */}
-                        {!isInputPanelCollapsed && (
-                            <div className="w-full lg:w-5/12 xl:w-4/12 flex-shrink-0 space-y-4 animate-fade-in">
+                    <div className="flex flex-row gap-6 flex-grow min-h-0">
+                        {/* Input Panel Wrapper (for collapse animation) */}
+                        <div className={`flex-shrink-0 transition-all duration-300 ease-in-out ${isInputPanelCollapsed ? 'w-0' : 'w-full lg:w-5/12 xl:w-4/12'}`}>
+                            <div className={`h-full overflow-y-auto pr-2 space-y-4 ${isInputPanelCollapsed ? 'invisible opacity-0' : 'visible opacity-100'}`}>
                                 <div className="flex justify-between items-center">
                                     <button onClick={handleGoBackToSelection} className="flex items-center gap-2 text-sm text-slate-500 hover:text-blue-600 font-semibold transition-colors">
                                         <BackIcon className="w-4 h-4" /> Quay lại Bảng điều khiển
@@ -1085,159 +1085,158 @@ const App: React.FC = () => {
                                 {error && <div className="mt-2"><Alert message={error} type="error" /></div>}
                                 {summaryError && <div className="mt-2"><Alert message={summaryError} type="error" /></div>}
                             </div>
-                        )}
-                        
-                        {/* Separator / Button */}
-                        <div className="flex-shrink-0 hidden lg:flex items-center justify-center -mx-3">
-                            <button
+                        </div>
+
+                        {/* Results Panel with toggle button */}
+                        <div className="flex-1 min-w-0 relative">
+                             <button
                                 onClick={() => setIsInputPanelCollapsed(p => !p)}
-                                className="z-10 p-1.5 bg-white border border-slate-300 rounded-full shadow-md hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors"
+                                className="hidden lg:flex absolute z-20 top-1/2 -translate-y-1/2 -left-3 p-1.5 bg-white border border-slate-300 rounded-full shadow-md hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors"
                                 title={isInputPanelCollapsed ? "Hiện bảng nhập liệu" : "Ẩn bảng nhập liệu"}
                             >
                                 {isInputPanelCollapsed ? <PanelExpandIcon className="w-5 h-5" /> : <PanelCollapseIcon className="w-5 h-5" />}
                             </button>
-                        </div>
-
-                        {/* Results Panel */}
-                        <div className="flex-1 border border-slate-200 rounded-lg p-4 md:p-6 flex flex-col">
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-lg font-bold text-slate-800">Kết quả Phân tích</h3>
-                                {report && !isLoading && (<div className="flex items-center gap-2">
-                                    <button onClick={handleGenerateSummary} disabled={isSummarizing} className="flex items-center gap-2 px-3 py-1.5 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 disabled:bg-slate-200">{isSummarizing ? <Loader /> : <StyledMagicIcon className="w-4 h-4" />}Tóm tắt</button>
-                                    <button onClick={() => setIsCustomizeModalOpen(true)} disabled={isExporting || !libsReady} className="flex items-center gap-2 px-3 py-1.5 text-xs bg-slate-700 text-white rounded-lg hover:bg-slate-800 disabled:bg-slate-400">{!libsReady ? <Loader /> : <ExportIcon className="w-4 h-4" />}{!libsReady ? "Tải..." : "Xuất"}</button>
-                                </div>)}
-                            </div>
                             
-                            <div className="flex-grow rounded-lg bg-slate-50/50 p-1">
-                                {isLoading && (
-                                    <div className="flex flex-col items-center justify-center h-full text-center text-slate-500 p-8">
-                                        <div className="w-full max-w-lg">
-                                            <p className="text-lg font-semibold text-slate-700 mb-3 animate-fade-in">{progressMessage}</p>
-                                            <div className="w-full bg-slate-200 rounded-full h-4 overflow-hidden soft-shadow">
-                                                <div 
-                                                    className="bg-gradient-to-r from-blue-500 to-indigo-600 h-4 rounded-full transition-all duration-500 ease-out"
-                                                    style={{ width: `${progress}%` }}
-                                                ></div>
+                            <div className="h-full flex flex-col border border-slate-200 rounded-lg p-4 md:p-6">
+                                <div className="flex justify-between items-center mb-4 flex-shrink-0">
+                                    <h3 className="text-lg font-bold text-slate-800">Kết quả Phân tích</h3>
+                                    {report && !isLoading && (<div className="flex items-center gap-2">
+                                        <button onClick={handleGenerateSummary} disabled={isSummarizing} className="flex items-center gap-2 px-3 py-1.5 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 disabled:bg-slate-200">{isSummarizing ? <Loader /> : <StyledMagicIcon className="w-4 h-4" />}Tóm tắt</button>
+                                        <button onClick={() => setIsCustomizeModalOpen(true)} disabled={isExporting || !libsReady} className="flex items-center gap-2 px-3 py-1.5 text-xs bg-slate-700 text-white rounded-lg hover:bg-slate-800 disabled:bg-slate-400">{!libsReady ? <Loader /> : <ExportIcon className="w-4 h-4" />}{!libsReady ? "Tải..." : "Xuất"}</button>
+                                    </div>)}
+                                </div>
+                                
+                                <div className="flex-grow rounded-lg bg-slate-50/50 p-1 min-h-0 overflow-y-auto">
+                                    {isLoading && (
+                                        <div className="flex flex-col items-center justify-center h-full text-center text-slate-500 p-8">
+                                            <div className="w-full max-w-lg">
+                                                <p className="text-lg font-semibold text-slate-700 mb-3 animate-fade-in">{progressMessage}</p>
+                                                <div className="w-full bg-slate-200 rounded-full h-4 overflow-hidden soft-shadow">
+                                                    <div 
+                                                        className="bg-gradient-to-r from-blue-500 to-indigo-600 h-4 rounded-full transition-all duration-500 ease-out"
+                                                        style={{ width: `${progress}%` }}
+                                                    ></div>
+                                                </div>
+                                                <p className="text-3xl font-bold text-slate-800 mt-4">{progress}%</p>
                                             </div>
-                                            <p className="text-3xl font-bold text-slate-800 mt-4">{progress}%</p>
                                         </div>
-                                    </div>
-                                )}
-                                {!isLoading && !report && !caseContentForDisplay && (
-                                    <div className="flex flex-col items-center justify-center h-full text-center text-slate-400">
-                                        <p className="text-sm font-medium text-slate-500">Chờ kết quả phân tích và soạn thảo ở đây...</p>
-                                    </div>
-                                )}
-                                {(report || caseContentForDisplay) && (
-                                    <div className="animate-fade-in h-full p-4">
-                                        <ReportDisplay 
-                                            report={report} 
-                                            files={files} 
-                                            onPreview={setPreviewingFile} 
-                                            onClearSummary={handleClearSummary}
-                                            litigationType={currentLitigationType}
-                                            onUpdateUserLaws={handleUpdateUserLaws}
-                                            onUpdateReport={handleUpdateReport}
-                                            caseSummary={caseContentForDisplay}
-                                            clientRequestSummary={clientRequestForDisplay}
-                                            onReanalyze={handleReanalyzeWithCorrections}
-                                            isReanalyzing={isReanalyzing || isLoading}
-                                        />
-                                       
-                                        {showStageSuggestions && currentStageSuggestions.actions.length > 0 && (
-                                            <div className="mt-8 pt-6 border-t-2 border-slate-100">
-                                                <h3 className="text-xl font-bold text-slate-800 mb-4">Gợi ý Hành động cho GĐ: {getStageLabel(currentLitigationType, currentLitigationStage)}</h3>
-                                                <div className="bg-slate-50 p-4 rounded-lg border">
-                                                    <ul className="list-disc list-inside space-y-1.5 text-sm">
-                                                        {currentStageSuggestions.actions.map((a, i) => <li key={i}>{a}</li>)}
-                                                    </ul>
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {report && (<div id="contextual-drafting-section" className="mt-8 pt-6 border-t-2 border-slate-100">
-                                            <h3 className="text-xl font-bold text-slate-800 mb-4">Soạn thảo Văn bản theo Bối cảnh</h3>
-                                            
-                                            <div className="p-4 bg-slate-100 border border-slate-200 rounded-lg space-y-4">
-                                                <div>
-                                                    <label htmlFor="draftRequest" className="block text-sm font-semibold text-slate-700 mb-1.5">Yêu cầu soạn thảo</label>
-                                                    {showStageSuggestions && currentStageSuggestions.documents.length > 0 && (
-                                                        <div className="mb-3 flex flex-wrap gap-2">
-                                                            {currentStageSuggestions.documents.map((d, i) => (
-                                                                <button key={i} onClick={() => setDraftRequest(d)} className="flex items-center gap-1.5 text-xs p-1.5 bg-blue-100 text-blue-800 font-medium rounded-md hover:bg-blue-200">
-                                                                    <PlusIcon className="w-3 h-3 shrink-0" />{d}
-                                                                </button>
-                                                            ))}
-                                                        </div>
-                                                    )}
-                                                    <textarea
-                                                        id="draftRequest"
-                                                        value={draftRequest}
-                                                        onChange={(e) => setDraftRequest(e.target.value)}
-                                                        placeholder="Ví dụ: Soạn thảo Đơn khởi kiện yêu cầu bồi thường thiệt hại..."
-                                                        className="w-full h-24 p-2.5 bg-white border border-slate-300 rounded-md text-sm"
-                                                    />
-                                                </div>
-
-                                                <div className="space-y-3">
-                                                    <RadioGroup
-                                                        label="Lập trường Chiến lược"
-                                                        name="draftingMode"
-                                                        selected={draftingMode}
-                                                        onChange={(e) => setDraftingMode(e.target.value as DraftingMode)}
-                                                        options={Object.entries(DRAFTING_MODE_LABELS).map(([value, label]) => ({ value, label }))}
-                                                    />
-                                                    <RadioGroup
-                                                        label="Mức độ chi tiết"
-                                                        name="detail"
-                                                        selected={draftOptions.detail}
-                                                        onChange={(e) => setDraftOptions({ detail: e.target.value as any })}
-                                                        options={[
-                                                            { value: 'detailed', label: 'Chi tiết' },
-                                                            { value: 'concise', label: 'Ngắn gọn' },
-                                                        ]}
-                                                    />
-                                                </div>
-
-                                                <button onClick={handleGenerateDraft} disabled={isDrafting || !draftRequest} className="w-full py-2.5 px-4 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-slate-300 flex items-center justify-center gap-2">
-                                                    {isDrafting ? <><Loader /> <span>Đang soạn...</span></> : 'Soạn thảo'}
-                                                </button>
-                                            </div>
-
-                                            {draftError && <div className="mt-2"><Alert message={draftError} type="error" /></div>}
-
-                                            {(isDrafting || draftContent) && (
-                                                <div className="mt-4 animate-fade-in">
-                                                    <h4 className="text-base font-semibold text-slate-800 mb-2">Văn bản đã soạn:</h4>
-                                                    <div className="relative">
-                                                        <textarea
-                                                            value={draftContent}
-                                                            onChange={(e) => setDraftContent(e.target.value)}
-                                                            placeholder={isDrafting ? "AI đang soạn thảo, vui lòng đợi..." : ""}
-                                                            className="w-full p-4 bg-white border border-slate-200 rounded-lg min-h-[300px] text-sm font-sans shadow-inner"
-                                                            readOnly={isDrafting || !!isRefining}
-                                                        />
-                                                        <div className="absolute top-3 right-3 flex items-center gap-2 z-10">
-                                                            <button onClick={() => handleRefineDraft('concise')} disabled={!!isRefining || !draftContent} className="flex items-center text-xs px-2 py-1 bg-slate-200 text-blue-600 rounded-md hover:bg-slate-300 disabled:opacity-50">
-                                                                {isRefining === 'concise' ? <Loader/> : <StyledMagicIcon className="w-3 h-3 mr-1"/>} Làm gọn
-                                                            </button>
-                                                            <button onClick={() => handleRefineDraft('detailed')} disabled={!!isRefining || !draftContent} className="flex items-center text-xs px-2 py-1 bg-slate-200 text-blue-600 rounded-md hover:bg-slate-300 disabled:opacity-50">
-                                                                {isRefining === 'detailed' ? <Loader/> : <StyledMagicIcon className="w-3 h-3 mr-1"/>} Chi tiết hóa
-                                                            </button>
-                                                            <div className="w-px h-4 bg-slate-300"></div>
-                                                            <button onClick={() => { navigator.clipboard.writeText(draftContent); alert('Đã sao chép!'); }} disabled={!draftContent} className="bg-slate-200 text-slate-700 px-2.5 py-1 text-xs font-semibold rounded-md hover:bg-slate-300 disabled:opacity-50">
-                                                                Copy
-                                                            </button>
-                                                        </div>
+                                    )}
+                                    {!isLoading && !report && !caseContentForDisplay && (
+                                        <div className="flex flex-col items-center justify-center h-full text-center text-slate-400">
+                                            <p className="text-sm font-medium text-slate-500">Chờ kết quả phân tích và soạn thảo ở đây...</p>
+                                        </div>
+                                    )}
+                                    {(report || caseContentForDisplay) && (
+                                        <div className="animate-fade-in h-full p-4">
+                                            <ReportDisplay 
+                                                report={report} 
+                                                files={files} 
+                                                onPreview={setPreviewingFile} 
+                                                onClearSummary={handleClearSummary}
+                                                litigationType={currentLitigationType}
+                                                onUpdateUserLaws={handleUpdateUserLaws}
+                                                onUpdateReport={handleUpdateReport}
+                                                caseSummary={caseContentForDisplay}
+                                                clientRequestSummary={clientRequestForDisplay}
+                                                onReanalyze={handleReanalyzeWithCorrections}
+                                                isReanalyzing={isReanalyzing || isLoading}
+                                            />
+                                        
+                                            {showStageSuggestions && currentStageSuggestions.actions.length > 0 && (
+                                                <div className="mt-8 pt-6 border-t-2 border-slate-100">
+                                                    <h3 className="text-xl font-bold text-slate-800 mb-4">Gợi ý Hành động cho GĐ: {getStageLabel(currentLitigationType, currentLitigationStage)}</h3>
+                                                    <div className="bg-slate-50 p-4 rounded-lg border">
+                                                        <ul className="list-disc list-inside space-y-1.5 text-sm">
+                                                            {currentStageSuggestions.actions.map((a, i) => <li key={i}>{a}</li>)}
+                                                        </ul>
                                                     </div>
                                                 </div>
                                             )}
-                                        </div>)}
-                                    </div>
-                                )}
+
+                                            {report && (<div id="contextual-drafting-section" className="mt-8 pt-6 border-t-2 border-slate-100">
+                                                <h3 className="text-xl font-bold text-slate-800 mb-4">Soạn thảo Văn bản theo Bối cảnh</h3>
+                                                
+                                                <div className="p-4 bg-slate-100 border border-slate-200 rounded-lg space-y-4">
+                                                    <div>
+                                                        <label htmlFor="draftRequest" className="block text-sm font-semibold text-slate-700 mb-1.5">Yêu cầu soạn thảo</label>
+                                                        {showStageSuggestions && currentStageSuggestions.documents.length > 0 && (
+                                                            <div className="mb-3 flex flex-wrap gap-2">
+                                                                {currentStageSuggestions.documents.map((d, i) => (
+                                                                    <button key={i} onClick={() => setDraftRequest(d)} className="flex items-center gap-1.5 text-xs p-1.5 bg-blue-100 text-blue-800 font-medium rounded-md hover:bg-blue-200">
+                                                                        <PlusIcon className="w-3 h-3 shrink-0" />{d}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                        <textarea
+                                                            id="draftRequest"
+                                                            value={draftRequest}
+                                                            onChange={(e) => setDraftRequest(e.target.value)}
+                                                            placeholder="Ví dụ: Soạn thảo Đơn khởi kiện yêu cầu bồi thường thiệt hại..."
+                                                            className="w-full h-24 p-2.5 bg-white border border-slate-300 rounded-md text-sm"
+                                                        />
+                                                    </div>
+
+                                                    <div className="space-y-3">
+                                                        <RadioGroup
+                                                            label="Lập trường Chiến lược"
+                                                            name="draftingMode"
+                                                            selected={draftingMode}
+                                                            onChange={(e) => setDraftingMode(e.target.value as DraftingMode)}
+                                                            options={Object.entries(DRAFTING_MODE_LABELS).map(([value, label]) => ({ value, label }))}
+                                                        />
+                                                        <RadioGroup
+                                                            label="Mức độ chi tiết"
+                                                            name="detail"
+                                                            selected={draftOptions.detail}
+                                                            onChange={(e) => setDraftOptions({ detail: e.target.value as any })}
+                                                            options={[
+                                                                { value: 'detailed', label: 'Chi tiết' },
+                                                                { value: 'concise', label: 'Ngắn gọn' },
+                                                            ]}
+                                                        />
+                                                    </div>
+
+                                                    <button onClick={handleGenerateDraft} disabled={isDrafting || !draftRequest} className="w-full py-2.5 px-4 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-slate-300 flex items-center justify-center gap-2">
+                                                        {isDrafting ? <><Loader /> <span>Đang soạn...</span></> : 'Soạn thảo'}
+                                                    </button>
+                                                </div>
+
+                                                {draftError && <div className="mt-2"><Alert message={draftError} type="error" /></div>}
+
+                                                {(isDrafting || draftContent) && (
+                                                    <div className="mt-4 animate-fade-in">
+                                                        <h4 className="text-base font-semibold text-slate-800 mb-2">Văn bản đã soạn:</h4>
+                                                        <div className="relative">
+                                                            <textarea
+                                                                value={draftContent}
+                                                                onChange={(e) => setDraftContent(e.target.value)}
+                                                                placeholder={isDrafting ? "AI đang soạn thảo, vui lòng đợi..." : ""}
+                                                                className="w-full p-4 bg-white border border-slate-200 rounded-lg min-h-[300px] text-sm font-sans shadow-inner"
+                                                                readOnly={isDrafting || !!isRefining}
+                                                            />
+                                                            <div className="absolute top-3 right-3 flex items-center gap-2 z-10">
+                                                                <button onClick={() => handleRefineDraft('concise')} disabled={!!isRefining || !draftContent} className="flex items-center text-xs px-2 py-1 bg-slate-200 text-blue-600 rounded-md hover:bg-slate-300 disabled:opacity-50">
+                                                                    {isRefining === 'concise' ? <Loader/> : <StyledMagicIcon className="w-3 h-3 mr-1"/>} Làm gọn
+                                                                </button>
+                                                                <button onClick={() => handleRefineDraft('detailed')} disabled={!!isRefining || !draftContent} className="flex items-center text-xs px-2 py-1 bg-slate-200 text-blue-600 rounded-md hover:bg-slate-300 disabled:opacity-50">
+                                                                    {isRefining === 'detailed' ? <Loader/> : <StyledMagicIcon className="w-3 h-3 mr-1"/>} Chi tiết hóa
+                                                                </button>
+                                                                <div className="w-px h-4 bg-slate-300"></div>
+                                                                <button onClick={() => { navigator.clipboard.writeText(draftContent); alert('Đã sao chép!'); }} disabled={!draftContent} className="bg-slate-200 text-slate-700 px-2.5 py-1 text-xs font-semibold rounded-md hover:bg-slate-300 disabled:opacity-50">
+                                                                    Copy
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>)}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
-                    </>
+                    </div>
                 );
             case 'argumentMap':
                 return <ArgumentMapView report={report} onUpdateReport={handleUpdateReport} />;
@@ -1257,7 +1256,7 @@ const App: React.FC = () => {
     };
 
     return (
-      <div className="flex w-full bg-white rounded-xl soft-shadow animate-fade-in">
+      <div className="flex w-full bg-white rounded-xl soft-shadow animate-fade-in h-[calc(100vh-9rem)]">
         <div 
             className="flex-shrink-0 sticky top-8 self-start h-[calc(100vh-4rem)] z-20"
             onMouseEnter={() => setIsSidebarHovered(true)}
@@ -1272,7 +1271,7 @@ const App: React.FC = () => {
                 isActionInProgress={isBackingUp || isRestoring}
             />
         </div>
-        <main className="flex-1 p-4 md:p-6 flex flex-col lg:flex-row gap-6">
+        <main className="flex-1 p-4 md:p-6 flex flex-col overflow-hidden">
              {renderCurrentView()}
         </main>
       </div>
