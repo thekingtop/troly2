@@ -28,6 +28,13 @@ export const IntelligentSearch: React.FC<IntelligentSearchProps> = ({ report, on
         onSearch(userInput.trim());
         setUserInput('');
     };
+    
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSendMessage(e);
+        }
+    };
 
     if (!report) {
         return (
@@ -89,13 +96,14 @@ export const IntelligentSearch: React.FC<IntelligentSearchProps> = ({ report, on
             {error && <p className="text-red-600 text-sm mb-2 text-center">{error}</p>}
             
             <form onSubmit={handleSendMessage} className="flex gap-3">
-                <input 
-                    type="text" 
+                <textarea 
                     value={userInput}
                     onChange={(e) => setUserInput(e.target.value)}
-                    placeholder="Ví dụ: Bên B đã vi phạm điều khoản nào của hợp đồng?"
-                    className="flex-grow p-3 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                    onKeyDown={handleKeyDown}
+                    placeholder="Ví dụ: Bên B đã vi phạm điều khoản nào của hợp đồng? (Nhấn Enter để gửi, Shift+Enter để xuống dòng)"
+                    className="flex-grow p-3 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 resize-y"
                     disabled={isLoading}
+                    rows={2}
                 />
                 <button type="submit" disabled={isLoading || !userInput.trim()} className="px-5 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-slate-400 flex items-center justify-center transition-colors">
                     <SendIcon className="w-5 h-5" />

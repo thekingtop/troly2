@@ -14,6 +14,10 @@ import { ArrowUpIcon } from './icons/ArrowUpIcon.tsx';
 import { ArrowDownIcon } from './icons/ArrowDownIcon.tsx';
 import { ArrowLeftIcon } from './icons/ArrowLeftIcon.tsx';
 import { ArrowRightIcon } from './icons/ArrowRightIcon.tsx';
+import { PlusIcon } from './icons/PlusIcon.tsx';
+import { LinkIcon } from './icons/LinkIcon.tsx';
+import { TrashIcon } from './icons/TrashIcon.tsx';
+import { CursorArrowRaysIcon } from './icons/CursorArrowRaysIcon.tsx';
 
 
 // --- Helper Components & Functions ---
@@ -28,9 +32,17 @@ const ArgumentNodeComponent: React.FC<{
     onClick: (e: React.MouseEvent, id: string) => void;
     onStartEdit: (node: ArgumentNode) => void;
     onStartChat: (node: ArgumentNode) => void;
-}> = ({ node, onDragStart, isSelected, onClick, onStartEdit, onStartChat }) => {
+    onDelete: (id: string) => void;
+    isLinkSource: boolean;
+}> = ({ node, onDragStart, isSelected, onClick, onStartEdit, onStartChat, onDelete, isLinkSource }) => {
     const meta = nodeTypeMeta[node.type] || nodeTypeMeta.custom;
-    const selectionClass = isSelected ? 'ring-2 ring-offset-2 ring-blue-500' : 'hover:ring-2 hover:ring-blue-300';
+    let selectionClass = 'hover:ring-2 hover:ring-blue-300';
+    if (isSelected) {
+        selectionClass = 'ring-2 ring-offset-2 ring-blue-500';
+    } else if (isLinkSource) {
+        selectionClass = 'ring-2 ring-offset-2 ring-green-500';
+    }
+
 
     return (
         <div
@@ -45,6 +57,7 @@ const ArgumentNodeComponent: React.FC<{
                 <div className="flex items-center gap-0.5 flex-shrink-0 -mr-1 -mt-1">
                     <button onClick={(e) => { e.stopPropagation(); onStartChat(node); }} className="p-1 rounded hover:bg-black/10" title="Trao đổi với AI"><ChatIcon className="w-4 h-4 text-slate-600"/></button>
                     <button onClick={(e) => { e.stopPropagation(); onStartEdit(node); }} className="p-1 rounded hover:bg-black/10" title="Chỉnh sửa"><EditIcon className="w-4 h-4 text-slate-600"/></button>
+                    <button onClick={(e) => { e.stopPropagation(); onDelete(node.id); }} className="p-1 rounded hover:bg-black/10" title="Xóa khối"><TrashIcon className="w-4 h-4 text-slate-600 hover:text-red-500"/></button>
                 </div>
             </div>
             <p>{node.content}</p>
@@ -56,7 +69,8 @@ const ArgumentEdgeComponent: React.FC<{
     edge: ArgumentEdge;
     nodes: ArgumentNode[];
     nodeDimensions: Record<string, { width: number; height: number }>;
-}> = ({ edge, nodes, nodeDimensions }) => {
+    onClick: (id: string) => void;
+}> = ({ edge, nodes, nodeDimensions, onClick }) => {
     const sourceNode = nodes.find(n => n.id === edge.source);
     const targetNode = nodes.find(n => n.id === edge.target);
 
@@ -72,7 +86,10 @@ const ArgumentEdgeComponent: React.FC<{
     const y2 = targetNode.position.y + (targetDims ? targetDims.height / 2 : 40);
     
     return (
-        <line x1={x1} y1={y1} x2={x2} y2={y2} className="stroke-slate-400" strokeWidth="2" markerEnd="url(#arrowhead)" />
+      <g onClick={() => onClick(edge.id)} className="cursor-pointer">
+        <line x1={x1} y1={y1} x2={x2} y2={y2} className="stroke-slate-400 hover:stroke-red-500" strokeWidth="2" markerEnd="url(#arrowhead)" />
+        <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="transparent" strokeWidth="10" />
+      </g>
     );
 };
 
@@ -268,7 +285,9 @@ export const ArgumentMapView: React.FC<ArgumentMapViewProps> = ({ report, onUpda
     const [isChatLoading, setIsChatLoading] = useState(false);
     const [nodeDimensions, setNodeDimensions] = useState<Record<string, { width: number, height: number }>>({});
     const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
-    
+    const [mode, setMode] = useState<'select' | 'link' | 'delete'>('select');
+    const [linkSource, setLinkSource] = useState<string | null>(null);
+
     const draggingNode = useRef<{ id: string; offset: { x: number; y: number } } | null>(null);
     const isPanning = useRef(false);
     const lastMousePos = useRef({ x: 0, y: 0 });
@@ -294,13 +313,38 @@ export const ArgumentMapView: React.FC<ArgumentMapViewProps> = ({ report, onUpda
                     dimensions[node.id] = { width: elem.offsetWidth, height: elem.offsetHeight };
                 }
             });
-            if (JSON.stringify(dimensions) !== JSON.stringify(nodeDimensions)) {
+            if (Object.keys(dimensions).length > 0 && JSON.stringify(dimensions) !== JSON.stringify(nodeDimensions)) {
                 setNodeDimensions(dimensions);
             }
-        }, 50); // Small delay to allow for rendering
+        }, 100);
         return () => clearTimeout(timer);
     }, [nodes, nodeDimensions]);
 
+    const updateReport = (newNodes: ArgumentNode[], newEdges: ArgumentEdge[]) => {
+        if (report) {
+            onUpdateReport({
+                ...report,
+                argumentGraph: { nodes: newNodes, edges: newEdges },
+            });
+        }
+    };
+
+    // FIX: Define the missing handleNodeDragStart function.
+    const handleNodeDragStart = (e: React.MouseEvent, id: string) => {
+        const node = nodes.find(n => n.id === id);
+        if (!node || mode !== 'select' || e.button !== 0) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        const offsetX = (e.clientX - transform.x) / transform.scale - node.position.x;
+        const offsetY = (e.clientY - transform.y) / transform.scale - node.position.y;
+
+        draggingNode.current = {
+            id,
+            offset: { x: offsetX, y: offsetY }
+        };
+    };
 
     const handleDownloadImage = async () => {
         if (!mapContentRef.current || nodes.length === 0 || typeof html2canvas === 'undefined') {
@@ -324,12 +368,9 @@ export const ArgumentMapView: React.FC<ArgumentMapViewProps> = ({ report, onUpda
             }
         });
         
-        if (minX === Infinity) { // Fallback if nodes aren't rendered yet
-             minX = 0; minY = 0; maxX = 1000; maxY = 800;
-        }
+        if (minX === Infinity) { minX = 0; minY = 0; maxX = 1000; maxY = 800; }
 
         try {
-             // temporarily reset transform for capture
             const originalTransform = mapElement.style.transform;
             mapElement.style.transform = '';
 
@@ -338,12 +379,12 @@ export const ArgumentMapView: React.FC<ArgumentMapViewProps> = ({ report, onUpda
                 y: minY - PADDING,
                 width: (maxX - minX) + PADDING * 2,
                 height: (maxY - minY) + PADDING * 2,
-                scale: 2, // for higher quality
-                backgroundColor: '#f8fafc', // background color of map
+                scale: 2,
+                backgroundColor: '#f8fafc',
                 useCORS: true
             });
 
-            mapElement.style.transform = originalTransform; // restore transform
+            mapElement.style.transform = originalTransform;
 
             const dataUrl = canvas.toDataURL('image/png');
             const link = document.createElement('a');
@@ -354,46 +395,16 @@ export const ArgumentMapView: React.FC<ArgumentMapViewProps> = ({ report, onUpda
             document.body.removeChild(link);
         } catch (error) {
             console.error("Error generating image:", error);
-            alert("Đã xảy ra lỗi khi tạo ảnh từ bản đồ.");
         } finally {
             setIsDownloading(false);
         }
     };
 
-
-    const handleNodeDragStart = (e: React.MouseEvent, id: string) => {
-        if (e.button !== 0) return;
-        e.preventDefault();
-        e.stopPropagation();
-
-        const node = nodes.find(n => n.id === id);
-        if (!node || !mapRef.current) return;
-        
-        if ((e.target as HTMLElement).closest('button')) {
-            return;
-        }
-
-        draggingNode.current = {
-            id,
-            offset: {
-                x: (e.clientX - transform.x) / transform.scale - node.position.x,
-                y: (e.clientY - transform.y) / transform.scale - node.position.y,
-            },
-        };
-    };
-
     const handleMouseMove = (e: React.MouseEvent) => {
-        if (draggingNode.current) {
+        if (mode === 'select' && draggingNode.current) {
             const newX = (e.clientX - transform.x) / transform.scale - draggingNode.current.offset.x;
             const newY = (e.clientY - transform.y) / transform.scale - draggingNode.current.offset.y;
-
-            setNodes(prevNodes =>
-                prevNodes.map(n =>
-                    n.id === draggingNode.current?.id
-                        ? { ...n, position: { x: newX, y: newY } }
-                        : n
-                )
-            );
+            setNodes(prevNodes => prevNodes.map(n => n.id === draggingNode.current?.id ? { ...n, position: { x: newX, y: newY } } : n));
             return;
         }
 
@@ -406,14 +417,16 @@ export const ArgumentMapView: React.FC<ArgumentMapViewProps> = ({ report, onUpda
     };
 
     const handleMouseUp = () => {
+        if (draggingNode.current) {
+            updateReport(nodes, edges);
+        }
         draggingNode.current = null;
         isPanning.current = false;
         if(mapRef.current) mapRef.current.style.cursor = 'auto';
     };
 
     const handleMapMouseDown = (e: React.MouseEvent) => {
-        // Allow left or right click to pan
-        if (e.button === 0 || e.button === 2) { 
+        if (mode === 'select' && (e.button === 0 || e.button === 2)) { 
             e.preventDefault();
             isPanning.current = true;
             lastMousePos.current = { x: e.clientX, y: e.clientY };
@@ -426,25 +439,18 @@ export const ArgumentMapView: React.FC<ArgumentMapViewProps> = ({ report, onUpda
         e.preventDefault();
         const scaleAmount = 1.1;
         const newScale = e.deltaY > 0 ? transform.scale / scaleAmount : transform.scale * scaleAmount;
-        
         const mapRect = mapRef.current.getBoundingClientRect();
         const mouseX = e.clientX - mapRect.left;
         const mouseY = e.clientY - mapRect.top;
-
         const pointX = (mouseX - transform.x) / transform.scale;
         const pointY = (mouseY - transform.y) / transform.scale;
-
         const newX = mouseX - pointX * newScale;
         const newY = mouseY - pointY * newScale;
-        
         setTransform({ x: newX, y: newY, scale: newScale });
     };
 
     const handleZoomControls = (direction: 'in' | 'out' | 'reset') => {
-        if (direction === 'reset') {
-            setTransform({ x: 0, y: 0, scale: 1 });
-            return;
-        }
+        if (direction === 'reset') { setTransform({ x: 0, y: 0, scale: 1 }); return; }
         const scaleAmount = direction === 'in' ? 1.25 : 1 / 1.25;
         setTransform(prev => ({...prev, scale: prev.scale * scaleAmount }));
     };
@@ -462,90 +468,108 @@ export const ArgumentMapView: React.FC<ArgumentMapViewProps> = ({ report, onUpda
         })
     };
     
+    const handleDeleteNode = (id: string) => {
+        if (!window.confirm("Bạn có chắc muốn xóa khối này?")) return;
+        const newNodes = nodes.filter(n => n.id !== id);
+        const newEdges = edges.filter(e => e.source !== id && e.target !== id);
+        setNodes(newNodes);
+        setEdges(newEdges);
+        updateReport(newNodes, newEdges);
+    };
+
+    const handleDeleteEdge = (id: string) => {
+        const newEdges = edges.filter(e => e.id !== id);
+        setEdges(newEdges);
+        updateReport(nodes, newEdges);
+    };
+
     const handleNodeClick = (e: React.MouseEvent, id: string) => {
-        const isShiftClick = e.shiftKey;
-        setSelectedNodeIds(prev => {
-            const newSelection = new Set(prev);
-            if (isShiftClick) {
-                if (newSelection.has(id)) {
-                    newSelection.delete(id);
-                } else {
-                    newSelection.add(id);
+        switch (mode) {
+            case 'select':
+                setSelectedNodeIds(prev => {
+                    const newSelection = new Set(prev);
+                    if (e.shiftKey) { newSelection.has(id) ? newSelection.delete(id) : newSelection.add(id); } 
+                    else { if (newSelection.has(id) && newSelection.size === 1) { newSelection.clear(); } else { newSelection.clear(); newSelection.add(id); } }
+                    return newSelection;
+                });
+                break;
+            case 'link':
+                if (!linkSource) { setLinkSource(id); } 
+                else if (linkSource !== id) {
+                    const newEdge: ArgumentEdge = { id: `edge-${Date.now()}`, source: linkSource, target: id };
+                    const newEdges = [...edges, newEdge];
+                    setEdges(newEdges);
+                    updateReport(nodes, newEdges);
+                    setLinkSource(null);
+                    setMode('select');
                 }
-            } else {
-                 if (newSelection.has(id) && newSelection.size === 1) {
-                    newSelection.clear(); // Deselect if clicking the only selected node
-                } else {
-                    newSelection.clear();
-                    newSelection.add(id);
-                }
-            }
-            return newSelection;
-        });
+                break;
+            case 'delete': handleDeleteNode(id); break;
+        }
     };
     
     const handleCanvasClick = (e: React.MouseEvent) => {
         if (e.target === mapRef.current || e.target === mapContentRef.current) {
             setSelectedNodeIds(new Set());
+            if (mode === 'link') setLinkSource(null);
         }
     };
 
-    const selectedNodes = useMemo(() => {
+    const handleAddNode = () => {
+        const newNode: ArgumentNode = {
+            id: `custom-${Date.now()}`,
+            type: 'custom',
+            label: 'Ghi chú Mới',
+            content: 'Nhấp để chỉnh sửa nội dung...',
+            position: { x: 50, y: 50 },
+        };
+        const newNodes = [...nodes, newNode];
+        setNodes(newNodes);
+        updateReport(newNodes, edges);
+    };
+
+    const selectedNodesMemo = useMemo(() => {
         return nodes.filter(node => selectedNodeIds.has(node.id));
     }, [nodes, selectedNodeIds]);
 
     const handleSaveNodeEdit = (id: string, newContent: string) => {
         const newNodes = nodes.map(n => n.id === id ? { ...n, content: newContent } : n);
         setNodes(newNodes);
-        if (report?.argumentGraph) {
-            onUpdateReport({ ...report, argumentGraph: { ...report.argumentGraph, nodes: newNodes } });
-        }
+        updateReport(newNodes, edges);
     };
     
     const handleSendMessageInNode = async (nodeId: string, userMessage: ChatMessage) => {
         const targetNode = nodes.find(n => n.id === nodeId);
         if (!targetNode) return;
-    
         const updatedHistory = [...(targetNode.chatHistory || []), userMessage];
         const newNodesTemp = nodes.map(n => n.id === nodeId ? { ...n, chatHistory: updatedHistory } : n);
         setNodes(newNodesTemp);
         setChattingNode(newNodesTemp.find(n => n.id === nodeId) || null);
         setIsChatLoading(true);
-    
         try {
             const aiResponseContent = await chatAboutArgumentNode(targetNode, updatedHistory, userMessage.content);
             const aiMessage: ChatMessage = { role: 'model', content: aiResponseContent };
             const finalHistory = [...updatedHistory, aiMessage];
-            
             const finalNodes = newNodesTemp.map(n => n.id === nodeId ? { ...n, chatHistory: finalHistory } : n);
             setNodes(finalNodes);
             setChattingNode(finalNodes.find(n => n.id === nodeId) || null);
-            if (report?.argumentGraph) {
-                onUpdateReport({ ...report, argumentGraph: { ...report.argumentGraph, nodes: finalNodes } });
-            }
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setIsChatLoading(false);
-        }
+            updateReport(finalNodes, edges);
+        } catch (err) { console.error(err); } 
+        finally { setIsChatLoading(false); }
     };
 
 
-    if (!report || !report.argumentGraph || report.argumentGraph.nodes.length === 0) {
-        return (
-            <div className="flex items-center justify-center w-full h-full text-center text-slate-500 bg-slate-50 rounded-lg border">
-                <div className="max-w-md">
-                    <h3 className="text-xl font-bold text-slate-700">Bản đồ Lập luận Trống</h3>
-                    <p className="mt-2">Không tìm thấy dữ liệu để tạo bản đồ. Vui lòng chạy phân tích vụ việc trước. Kết quả phân tích phải chứa mục "argumentGraph" do AI tạo ra.</p>
-                </div>
-            </div>
-        );
+    if (!report || !report.argumentGraph) {
+        return <div className="flex items-center justify-center w-full h-full text-center text-slate-500 bg-slate-50 rounded-lg border">...</div>;
     }
     
+    const mapCursor = { select: 'auto', link: 'crosshair', delete: 'crosshair' }[mode];
+
     return (
         <div className="grid grid-cols-12 w-full h-full gap-0">
             <div 
                 className="col-span-8 bg-slate-100/50 rounded-l-lg relative overflow-hidden"
+                style={{ cursor: isPanning.current ? 'grabbing' : mapCursor }}
                 ref={mapRef}
                 onMouseMove={handleMouseMove}
                 onMouseDown={handleMapMouseDown}
@@ -556,48 +580,37 @@ export const ArgumentMapView: React.FC<ArgumentMapViewProps> = ({ report, onUpda
                 onClick={handleCanvasClick}
             >
                 <div 
-                    className="relative w-[2000px] h-[2000px]" 
+                    className="relative w-[4000px] h-[4000px]" 
                     ref={mapContentRef}
-                    style={{
-                        transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
-                        transformOrigin: '0 0',
-                    }}
+                    style={{ transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`, transformOrigin: '0 0' }}
                 >
                     <svg className="absolute w-full h-full pointer-events-none">
-                        <defs>
-                            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="8" refY="3.5" orient="auto">
-                                <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
-                            </marker>
-                        </defs>
-                        {edges.map(edge => (
-                            <ArgumentEdgeComponent key={edge.id} edge={edge} nodes={nodes} nodeDimensions={nodeDimensions} />
-                        ))}
+                        <defs><marker id="arrowhead" markerWidth="10" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" /></marker></defs>
+                        {edges.map(edge => (<ArgumentEdgeComponent key={edge.id} edge={edge} nodes={nodes} nodeDimensions={nodeDimensions} onClick={(id) => mode === 'delete' && handleDeleteEdge(id)} />))}
                     </svg>
                     {nodes.map(node => (
                         <ArgumentNodeComponent
-                            key={node.id}
-                            node={node}
-                            onDragStart={handleNodeDragStart}
-                            isSelected={selectedNodeIds.has(node.id)}
-                            onClick={handleNodeClick}
-                            onStartEdit={setEditingNode}
-                            onStartChat={setChattingNode}
+                            key={node.id} node={node} onDragStart={handleNodeDragStart} isSelected={selectedNodeIds.has(node.id)}
+                            onClick={handleNodeClick} onStartEdit={setEditingNode} onStartChat={setChattingNode} onDelete={handleDeleteNode}
+                            isLinkSource={linkSource === node.id}
                         />
                     ))}
                 </div>
+                
+                {/* Main Toolbar */}
+                <div className="absolute top-4 left-4 bg-white/80 backdrop-blur-sm border border-slate-200 rounded-lg shadow-md flex items-center p-1 gap-1">
+                    <button onClick={() => setMode('select')} className={`p-2 rounded ${mode === 'select' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-200'}`} title="Chọn & Di chuyển"><CursorArrowRaysIcon className="w-5 h-5"/></button>
+                    <button onClick={() => { setMode('link'); setLinkSource(null); }} className={`p-2 rounded ${mode === 'link' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-200'}`} title="Liên kết các khối"><LinkIcon className="w-5 h-5"/></button>
+                    <button onClick={() => setMode('delete')} className={`p-2 rounded ${mode === 'delete' ? 'bg-red-600 text-white' : 'text-slate-600 hover:bg-slate-200'}`} title="Xóa"><TrashIcon className="w-5 h-5"/></button>
+                    <div className="w-px h-6 bg-slate-200 mx-1"></div>
+                    <button onClick={handleAddNode} className="p-2 text-slate-600 hover:bg-slate-200 rounded" title="Thêm khối tùy chỉnh"><PlusIcon className="w-5 h-5"/></button>
+                </div>
+
                 {/* Pan Controls */}
-                <div className="absolute top-4 left-4 bg-white/80 backdrop-blur-sm border border-slate-200 rounded-lg shadow-md grid grid-cols-3 w-24">
-                    <div className="col-span-1"></div>
-                    <button onClick={() => handlePanControls('up')} className="p-2 text-slate-600 hover:text-blue-600 flex justify-center"><ArrowUpIcon className="w-5 h-5"/></button>
-                    <div className="col-span-1"></div>
-
-                    <button onClick={() => handlePanControls('left')} className="p-2 text-slate-600 hover:text-blue-600 flex justify-center"><ArrowLeftIcon className="w-5 h-5"/></button>
-                    <div className="col-span-1"></div>
-                    <button onClick={() => handlePanControls('right')} className="p-2 text-slate-600 hover:text-blue-600 flex justify-center"><ArrowRightIcon className="w-5 h-5"/></button>
-
-                    <div className="col-span-1"></div>
-                    <button onClick={() => handlePanControls('down')} className="p-2 text-slate-600 hover:text-blue-600 flex justify-center"><ArrowDownIcon className="w-5 h-5"/></button>
-                    <div className="col-span-1"></div>
+                <div className="absolute top-20 left-4 bg-white/80 backdrop-blur-sm border border-slate-200 rounded-lg shadow-md grid grid-cols-3 w-24">
+                    <div/><button onClick={() => handlePanControls('up')} className="p-2 text-slate-600 hover:text-blue-600 flex justify-center"><ArrowUpIcon className="w-5 h-5"/></button><div/>
+                    <button onClick={() => handlePanControls('left')} className="p-2 text-slate-600 hover:text-blue-600 flex justify-center"><ArrowLeftIcon className="w-5 h-5"/></button><div/><button onClick={() => handlePanControls('right')} className="p-2 text-slate-600 hover:text-blue-600 flex justify-center"><ArrowRightIcon className="w-5 h-5"/></button>
+                    <div/><button onClick={() => handlePanControls('down')} className="p-2 text-slate-600 hover:text-blue-600 flex justify-center"><ArrowDownIcon className="w-5 h-5"/></button><div/>
                 </div>
 
                 {/* Zoom Controls */}
@@ -610,11 +623,7 @@ export const ArgumentMapView: React.FC<ArgumentMapViewProps> = ({ report, onUpda
                 </div>
             </div>
             <div className="col-span-4 h-full">
-                <ArgumentEditor 
-                    selectedNodes={selectedNodes} 
-                    onDownload={handleDownloadImage}
-                    isDownloading={isDownloading}
-                />
+                <ArgumentEditor selectedNodes={selectedNodesMemo} onDownload={handleDownloadImage} isDownloading={isDownloading} />
             </div>
 
             {editingNode && <ArgumentNodeEditorModal node={editingNode} onClose={() => setEditingNode(null)} onSave={handleSaveNodeEdit} />}
