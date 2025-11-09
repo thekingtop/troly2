@@ -27,14 +27,14 @@ declare var html2canvas: any;
 
 const ArgumentNodeComponent: React.FC<{
     node: ArgumentNode;
-    onDragStart: (e: React.MouseEvent, id: string) => void;
+    onMouseDown: (e: React.MouseEvent, id: string) => void;
     isSelected: boolean;
     onClick: (e: React.MouseEvent, id: string) => void;
     onStartEdit: (node: ArgumentNode) => void;
     onStartChat: (node: ArgumentNode) => void;
     onDelete: (id: string) => void;
     isLinkSource: boolean;
-}> = ({ node, onDragStart, isSelected, onClick, onStartEdit, onStartChat, onDelete, isLinkSource }) => {
+}> = ({ node, onMouseDown, isSelected, onClick, onStartEdit, onStartChat, onDelete, isLinkSource }) => {
     const meta = nodeTypeMeta[node.type] || nodeTypeMeta.custom;
     let selectionClass = 'hover:ring-2 hover:ring-blue-300';
     if (isSelected) {
@@ -49,7 +49,7 @@ const ArgumentNodeComponent: React.FC<{
             id={`node-${node.id}`}
             className={`absolute p-3 rounded-lg shadow-md cursor-grab active:cursor-grabbing text-xs text-slate-800 w-48 ${meta.color} border-2 ${selectionClass} transition-all duration-150 flex flex-col`}
             style={{ left: node.position.x, top: node.position.y }}
-            onMouseDown={(e) => onDragStart(e, node.id)}
+            onMouseDown={(e) => onMouseDown(e, node.id)}
             onClick={(e) => onClick(e, node.id)}
         >
             <div className="font-bold mb-1 flex justify-between items-start">
@@ -329,7 +329,6 @@ export const ArgumentMapView: React.FC<ArgumentMapViewProps> = ({ report, onUpda
         }
     };
 
-    // FIX: Define the missing handleNodeDragStart function.
     const handleNodeDragStart = (e: React.MouseEvent, id: string) => {
         const node = nodes.find(n => n.id === id);
         if (!node || mode !== 'select' || e.button !== 0) return;
@@ -560,7 +559,7 @@ export const ArgumentMapView: React.FC<ArgumentMapViewProps> = ({ report, onUpda
 
 
     if (!report || !report.argumentGraph) {
-        return <div className="flex items-center justify-center w-full h-full text-center text-slate-500 bg-slate-50 rounded-lg border">...</div>;
+        return <div className="flex items-center justify-center w-full h-full text-center text-slate-500 bg-slate-50 rounded-lg border">Vui lòng chạy phân tích vụ việc để tạo bản đồ lập luận.</div>;
     }
     
     const mapCursor = { select: 'auto', link: 'crosshair', delete: 'crosshair' }[mode];
@@ -590,7 +589,7 @@ export const ArgumentMapView: React.FC<ArgumentMapViewProps> = ({ report, onUpda
                     </svg>
                     {nodes.map(node => (
                         <ArgumentNodeComponent
-                            key={node.id} node={node} onDragStart={handleNodeDragStart} isSelected={selectedNodeIds.has(node.id)}
+                            key={node.id} node={node} onMouseDown={handleNodeDragStart} isSelected={selectedNodeIds.has(node.id)}
                             onClick={handleNodeClick} onStartEdit={setEditingNode} onStartChat={setChattingNode} onDelete={handleDeleteNode}
                             isLinkSource={linkSource === node.id}
                         />

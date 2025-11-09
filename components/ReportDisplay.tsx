@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import type { AnalysisReport, ApplicableLaw, LawArticle, UploadedFile, LitigationType, LegalLoophole, ChatMessage, CaseTimelineEvent, OpponentArgument, SupportingEvidence } from '../types.ts';
 import { MagicIcon } from './icons/MagicIcon.tsx';
@@ -142,7 +141,7 @@ const ReportSection: React.FC<ReportSectionProps> = ({ title, children, chatHist
                 <h4 className="text-base font-bold text-slate-800">{title}</h4>
                 <div className="flex items-center gap-2">
                   {headerAction}
-                  {chatHistory && onChatToggle && (
+                  {chatHistory !== undefined && onChatToggle && (
                       <button onClick={onChatToggle} className={buttonClasses} title="Trao đổi với AI về mục này">
                           <ChatIcon className="w-5 h-5" />
                       </button>
@@ -272,350 +271,311 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
     const [explainingLaw, setExplainingLaw] = useState<string | null>(null);
     const [explanation, setExplanation] = useState('');
     const [explanationError, setExplanationError] = useState<string | null>(null);
-    const [activeChat, setActiveChat] = useState<keyof AnalysisReport | null>(null);
-    const [isChatLoading, setIsChatLoading] = useState<keyof AnalysisReport | null>(null);
-    const [editableSummary, setEditableSummary] = useState(report?.editableCaseSummary || '');
+    const [activeChat, setActiveChat] = useState<keyof Pick<AnalysisReport, 'gapAnalysisChat' | 'prospectsChat' | 'strategyChat' | 'resolutionPlanChat' | 'applicableLawsChat' | 'contingencyPlanChat'> | null>(null);
+    const [isChatLoading, setIsChatLoading] = useState(false);
     const [isEditingSummary, setIsEditingSummary] = useState(false);
-    const [isCapturingTimeline, setIsCapturingTimeline] = useState(false);
-
+    const [editedSummary, setEditedSummary] = useState(report?.editableCaseSummary || '');
+    
     useEffect(() => {
-        setEditableSummary(report?.editableCaseSummary || '');
+        if (report?.editableCaseSummary) {
+            setEditedSummary(report.editableCaseSummary);
+        }
     }, [report?.editableCaseSummary]);
 
-    const handleReanalyzeClick = () => {
-        if (!report) return;
-        onReanalyze({ ...report, editableCaseSummary: editableSummary });
-    };
-    
-    const handleUpdateEvents = (updatedEvents: CaseTimelineEvent[]) => {
-        if (report) {
-            const updatedReport = { ...report, caseTimeline: updatedEvents };
-            onUpdateReport(updatedReport);
-        }
-    };
-
-    const handleDownloadTimelineImage = async () => {
-        const timelineElement = document.getElementById('timeline-capture-area');
-        if (!timelineElement) {
-            console.error("Timeline element not found for capture.");
-            return;
-        }
-        setIsCapturingTimeline(true);
-        try {
-            const canvas = await html2canvas(timelineElement, { 
-                scale: 2, // for high quality
-                useCORS: true,
-                backgroundColor: '#ffffff' // Ensure a solid white background
-            });
-            const dataUrl = canvas.toDataURL('image/png');
-            const link = document.createElement('a');
-            link.download = 'dong_thoi_gian_vu_viec.png';
-            link.href = dataUrl;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        } catch (err) {
-            console.error("Error generating timeline image:", err);
-            alert("Đã xảy ra lỗi khi tạo ảnh từ dòng thời gian.");
-        } finally {
-            setIsCapturingTimeline(false);
-        }
-    };
-
-    const handleAddLaw = () => {
-        if (newLaw.documentName.trim() === '' || newLaw.articles.some(a => a.articleNumber.trim() === '')) return;
-        const currentLaws = report?.userAddedLaws || [];
-        onUpdateUserLaws([...currentLaws, newLaw]);
-        setNewLaw({ documentName: '', articles: [{ articleNumber: '', summary: '' }] });
-        setIsAddingLaw(false);
-    };
-    const handleDeleteUserLaw = (index: number) => {
-        const currentLaws = report?.userAddedLaws || [];
-        onUpdateUserLaws(currentLaws.filter((_, i) => i !== index));
-    };
-    const handleExplainLaw = async (law: LawArticle) => {
-        setExplainingLaw(`${law.articleNumber}`);
+    const handleExplainLaw = async (lawText: string) => {
+        setExplainingLaw(lawText);
         setExplanation('');
         setExplanationError(null);
         try {
-            const result = await explainLaw(`${law.articleNumber}: ${law.summary}`);
+            const result = await explainLaw(lawText);
             setExplanation(result);
-        } catch (error) {
-            setExplanationError(error instanceof Error ? error.message : "Lỗi không xác định.");
+        } catch (err) {
+            setExplanationError(err instanceof Error ? err.message : 'Lỗi không xác định');
         }
     };
     
-    const handleChatSendMessage = async (chatHistoryKey: keyof AnalysisReport, contextTitle: string, message: string) => {
+    const allLaws = [...(report?.applicableLaws || []), ...(report?.userAddedLaws || [])];
+
+    const handleAddNewLaw = () => {
+        if (!newLaw.documentName.trim() || newLaw.articles.some(a => !a.articleNumber.trim() || !a.summary.trim())) {
+            alert("Vui lòng điền đầy đủ thông tin.");
+            return;
+        }
+        const updatedUserLaws = [...(report?.userAddedLaws || []), { ...newLaw, articles: [...newLaw.articles] }];
+        onUpdateUserLaws(updatedUserLaws);
+        setNewLaw({ documentName: '', articles: [{ articleNumber: '', summary: '' }] });
+        setIsAddingLaw(false);
+    };
+    
+    const handleRemoveUserLaw = (docName: string, articleNum: string) => {
+        if (!report?.userAddedLaws) return;
+        const updatedLaws = report.userAddedLaws.map(law => {
+            if (law.documentName === docName) {
+                const filteredArticles = law.articles.filter(a => a.articleNumber !== articleNum);
+                return { ...law, articles: filteredArticles };
+            }
+            return law;
+        }).filter(law => law.articles.length > 0); // Remove law if no articles are left
+        onUpdateUserLaws(updatedLaws);
+    };
+
+    const handleChatSendMessage = async (chatKey: NonNullable<typeof activeChat>, message: string) => {
         if (!report) return;
         
-        const currentHistory = (report[chatHistoryKey] as ChatMessage[] || []);
+        const currentHistory = report[chatKey] || [];
         const newUserMessage: ChatMessage = { role: 'user', content: message };
         const updatedHistory = [...currentHistory, newUserMessage];
-
-        // Optimistic update
-        const updatedReport = { ...report, [chatHistoryKey]: updatedHistory };
-        onUpdateReport(updatedReport);
-        setIsChatLoading(chatHistoryKey);
+        
+        onUpdateReport({ ...report, [chatKey]: updatedHistory });
+        setIsChatLoading(true);
 
         try {
-            const aiResponse = await continueContextualChat(report, currentHistory, message, `Mục: ${contextTitle}`);
+            const sectionTitles: Record<NonNullable<typeof activeChat>, string> = {
+                gapAnalysisChat: "Phân tích Lỗ hổng & Hành động",
+                prospectsChat: "Đánh giá Triển vọng Vụ việc",
+                strategyChat: "Đề xuất Lộ trình & Chiến lược",
+                resolutionPlanChat: "Phương án giải quyết theo Yêu cầu",
+                applicableLawsChat: "Cơ sở pháp lý áp dụng",
+                contingencyPlanChat: "Phương án xử lý nếu thua kiện"
+            };
+            const aiResponse = await continueContextualChat(report, currentHistory, message, sectionTitles[chatKey]);
             const aiMessage: ChatMessage = { role: 'model', content: aiResponse };
             const finalHistory = [...updatedHistory, aiMessage];
-            const finalReport = { ...report, [chatHistoryKey]: finalHistory };
-            onUpdateReport(finalReport);
+            onUpdateReport({ ...report, [chatKey]: finalHistory });
         } catch (err) {
-            // Handle error, maybe revert optimistic update or show error message
             console.error(err);
         } finally {
-            setIsChatLoading(null);
+            setIsChatLoading(false);
+        }
+    };
+    
+    const handleSaveSummary = () => {
+        if (report) {
+            onUpdateReport({ ...report, editableCaseSummary: editedSummary });
+        }
+        setIsEditingSummary(false);
+    };
+    const handleCancelEditSummary = () => {
+        setEditedSummary(report?.editableCaseSummary || '');
+        setIsEditingSummary(false);
+    };
+    const handleReanalyzeClick = () => {
+        if (report) {
+            const reportToReanalyze = isEditingSummary ? { ...report, editableCaseSummary: editedSummary } : report;
+            onReanalyze(reportToReanalyze);
+            setIsEditingSummary(false);
         }
     };
 
-    if (caseSummary) {
-        return (
-            <div id="report-content" className="space-y-6">
-                <ReportSection title="Tóm tắt Diễn biến Vụ việc">
-                    <p className="whitespace-pre-wrap">{caseSummary}</p>
-                </ReportSection>
-                <ReportSection title="Tóm tắt Yêu cầu của Khách hàng">
-                    <p className="whitespace-pre-wrap">{clientRequestSummary}</p>
-                </ReportSection>
-            </div>
-        );
+    if (!report && !caseSummary && !clientRequestSummary) {
+        return null;
     }
-    
-    if (!report) {
-        return <div id="report-content"></div>;
-    }
-    
-    const userAddedLaws = report.userAddedLaws || [];
 
     return (
-        <div id="report-content" className="space-y-6">
-            <div className="flex justify-between items-center bg-slate-100 p-2 rounded-lg border">
-                <input type="text" value={highlightTerm} onChange={e => setHighlightTerm(e.target.value)} placeholder="Tìm & highlight trong báo cáo..." className="w-full text-sm p-1.5 border-slate-300 rounded-md bg-white focus:ring-1 focus:ring-blue-500" />
+        <div className="space-y-6" id="report-content">
+            <div className="flex justify-between items-center">
+                <div className="relative flex-grow">
+                     <SearchIcon className="w-5 h-5 text-slate-400 absolute top-1/2 left-3 -translate-y-1/2" />
+                     <input
+                        type="text"
+                        value={highlightTerm}
+                        onChange={(e) => setHighlightTerm(e.target.value)}
+                        placeholder="Tìm kiếm & highlight trong báo cáo..."
+                        className="w-full pl-10 pr-4 py-2 text-sm border border-slate-300 rounded-lg focus:ring-1 focus:ring-blue-500"
+                    />
+                </div>
+                <button onClick={handleReanalyzeClick} disabled={isReanalyzing} className="ml-3 flex items-center gap-2 px-4 py-2 text-sm bg-slate-700 text-white font-semibold rounded-lg hover:bg-slate-800 disabled:bg-slate-400">
+                    {isReanalyzing ? <Loader /> : <RefreshIcon className="w-4 h-4" />}
+                    Phân tích lại
+                </button>
             </div>
 
-            {report.quickSummary && (
-                <ReportSection title="Tóm tắt Báo cáo" headerAction={<button onClick={onClearSummary} className="px-3 py-1.5 text-xs bg-slate-200 rounded-lg hover:bg-slate-300">Xóa</button>}>
-                    <pre className="whitespace-pre-wrap font-sans text-sm">{report.quickSummary}</pre>
+            {report?.quickSummary && (
+                <ReportSection title="Tóm tắt Nhanh" headerAction={<button onClick={onClearSummary} className="px-3 py-1.5 text-xs bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200">Xóa</button>}>
+                    <pre className="whitespace-pre-wrap font-sans text-sm"><HighlightedText text={report.quickSummary} term={highlightTerm} /></pre>
                 </ReportSection>
             )}
-            
-            <ReportSection title="Tóm tắt Vụ việc (AI tạo, có thể chỉnh sửa)">
-                <textarea
-                    value={editableSummary}
-                    onChange={(e) => setEditableSummary(e.target.value)}
-                    onFocus={() => setIsEditingSummary(true)}
-                    className="w-full p-2 border border-slate-300 rounded-md min-h-[120px] bg-slate-50 focus:bg-white"
-                />
-                 {isEditingSummary && (
-                    <div className="flex justify-end gap-2 mt-2">
-                        <button
-                          onClick={handleReanalyzeClick}
-                          disabled={isReanalyzing}
-                          className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-slate-300"
-                        >
-                          {isReanalyzing ? <Loader /> : <RefreshIcon className="w-4 h-4"/>}
-                          Phân tích lại
-                        </button>
-                    </div>
-                )}
-            </ReportSection>
 
-            {report.caseTimeline && report.caseTimeline.length > 0 && (
+             {caseSummary && (
+                <ReportSection title="Tóm tắt Diễn biến Vụ việc (AI trích xuất)">
+                    <p><HighlightedText text={caseSummary} term={highlightTerm} /></p>
+                </ReportSection>
+             )}
+              {clientRequestSummary && (
+                <ReportSection title="Tóm tắt Yêu cầu của Khách hàng (AI trích xuất)">
+                    <p><HighlightedText text={clientRequestSummary} term={highlightTerm} /></p>
+                </ReportSection>
+             )}
+
+            {report && (
                 <>
-                    <div id="timeline-capture-area">
-                        <ReportSection 
-                            title="Dòng thời gian Vụ việc"
-                            headerAction={
-                                <button 
-                                    onClick={handleDownloadTimelineImage} 
-                                    disabled={isCapturingTimeline}
-                                    className="flex items-center gap-2 px-3 py-1.5 text-xs bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 disabled:opacity-50"
-                                    title="Tải về dòng thời gian dưới dạng ảnh"
-                                >
-                                    {isCapturingTimeline ? <Loader /> : <DownloadIcon className="w-4 h-4" />}
-                                    <span>Tải ảnh</span>
-                                </button>
-                            }
-                        >
-                            <CaseTimeline events={report.caseTimeline} highlightTerm={highlightTerm} onUpdateEvents={handleUpdateEvents} />
-                        </ReportSection>
+                {report.editableCaseSummary && (
+                    <ReportSection title="Tóm tắt Vụ việc (AI tạo)" headerAction={!isEditingSummary && <button onClick={() => setIsEditingSummary(true)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200"><EditIcon className="w-4 h-4"/> Sửa</button>}>
+                        {isEditingSummary ? (
+                            <div className="space-y-2">
+                                <textarea value={editedSummary} onChange={e => setEditedSummary(e.target.value)} className="w-full h-24 p-2 border border-slate-300 rounded-md bg-slate-50"/>
+                                <div className="flex justify-end gap-2">
+                                    <button onClick={handleCancelEditSummary} className="px-3 py-1 text-xs font-semibold bg-slate-200 rounded-md hover:bg-slate-300">Hủy</button>
+                                    <button onClick={handleSaveSummary} className="px-3 py-1 text-xs font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700">Lưu</button>
+                                </div>
+                            </div>
+                        ) : (
+                            <p><HighlightedText text={report.editableCaseSummary} term={highlightTerm} /></p>
+                        )}
+                    </ReportSection>
+                )}
+                
+                {report.caseTimeline?.length > 0 && (
+                     <ReportSection title="Dòng thời gian Vụ việc">
+                        <CaseTimeline events={report.caseTimeline} highlightTerm={highlightTerm} onUpdateEvents={(updatedEvents) => onUpdateReport({...report, caseTimeline: updatedEvents})} />
+                    </ReportSection>
+                )}
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="p-4 bg-slate-100/50 border rounded-lg">
+                        <p className="text-sm font-semibold text-slate-600 mb-1">Giai đoạn tố tụng</p>
+                        <p className="text-base font-bold text-blue-700"><HighlightedText text={getStageLabel(litigationType, report.litigationStage)} term={highlightTerm} /></p>
                     </div>
-                    <div className="flex justify-center p-2 -mt-4 mb-2">
-                        <button
-                          onClick={handleReanalyzeClick}
-                          disabled={isReanalyzing}
-                          className="flex items-center gap-2 px-4 py-2 text-sm bg-slate-100 text-slate-800 font-semibold rounded-lg hover:bg-slate-200 border border-slate-300 disabled:bg-slate-200/50"
-                          title="Phân tích lại toàn bộ vụ việc sau khi bạn đã chỉnh sửa dòng thời gian."
-                        >
-                          {isReanalyzing ? <Loader /> : <RefreshIcon className="w-4 h-4"/>}
-                          Phân tích lại Vụ việc
-                        </button>
+                     <div className="p-4 bg-slate-100/50 border rounded-lg">
+                        <p className="text-sm font-semibold text-slate-600 mb-1">Tư cách tố tụng</p>
+                        <ul className="text-sm space-y-1">{report.proceduralStatus?.map((p, i) => <li key={i}><span className="font-semibold"><HighlightedText text={p.partyName} term={highlightTerm} />:</span> <HighlightedText text={p.status} term={highlightTerm} /></li>)}</ul>
                     </div>
+                </div>
+
+                <ReportSection title="1. Quan hệ pháp luật"><p><HighlightedText text={report.legalRelationship} term={highlightTerm} /></p></ReportSection>
+                <ReportSection title="2. Vấn đề pháp lý cốt lõi"><ul className="list-disc list-inside space-y-1.5">{report.coreLegalIssues?.map((issue, i) => <li key={i}><HighlightedText text={issue} term={highlightTerm} /></li>)}</ul></ReportSection>
+                
+                {report.requestResolutionPlan && (
+                    <ReportSection title="3. Phương án giải quyết theo Yêu cầu" chatHistory={report.resolutionPlanChat} onChatToggle={() => setActiveChat(prev => prev === 'resolutionPlanChat' ? null : 'resolutionPlanChat')} isChatOpen={activeChat === 'resolutionPlanChat'}>
+                        <ul className="list-disc list-inside space-y-1.5">{report.requestResolutionPlan.map((item, i) => <li key={i}><HighlightedText text={item} term={highlightTerm} /></li>)}</ul>
+                        {activeChat === 'resolutionPlanChat' && <ChatWindow chatHistory={report.resolutionPlanChat || []} onSendMessage={(msg) => handleChatSendMessage('resolutionPlanChat', msg)} isLoading={isChatLoading} onClose={() => setActiveChat(null)} title="Trao đổi về Phương án giải quyết" />}
+                    </ReportSection>
+                )}
+
+                <ReportSection title="4. Cơ sở pháp lý áp dụng" chatHistory={report.applicableLawsChat} onChatToggle={() => setActiveChat(prev => prev === 'applicableLawsChat' ? null : 'applicableLawsChat')} isChatOpen={activeChat === 'applicableLawsChat'}>
+                    <div className="space-y-4">
+                        {allLaws.map((law, index) => (
+                            <div key={`${law.documentName}-${index}`} className="p-3 border-l-4 border-blue-200 bg-blue-50/50 rounded-r-md">
+                                <h5 className="font-bold text-blue-800"><HighlightedText text={law.documentName} term={highlightTerm} /></h5>
+                                {law.coreIssueAddressed && <p className="text-xs italic mt-1"><span className="font-semibold">Vấn đề giải quyết:</span> <HighlightedText text={law.coreIssueAddressed} term={highlightTerm} /></p>}
+                                {law.relevanceToCase && <p className="text-xs italic"><span className="font-semibold">Sự liên quan:</span> <HighlightedText text={law.relevanceToCase} term={highlightTerm} /></p>}
+                                <ul className="mt-2 space-y-2">
+                                    {law.articles.map((article) => (
+                                        <li key={article.articleNumber} className="relative group">
+                                            <p><span className="font-semibold"><HighlightedText text={article.articleNumber} term={highlightTerm} />:</span> <HighlightedText text={article.summary} term={highlightTerm} /></p>
+                                            <div className="absolute top-0 right-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                 {report.userAddedLaws?.some(l => l.documentName === law.documentName && l.articles.some(a => a.articleNumber === article.articleNumber)) && (
+                                                     <button onClick={() => handleRemoveUserLaw(law.documentName, article.articleNumber)} className="p-1 rounded-full hover:bg-red-100" title="Xóa"><TrashIcon className="w-4 h-4 text-red-500"/></button>
+                                                 )}
+                                                <button onClick={() => handleExplainLaw(`${law.documentName} - ${article.articleNumber}`)} className="p-1 rounded-full hover:bg-blue-100" title="Giải thích điều luật"><MagicIcon className="w-4 h-4 text-blue-600"/></button>
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ul>
+                                {law.supportingEvidence && law.supportingEvidence.length > 0 && (
+                                    <div className="mt-2 pt-2 border-t border-blue-200/50">
+                                        <h6 className="text-xs font-semibold text-blue-700">Chứng cứ hỗ trợ:</h6>
+                                        {law.supportingEvidence.map((ev, i) => (
+                                             <blockquote key={i} className="mt-1 border-l-2 border-blue-300 pl-2 text-xs italic text-blue-900/80">
+                                                "...<HighlightedText text={ev.snippet} term={highlightTerm} />..." (Nguồn: <span className="font-medium">{ev.sourceDocument}</span>)
+                                            </blockquote>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                        {isAddingLaw ? (
+                            <div className="p-3 border border-slate-300 rounded-md space-y-2 animate-fade-in bg-slate-50">
+                               <input type="text" placeholder="Tên văn bản (VD: Bộ luật Dân sự 2015)" value={newLaw.documentName} onChange={(e) => setNewLaw({...newLaw, documentName: e.target.value})} className="w-full p-1.5 text-sm border rounded"/>
+                               {newLaw.articles.map((art, i) => (
+                                   <div key={i} className="flex gap-2 items-start">
+                                       <input type="text" placeholder="Điều luật" value={art.articleNumber} onChange={(e) => { const arts = [...newLaw.articles]; arts[i].articleNumber = e.target.value; setNewLaw({...newLaw, articles: arts}); }} className="w-1/4 p-1.5 text-sm border rounded"/>
+                                       <textarea placeholder="Tóm tắt nội dung điều luật" value={art.summary} onChange={(e) => { const arts = [...newLaw.articles]; arts[i].summary = e.target.value; setNewLaw({...newLaw, articles: arts}); }} className="w-3/4 p-1.5 text-sm border rounded" rows={2}/>
+                                   </div>
+                               ))}
+                               <div className="flex justify-end gap-2">
+                                   <button onClick={() => setIsAddingLaw(false)} className="px-3 py-1 text-xs font-semibold bg-slate-200 rounded-md hover:bg-slate-300">Hủy</button>
+                                   <button onClick={handleAddNewLaw} className="px-3 py-1 text-xs font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700">Thêm</button>
+                               </div>
+                            </div>
+                        ) : ( <button onClick={() => setIsAddingLaw(true)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-slate-100 text-slate-700 font-semibold rounded-lg hover:bg-slate-200"><PlusIcon className="w-4 h-4" />Thêm cơ sở pháp lý</button> )}
+                        
+                         {explainingLaw && (
+                            <div className="mt-2 p-3 bg-slate-100 rounded-md animate-fade-in">
+                               <p className="font-semibold text-sm">Giải thích cho: {explainingLaw}</p>
+                               {explanationError ? <p className="text-red-600 text-sm">{explanationError}</p> : explanation ? <p className="text-sm mt-1">{explanation}</p> : <Loader />}
+                            </div>
+                        )}
+                        {activeChat === 'applicableLawsChat' && <ChatWindow chatHistory={report.applicableLawsChat || []} onSendMessage={(msg) => handleChatSendMessage('applicableLawsChat', msg)} isLoading={isChatLoading} onClose={() => setActiveChat(null)} title="Trao đổi về Cơ sở pháp lý" />}
+                    </div>
+                </ReportSection>
+
+                <ReportSection title="5. Phân tích Lỗ hổng & Hành động" chatHistory={report.gapAnalysisChat} onChatToggle={() => setActiveChat(prev => prev === 'gapAnalysisChat' ? null : 'gapAnalysisChat')} isChatOpen={activeChat === 'gapAnalysisChat'}>
+                    <div className="space-y-3">
+                       <h5 className="font-semibold flex items-center gap-2"><InfoIcon className="w-5 h-5 text-slate-500" />Thông tin / Chứng cứ còn thiếu</h5>
+                       <ul className="list-disc list-inside pl-2 space-y-1">{report.gapAnalysis?.missingInformation.map((item, i) => <li key={i}><HighlightedText text={item} term={highlightTerm} /></li>)}</ul>
+                       <h5 className="font-semibold flex items-center gap-2"><MagicIcon className="w-5 h-5 text-slate-500" />Hành động đề xuất</h5>
+                       <ul className="list-disc list-inside pl-2 space-y-1">{report.gapAnalysis?.recommendedActions.map((item, i) => <li key={i}><HighlightedText text={item} term={highlightTerm} /></li>)}</ul>
+                       <h5 className="font-semibold flex items-center gap-2"><SearchIcon className="w-5 h-5 text-slate-500" />Lỗ hổng pháp lý tiềm ẩn</h5>
+                       <div className="space-y-2 pl-2">
+                           {(report.gapAnalysis?.legalLoopholes || []).map((item, i) => (
+                               <div key={i} className={`p-3 border-l-4 rounded-r-md text-sm ${getLoopholeSeverityClasses(item.severity)}`}>
+                                   <div className="flex items-center gap-2 font-semibold text-slate-800">
+                                       {getLoopholeIcon(item.classification)}
+                                       <span>[<HighlightedText text={item.classification} term={highlightTerm} /> - Mức độ: <HighlightedText text={item.severity} term={highlightTerm} />]</span>
+                                   </div>
+                                   <p className="mt-1"><HighlightedText text={item.description} term={highlightTerm} /></p>
+                                   <p className="text-slate-600"><span className="font-semibold">Gợi ý:</span> <HighlightedText text={item.suggestion} term={highlightTerm} /></p>
+                                   <blockquote className="mt-1 border-l-2 border-slate-300 pl-2 italic text-slate-500 text-xs">"...<HighlightedText text={item.evidence} term={highlightTerm} />..."</blockquote>
+                               </div>
+                           ))}
+                       </div>
+                    </div>
+                    {activeChat === 'gapAnalysisChat' && <ChatWindow chatHistory={report.gapAnalysisChat || []} onSendMessage={(msg) => handleChatSendMessage('gapAnalysisChat', msg)} isLoading={isChatLoading} onClose={() => setActiveChat(null)} title="Trao đổi về Phân tích Lỗ hổng" />}
+                </ReportSection>
+                
+                 <OpponentAnalysisSection report={report} files={files} onUpdateReport={onUpdateReport} highlightTerm={highlightTerm} />
+
+                <ReportSection title="6. Đánh giá Triển vọng Vụ việc" chatHistory={report.prospectsChat} onChatToggle={() => setActiveChat(prev => prev === 'prospectsChat' ? null : 'prospectsChat')} isChatOpen={activeChat === 'prospectsChat'}>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="p-3 bg-green-50 border-l-4 border-green-300 rounded-r-md">
+                           <h5 className="font-semibold text-green-800 mb-2">Điểm mạnh</h5>
+                           <ul className="list-disc list-inside space-y-1 text-green-900">{report.caseProspects?.strengths.map((item, i) => <li key={i}><HighlightedText text={item} term={highlightTerm} /></li>)}</ul>
+                        </div>
+                        <div className="p-3 bg-amber-50 border-l-4 border-amber-300 rounded-r-md">
+                           <h5 className="font-semibold text-amber-800 mb-2">Điểm yếu</h5>
+                           <ul className="list-disc list-inside space-y-1 text-amber-900">{report.caseProspects?.weaknesses.map((item, i) => <li key={i}><HighlightedText text={item} term={highlightTerm} /></li>)}</ul>
+                        </div>
+                        <div className="p-3 bg-red-50 border-l-4 border-red-300 rounded-r-md">
+                           <h5 className="font-semibold text-red-800 mb-2">Rủi ro</h5>
+                           <ul className="list-disc list-inside space-y-1 text-red-900">{report.caseProspects?.risks.map((item, i) => <li key={i}><HighlightedText text={item} term={highlightTerm} /></li>)}</ul>
+                        </div>
+                    </div>
+                    {activeChat === 'prospectsChat' && <ChatWindow chatHistory={report.prospectsChat || []} onSendMessage={(msg) => handleChatSendMessage('prospectsChat', msg)} isLoading={isChatLoading} onClose={() => setActiveChat(null)} title="Trao đổi về Triển vọng Vụ việc" />}
+                </ReportSection>
+
+                <ReportSection title="7. Đề xuất Lộ trình & Chiến lược" chatHistory={report.strategyChat} onChatToggle={() => setActiveChat(prev => prev === 'strategyChat' ? null : 'strategyChat')} isChatOpen={activeChat === 'strategyChat'}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                           <h5 className="font-semibold mb-2">Giai đoạn Tiền tố tụng</h5>
+                           <ul className="list-decimal list-inside space-y-1">{report.proposedStrategy?.preLitigation.map((item, i) => <li key={i}><HighlightedText text={item} term={highlightTerm} /></li>)}</ul>
+                        </div>
+                         <div>
+                           <h5 className="font-semibold mb-2">Giai đoạn Tố tụng</h5>
+                           <ul className="list-decimal list-inside space-y-1">{report.proposedStrategy?.litigation.map((item, i) => <li key={i}><HighlightedText text={item} term={highlightTerm} /></li>)}</ul>
+                        </div>
+                    </div>
+                     {activeChat === 'strategyChat' && <ChatWindow chatHistory={report.strategyChat || []} onSendMessage={(msg) => handleChatSendMessage('strategyChat', msg)} isLoading={isChatLoading} onClose={() => setActiveChat(null)} title="Trao đổi về Chiến lược Đề xuất" />}
+                </ReportSection>
+
+                {report.contingencyPlan && (
+                    <ReportSection title="8. Phương án xử lý nếu thua kiện" chatHistory={report.contingencyPlanChat} onChatToggle={() => setActiveChat(prev => prev === 'contingencyPlanChat' ? null : 'contingencyPlanChat')} isChatOpen={activeChat === 'contingencyPlanChat'}>
+                        <ul className="list-disc list-inside space-y-1.5">{report.contingencyPlan.map((item, i) => <li key={i}><HighlightedText text={item} term={highlightTerm} /></li>)}</ul>
+                         {activeChat === 'contingencyPlanChat' && <ChatWindow chatHistory={report.contingencyPlanChat || []} onSendMessage={(msg) => handleChatSendMessage('contingencyPlanChat', msg)} isLoading={isChatLoading} onClose={() => setActiveChat(null)} title="Trao đổi về Phương án Dự phòng" />}
+                    </ReportSection>
+                )}
                 </>
             )}
-
-
-            <ReportSection title="1. Quan hệ pháp luật">
-                <p><HighlightedText text={report.legalRelationship as string} term={highlightTerm} /></p>
-            </ReportSection>
-
-            <ReportSection title="2. Tư cách Tố tụng">
-                <ul className="list-disc list-inside space-y-1.5">{report.proceduralStatus.map((p, i) => (<li key={i}><span className="font-semibold">{p.partyName}:</span> {p.status}</li>))}</ul>
-            </ReportSection>
-
-            <ReportSection title="3. Vấn đề pháp lý cốt lõi">
-                <ul className="list-disc list-inside space-y-1.5">
-                    {report.coreLegalIssues.map((issue, index) => (
-                        <li key={index} className="flex justify-between items-start gap-2">
-                            <span><HighlightedText text={issue as string} term={highlightTerm} /></span>
-                            <button 
-                                disabled 
-                                title="Chức năng đang phát triển"
-                                className="flex-shrink-0 text-xs px-2 py-1 bg-slate-200 text-slate-500 rounded-md disabled:opacity-70 disabled:cursor-not-allowed"
-                            >
-                                Tìm án lệ
-                            </button>
-                        </li>
-                    ))}
-                </ul>
-            </ReportSection>
-            
-            {report.requestResolutionPlan && (
-              <ReportSection title="4. Phương án giải quyết theo Yêu cầu" chatHistory={report.resolutionPlanChat} onChatToggle={() => setActiveChat(prev => prev === 'requestResolutionPlan' ? null : 'requestResolutionPlan')} isChatOpen={activeChat === 'requestResolutionPlan'}>
-                <ul className="list-disc list-inside space-y-1.5">{report.requestResolutionPlan.map((item, index) => (<li key={index}><HighlightedText text={item as string} term={highlightTerm} /></li>))}</ul>
-                 {activeChat === 'requestResolutionPlan' && <ChatWindow chatHistory={report.resolutionPlanChat || []} onSendMessage={(msg) => handleChatSendMessage('resolutionPlanChat', 'Phương án giải quyết theo Yêu cầu', msg)} isLoading={isChatLoading === 'requestResolutionPlan'} onClose={() => setActiveChat(null)} title="Trao đổi về Phương án giải quyết" />}
-              </ReportSection>
-            )}
-
-            <ReportSection title="5. Cơ sở pháp lý áp dụng" chatHistory={report.applicableLawsChat} onChatToggle={() => setActiveChat(prev => prev === 'applicableLaws' ? null : 'applicableLaws')} isChatOpen={activeChat === 'applicableLaws'}>
-                <div className="space-y-4">
-                    {[...report.applicableLaws, ...userAddedLaws].map((law, lawIndex) => (
-                        <div key={law.documentName + lawIndex} className="p-3 border border-slate-200 rounded-lg bg-slate-50/50">
-                            <div className="flex justify-between items-start">
-                                <h5 className="font-bold text-slate-800 mb-2"><HighlightedText text={law.documentName as string} term={highlightTerm} /></h5>
-                                {lawIndex >= report.applicableLaws.length && (<button onClick={() => handleDeleteUserLaw(lawIndex - report.applicableLaws.length)} className="p-1 text-slate-400 hover:text-red-500"><TrashIcon className="w-4 h-4" /></button>)}
-                            </div>
-                            {law.coreIssueAddressed && (
-                                <p className="text-xs italic text-slate-600 mb-1">
-                                    <strong>Vấn đề giải quyết:</strong> <HighlightedText text={law.coreIssueAddressed as string} term={highlightTerm} />
-                                </p>
-                            )}
-                             {law.relevanceToCase && (
-                                <p className="text-xs italic text-slate-600 mb-2">
-                                    <strong>Sự liên quan:</strong> <HighlightedText text={law.relevanceToCase as string} term={highlightTerm} />
-                                </p>
-                            )}
-                            {law.supportingEvidence && law.supportingEvidence.length > 0 && (
-                                <div className="my-2">
-                                    <h6 className="text-xs font-semibold text-slate-600">Bằng chứng Hỗ trợ từ Hồ sơ:</h6>
-                                    {law.supportingEvidence.map((evidence: SupportingEvidence, idx: number) => (
-                                        <blockquote key={idx} className="mt-1 border-l-2 border-slate-300 pl-2 text-xs italic text-slate-500">
-                                            <p>“<HighlightedText text={evidence.snippet as string} term={highlightTerm} />”</p>
-                                            <cite className="text-slate-400 not-italic">— {evidence.sourceDocument}</cite>
-                                        </blockquote>
-                                    ))}
-                                </div>
-                            )}
-                            <ul className="space-y-1">
-                                {law.articles.map((article, articleIndex) => (
-                                    <li key={article.articleNumber + articleIndex} className="flex items-start gap-2 text-sm">
-                                        <span className="font-semibold text-blue-600">{article.articleNumber}:</span>
-                                        <div className="flex-grow">
-                                            <HighlightedText text={article.summary as string} term={highlightTerm} />
-                                            <button onClick={() => handleExplainLaw(article)} className="ml-2 text-blue-500 hover:underline text-xs" disabled={!!explainingLaw}>[Giải thích]</button>
-                                            {explainingLaw === article.articleNumber && (
-                                                <div className="mt-1 p-2 bg-blue-50 border border-blue-200 rounded text-xs animate-fade-in">
-                                                    {explanationError ? <p className="text-red-600">{explanationError}</p> : explanation ? <p>{explanation}</p> : <Loader />}
-                                                    <button onClick={() => setExplainingLaw(null)} className="text-blue-500 hover:underline mt-1">Đóng</button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    ))}
-                    {!isAddingLaw && (<button onClick={() => setIsAddingLaw(true)} className="flex items-center gap-1.5 text-sm text-blue-600 font-semibold hover:bg-blue-50 p-2 rounded-md"><PlusIcon className="w-4 h-4"/>Thêm cơ sở pháp lý</button>)}
-                    {isAddingLaw && (
-                        <div className="p-3 border border-blue-300 rounded-lg bg-blue-50 space-y-2 animate-fade-in">
-                            <input type="text" value={newLaw.documentName} onChange={e => setNewLaw({ ...newLaw, documentName: e.target.value })} placeholder="Tên văn bản (ví dụ: Bộ luật Dân sự 2015)" className="w-full text-sm p-1.5 border-slate-300 rounded-md" />
-                            {newLaw.articles.map((art, i) => (
-                                <div key={i} className="flex gap-2">
-                                    <input type="text" value={art.articleNumber} onChange={e => { const a = [...newLaw.articles]; a[i].articleNumber = e.target.value; setNewLaw({ ...newLaw, articles: a }); }} placeholder="Điều luật" className="w-1/4 text-sm p-1.5 border-slate-300 rounded-md" />
-                                    <input type="text" value={art.summary} onChange={e => { const a = [...newLaw.articles]; a[i].summary = e.target.value; setNewLaw({ ...newLaw, articles: a }); }} placeholder="Tóm tắt nội dung" className="w-3/4 text-sm p-1.5 border-slate-300 rounded-md" />
-                                </div>
-                            ))}
-                            <div className="flex justify-end gap-2 pt-2">
-                                <button onClick={() => setIsAddingLaw(false)} className="px-3 py-1 text-xs bg-slate-200 rounded-md">Hủy</button>
-                                <button onClick={handleAddLaw} className="px-3 py-1 text-xs bg-blue-600 text-white rounded-md">Thêm</button>
-                            </div>
-                        </div>
-                    )}
-                </div>
-                 {activeChat === 'applicableLaws' && <ChatWindow chatHistory={report.applicableLawsChat || []} onSendMessage={(msg) => handleChatSendMessage('applicableLawsChat', 'Cơ sở pháp lý áp dụng', msg)} isLoading={isChatLoading === 'applicableLawsChat'} onClose={() => setActiveChat(null)} title="Trao đổi về Cơ sở pháp lý" />}
-            </ReportSection>
-
-            <ReportSection title="6. Phân tích Lỗ hổng & Hành động" chatHistory={report.gapAnalysisChat} onChatToggle={() => setActiveChat(prev => prev === 'gapAnalysisChat' ? null : 'gapAnalysisChat')} isChatOpen={activeChat === 'gapAnalysisChat'}>
-                <div className="space-y-3">
-                    <div><h5 className="font-semibold">Thông tin / Chứng cứ còn thiếu:</h5><ul className="list-disc list-inside space-y-1.5">{report.gapAnalysis.missingInformation.map((item, index) => (<li key={index}>{item}</li>))}</ul></div>
-                    <div><h5 className="font-semibold">Hành động đề xuất:</h5><ul className="list-disc list-inside space-y-1.5">{report.gapAnalysis.recommendedActions.map((item, index) => (<li key={index}>{item}</li>))}</ul></div>
-                    {report.gapAnalysis.legalLoopholes && report.gapAnalysis.legalLoopholes.length > 0 && (
-                        <div>
-                            <h5 className="font-semibold mb-2">Lỗ hổng pháp lý tiềm ẩn:</h5>
-                            <div className="space-y-2">
-                                {report.gapAnalysis.legalLoopholes.map((loophole, index) => (
-                                    <div key={index} className={`p-2 border rounded-md ${getLoopholeSeverityClasses(loophole.severity)}`}>
-                                        <div className="flex items-center gap-2 mb-1">
-                                            {getLoopholeIcon(loophole.classification)}
-                                            <p className="font-semibold text-slate-800 text-xs">{loophole.classification} (Mức độ: {loophole.severity})</p>
-                                        </div>
-                                        <p className="font-medium"><HighlightedText text={loophole.description as string} term={highlightTerm} /></p>
-                                        <p className="text-xs text-slate-600 mt-1"><span className="font-semibold">Gợi ý:</span> <HighlightedText text={loophole.suggestion as string} term={highlightTerm} /></p>
-                                        <blockquote className="mt-1 border-l-2 border-slate-300 pl-2 text-xs italic text-slate-500">
-                                          <HighlightedText text={loophole.evidence as string} term={highlightTerm} />
-                                        </blockquote>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </div>
-                {activeChat === 'gapAnalysisChat' && <ChatWindow chatHistory={report.gapAnalysisChat || []} onSendMessage={(msg) => handleChatSendMessage('gapAnalysisChat', 'Phân tích Lỗ hổng', msg)} isLoading={isChatLoading === 'gapAnalysisChat'} onClose={() => setActiveChat(null)} title="Trao đổi về Phân tích Lỗ hổng"/>}
-            </ReportSection>
-
-            <ReportSection title="7. Đánh giá Triển vọng Vụ việc" chatHistory={report.prospectsChat} onChatToggle={() => setActiveChat(prev => prev === 'caseProspects' ? null : 'caseProspects')} isChatOpen={activeChat === 'caseProspects'}>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-green-50 border border-green-200 p-3 rounded-lg"><h5 className="font-semibold text-green-800 mb-1">Điểm mạnh</h5><ul className="list-disc list-inside space-y-1.5 text-green-900">{report.caseProspects.strengths.map((item, index) => (<li key={index}>{item}</li>))}</ul></div>
-                    <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg"><h5 className="font-semibold text-amber-800 mb-1">Điểm yếu</h5><ul className="list-disc list-inside space-y-1.5 text-amber-900">{report.caseProspects.weaknesses.map((item, index) => (<li key={index}>{item}</li>))}</ul></div>
-                    <div className="bg-red-50 border border-red-200 p-3 rounded-lg"><h5 className="font-semibold text-red-800 mb-1">Rủi ro</h5><ul className="list-disc list-inside space-y-1.5 text-red-900">{report.caseProspects.risks.map((item, index) => (<li key={index}>{item}</li>))}</ul></div>
-                </div>
-                {activeChat === 'caseProspects' && <ChatWindow chatHistory={report.prospectsChat || []} onSendMessage={(msg) => handleChatSendMessage('prospectsChat', 'Triển vọng Vụ việc', msg)} isLoading={isChatLoading === 'caseProspects'} onClose={() => setActiveChat(null)} title="Trao đổi về Triển vọng Vụ việc" />}
-            </ReportSection>
-
-            <ReportSection title="8. Đề xuất Lộ trình & Chiến lược" chatHistory={report.strategyChat} onChatToggle={() => setActiveChat(prev => prev === 'proposedStrategy' ? null : 'proposedStrategy')} isChatOpen={activeChat === 'proposedStrategy'}>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div><h5 className="font-semibold">Giai đoạn Tiền tố tụng:</h5><ul className="list-disc list-inside space-y-1.5">{report.proposedStrategy.preLitigation.map((item, index) => (<li key={index}>{item}</li>))}</ul></div>
-                    <div><h5 className="font-semibold">Giai đoạn Tố tụng:</h5><ul className="list-disc list-inside space-y-1.5">{report.proposedStrategy.litigation.map((item, index) => (<li key={index}>{item}</li>))}</ul></div>
-                </div>
-                 {activeChat === 'proposedStrategy' && <ChatWindow chatHistory={report.strategyChat || []} onSendMessage={(msg) => handleChatSendMessage('strategyChat', 'Chiến lược Đề xuất', msg)} isLoading={isChatLoading === 'proposedStrategy'} onClose={() => setActiveChat(null)} title="Trao đổi về Chiến lược Đề xuất" />}
-            </ReportSection>
-            
-            {report.contingencyPlan && (
-              <ReportSection title="9. Phương án xử lý nếu thua kiện" chatHistory={report.contingencyPlanChat} onChatToggle={() => setActiveChat(prev => prev === 'contingencyPlan' ? null : 'contingencyPlan')} isChatOpen={activeChat === 'contingencyPlan'}>
-                  <ul className="list-disc list-inside space-y-1.5">{report.contingencyPlan.map((item, index) => (<li key={index}><HighlightedText text={item as string} term={highlightTerm} /></li>))}</ul>
-                  {activeChat === 'contingencyPlan' && <ChatWindow chatHistory={report.contingencyPlanChat || []} onSendMessage={(msg) => handleChatSendMessage('contingencyPlanChat', 'Phương án xử lý nếu thua kiện', msg)} isLoading={isChatLoading === 'contingencyPlanChat'} onClose={() => setActiveChat(null)} title="Trao đổi về Phương án dự phòng" />}
-              </ReportSection>
-            )}
-
-            <OpponentAnalysisSection
-                report={report}
-                files={files}
-                onUpdateReport={onUpdateReport}
-                highlightTerm={highlightTerm}
-            />
         </div>
     );
 };

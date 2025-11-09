@@ -1,5 +1,4 @@
 
-
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { FileUpload } from './components/FileUpload.tsx';
 import { ReportDisplay } from './components/ReportDisplay.tsx';
@@ -150,7 +149,7 @@ const Sidebar: React.FC<{
     const actionButtonClasses = `w-full flex items-center gap-4 p-3 rounded-lg cursor-pointer transition-colors text-[var(--sidebar-text)] hover:bg-[var(--sidebar-active-bg)] hover:text-[var(--sidebar-text-hover)] disabled:opacity-50 disabled:cursor-not-allowed ${!isExpanded ? 'justify-center' : ''}`;
 
     return (
-        <aside className={`transition-all duration-300 ease-in-out bg-[var(--sidebar-bg)] text-[var(--sidebar-text)] p-4 flex flex-col rounded-l-xl h-full overflow-hidden ${isExpanded ? 'w-64' : 'w-20'}`}>
+        <aside className={`transition-all duration-300 ease-in-out bg-[var(--sidebar-bg)] text-[var(--sidebar-text)] p-4 flex flex-col h-full overflow-hidden ${isExpanded ? 'w-64' : 'w-20'}`}>
             <nav className="flex-grow">
                 <ul>
                     {navItems.map(item => {
@@ -644,6 +643,8 @@ const App: React.FC = () => {
 
     try {
         const reanalysisResult = await reanalyzeCaseWithCorrections(correctedReport, files, clientPosition === 'not_applicable' ? null : clientPosition);
+        reanalysisResult.applicableLawsChat = correctedReport.applicableLawsChat || [];
+        reanalysisResult.contingencyPlanChat = correctedReport.contingencyPlanChat || [];
         setReport(reanalysisResult);
         setOriginalReport(reanalysisResult); // Update the base for future updates
         alert("Báo cáo đã được phân tích lại và cập nhật thành công!");
@@ -1097,7 +1098,7 @@ const App: React.FC = () => {
                                 {isInputPanelCollapsed ? <PanelExpandIcon className="w-5 h-5" /> : <PanelCollapseIcon className="w-5 h-5" />}
                             </button>
                             
-                            <div className="h-full flex flex-col border border-slate-200 rounded-lg p-4 md:p-6">
+                            <div className="h-full flex flex-col border border-slate-200 rounded-lg p-4 md:p-6 bg-white">
                                 <div className="flex justify-between items-center mb-4 flex-shrink-0">
                                     <h3 className="text-lg font-bold text-slate-800">Kết quả Phân tích</h3>
                                     {report && !isLoading && (<div className="flex items-center gap-2">
@@ -1256,9 +1257,9 @@ const App: React.FC = () => {
     };
 
     return (
-      <div className="flex w-full bg-white rounded-xl soft-shadow animate-fade-in h-[calc(100vh-9rem)]">
+      <div className="flex w-full h-full">
         <div 
-            className="flex-shrink-0 sticky top-8 self-start h-[calc(100vh-4rem)] z-20"
+            className="flex-shrink-0 h-full z-20"
             onMouseEnter={() => setIsSidebarHovered(true)}
             onMouseLeave={() => setIsSidebarHovered(false)}
         >
@@ -1271,7 +1272,7 @@ const App: React.FC = () => {
                 isActionInProgress={isBackingUp || isRestoring}
             />
         </div>
-        <main className="flex-1 p-4 md:p-6 flex flex-col overflow-hidden">
+        <main className="flex-1 p-4 md:p-6 flex flex-col overflow-hidden bg-[var(--color-background)]">
              {renderCurrentView()}
         </main>
       </div>
@@ -1281,7 +1282,7 @@ const App: React.FC = () => {
   const renderDashboard = () => {
     const recentCases = savedCases.slice(0, 5);
     return (
-        <div className="animate-fade-in py-8">
+        <div className="animate-fade-in">
             <div className="text-center">
                  <h2 className="text-3xl font-bold text-slate-800">Bảng điều khiển</h2>
                  <p className="text-slate-600 mt-2 mb-10">Bắt đầu một nghiệp vụ mới hoặc tiếp tục với các vụ việc gần đây.</p>
@@ -1324,23 +1325,34 @@ const App: React.FC = () => {
 
 
   return (
-    <div className="min-h-screen text-slate-800">
-      <div className="container mx-auto px-4 py-8">
-        <header className="mb-8 flex items-center gap-4">
-          <AppLogo className="w-12 h-12" />
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">Trợ lý của LS Hồng Vân</h1>
-            <p className="text-sm text-slate-500">Phân tích hồ sơ, xây dựng chiến lược, soạn thảo văn bản và quản lý vụ việc.</p>
-          </div>
+    <div className="flex flex-col h-screen w-screen bg-[var(--color-background)] text-slate-800 overflow-hidden">
+        <header className="flex-shrink-0 px-6 py-3 flex items-center gap-4 border-b border-slate-200 bg-white shadow-sm">
+            <AppLogo className="w-10 h-10" />
+            <div>
+                <h1 className="text-xl font-bold text-slate-900">Trợ lý của LS Hồng Vân</h1>
+                <p className="text-sm text-slate-500">Phân tích hồ sơ, xây dựng chiến lược, soạn thảo văn bản và quản lý vụ việc.</p>
+            </div>
         </header>
-        <main>
-            {!activeCase && renderDashboard()}
-            {activeCase?.workflowType === 'litigation' && renderLitigationWorkflow()}
-            {activeCase?.workflowType === 'consulting' && <ConsultingWorkflow onPreview={setPreviewingFile} onGoBack={handleGoBackToSelection} activeCase={activeCase} onCasesUpdated={loadData} />}
+
+        <main className="flex-grow overflow-hidden">
+            {activeCase?.workflowType === 'litigation' ? (
+                renderLitigationWorkflow()
+            ) : (
+                <div className="p-6 h-full overflow-y-auto">
+                    {!activeCase && renderDashboard()}
+                    {activeCase?.workflowType === 'consulting' && 
+                        <ConsultingWorkflow 
+                            onPreview={setPreviewingFile} 
+                            onGoBack={handleGoBackToSelection} 
+                            activeCase={activeCase} 
+                            onCasesUpdated={loadData} 
+                        />
+                    }
+                </div>
+            )}
         
             {isProcessing && (<ProcessingProgress files={files} onContinue={handleContinueAnalysis} onCancel={handleCancelProcessing} isFinished={isPreprocessingFinished} hasTextContent={false} />)}
         </main>
-      </div>
 
        <PreviewModal file={previewingFile} onClose={() => setPreviewingFile(null)} />
        
