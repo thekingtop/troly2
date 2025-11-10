@@ -23,7 +23,8 @@ import {
     nodeTypeMeta,
     DRAFTING_MODE_LABELS,
     QUICK_ANSWER_REFINE_SYSTEM_INSTRUCTION,
-    CONSULTING_CHAT_SYSTEM_INSTRUCTION,
+    CONSULTING_CHAT_UPDATE_SYSTEM_INSTRUCTION,
+    LITIGATION_CHAT_UPDATE_SYSTEM_INSTRUCTION,
 } from '../constants.ts';
 
 const API_KEY = import.meta.env.VITE_API_KEY;
@@ -513,54 +514,148 @@ export const refineQuickAnswer = async (
     }
 };
 
-export const chatAboutConsultingTopic = async (
-  report: ConsultingReport,
-  chatHistory: ChatMessage[],
-  newMessage: string,
-  contextTitle: string
-): Promise<string> => {
-  try {
-    const conversationHistoryPrompt = chatHistory
-      .map(msg => `${msg.role === 'user' ? 'Luật sư' : 'Trợ lý AI'}: ${msg.content}`)
-      .join('\n');
+export const continueConsultingChat = async (
+    report: ConsultingReport,
+    chatHistory: ChatMessage[],
+    newMessage: string,
+    newFiles: UploadedFile[]
+): Promise<{ chatResponse: string; updatedReport: ConsultingReport | null }> => {
+    try {
+        const { fileContentParts, multimodalParts } = await getFileContentParts(newFiles);
+        const newFilesContent = fileContentParts.length > 0 ? `\n\nNỘI DUNG TỆP MỚI:\n---\n${fileContentParts.join('\n\n')}\n---` : '';
 
-    const prompt = `
-BÁO CÁO TƯ VẤN (JSON):
-\`\`\`json
-${JSON.stringify(report, null, 2)}
-\`\`\`
+        const conversationHistoryPrompt = chatHistory
+            .map(msg => `${msg.role === 'user' ? 'Luật sư' : 'Trợ lý AI'}: ${msg.content}`)
+            .join('\n');
 
-BỐI CẢNH THẢO LUẬN:
-"${contextTitle}"
+        const prompt = `
+        BÁO CÁO TƯ VẤN GỐC (JSON):
+        \`\`\`json
+        ${JSON.stringify(report, null, 2)}
+        \`\`\`
 
-LỊCH SỬ TRAO ĐỔI:
----
-${conversationHistoryPrompt}
----
+        LỊCH SỬ TRAO ĐỔI:
+        ---
+        ${conversationHistoryPrompt}
+        ---
 
-LUẬT SƯ (YÊU CẦU MỚI):
-${newMessage}
+        LUẬT SƯ (YÊU CẦU MỚI):
+        ${newMessage}
+        ${newFilesContent}
+        `;
 
-TRỢ LÝ AI:
-`;
+        const allParts: Part[] = [...multimodalParts, { text: prompt }];
 
-    const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: prompt,
-        config: {
-            systemInstruction: CONSULTING_CHAT_SYSTEM_INSTRUCTION,
-            temperature: 0.7,
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: { parts: allParts },
+            config: {
+                systemInstruction: CONSULTING_CHAT_UPDATE_SYSTEM_INSTRUCTION,
+                temperature: 0.5,
+            }
+        });
+
+        if (!response || typeof response.text !== 'string') {
+            throw new Error("AI không thể tiếp tục cuộc trò chuyện.");
         }
-    });
-    
-    if (!response || typeof response.text !== 'string') {
-        throw new Error("AI không thể tiếp tục cuộc trò chuyện.");
+
+        const responseText = response.text.trim();
+        const parts = responseText.split('---UPDATES---');
+        
+        if (parts.length < 2) {
+            return { chatResponse: responseText, updatedReport: null };
+        }
+
+        const chatResponse = parts[0].trim();
+        let updatedReport: ConsultingReport | null = null;
+        try {
+            const jsonText = parts[1].trim().replace(/^```json\s*|```$/g, '');
+            if (jsonText && jsonText !== 'null') {
+                updatedReport = JSON.parse(jsonText);
+            }
+        } catch (e) {
+            console.error("Failed to parse updated report JSON from AI response:", e);
+        }
+
+        return { chatResponse, updatedReport };
+
+    } catch (error) {
+        throw handleGeminiError(error, `trao đổi về nghiệp vụ tư vấn`);
     }
-    return response.text.trim();
-  } catch (error) {
-    throw handleGeminiError(error, `trao đổi về "${contextTitle}"`);
-  }
 };
+
+export const continueLitigationChat = async (
+    report: AnalysisReport,
+    chatHistory: ChatMessage[],
+    newMessage: string,
+    newFiles: UploadedFile[]
+): Promise<{ chatResponse: string; updatedReport: AnalysisReport | null }> => {
+    try {
+        const { fileContentParts, multimodalParts } = await getFileContentParts(newFiles);
+        const newFilesContent = fileContentParts.length > 0 ? `\n\nNỘI DUNG TỆP MỚI:\n---\n${fileContentParts.join('\n\n')}\n---` : '';
+
+        const conversationHistoryPrompt = chatHistory
+            .map(msg => `${msg.role === 'user' ? 'Luật sư' : 'Trợ lý AI'}: ${msg.content}`)
+            .join('\n');
+
+        const { globalChatHistory, ...reportContext } = report; // Exclude chat history from context
+
+        const prompt = `
+        BÁO CÁO PHÂN TÍCH VỤ VIỆC GỐC (JSON):
+        \`\`\`json
+        ${JSON.stringify(reportContext, null, 2)}
+        \`\`\`
+
+        LỊCH SỬ TRAO ĐỔI:
+        ---
+        ${conversationHistoryPrompt}
+        ---
+
+        LUẬT SƯ (YÊU CẦU MỚI):
+        ${newMessage}
+        ${newFilesContent}
+        `;
+
+        const allParts: Part[] = [...multimodalParts, { text: prompt }];
+
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: { parts: allParts },
+            config: {
+                systemInstruction: LITIGATION_CHAT_UPDATE_SYSTEM_INSTRUCTION,
+                temperature: 0.5,
+            }
+        });
+
+        if (!response || typeof response.text !== 'string') {
+            throw new Error("AI không thể tiếp tục cuộc trò chuyện.");
+        }
+
+        const responseText = response.text.trim();
+        const parts = responseText.split('---UPDATES---');
+        
+        if (parts.length < 2) {
+            return { chatResponse: responseText, updatedReport: null };
+        }
+
+        const chatResponse = parts[0].trim();
+        let updatedReport: AnalysisReport | null = null;
+        try {
+            const jsonText = parts[1].trim().replace(/^```json\s*|```$/g, '');
+            if (jsonText && jsonText !== 'null') {
+                updatedReport = JSON.parse(jsonText);
+            }
+        } catch (e) {
+            console.error("Failed to parse updated report JSON from AI response:", e);
+        }
+
+        return { chatResponse, updatedReport };
+
+    } catch (error) {
+        throw handleGeminiError(error, `trao đổi về vụ việc tranh tụng`);
+    }
+};
+
 
 
 export const generateContextualDocument = async (

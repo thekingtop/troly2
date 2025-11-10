@@ -153,6 +153,7 @@ export interface AnalysisReport {
   opponentAnalysis?: OpponentArgument[]; // For Opponent Argument Analysis
   applicableLawsChat?: ChatMessage[];
   contingencyPlanChat?: ChatMessage[];
+  globalChatHistory?: ChatMessage[];
 }
 
 // --- New Consulting Report Structure ---
@@ -163,8 +164,14 @@ export interface ConsultingReport {
     suggestedDocuments: string[];
     legalLoopholes?: LegalLoophole[];
     conciseAnswer?: string;
-    discussionPointsChats?: ChatMessage[][];
-    legalLoopholesChats?: ChatMessage[][];
+    globalChatHistory?: ChatMessage[];
+    preliminaryAssessment?: string;
+    proposedRoadmap?: {
+        stage: string;
+        description: string;
+        outcome: string;
+    }[];
+    nextActions?: string[];
 }
 
 
