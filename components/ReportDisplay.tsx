@@ -14,6 +14,7 @@ import { DownloadIcon } from './icons/DownloadIcon.tsx';
 import { RefreshIcon } from './icons/RefreshIcon.tsx';
 import { EditIcon } from './icons/EditIcon.tsx';
 import { LandInfoDisplay } from './LandInfoDisplay.tsx';
+import { FamilyLawInfoDisplay } from './FamilyLawInfoDisplay.tsx';
 
 // --- Internal Components and Icons ---
 declare var html2canvas: any;
@@ -374,6 +375,7 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
     
     // Check if the case is land-related to show specialized UI
     const isLandCase = !!report?.landInfo;
+    const isFamilyLawCase = !!report?.familyLawInfo;
 
     return (
         <div className="space-y-6" id="report-content">
@@ -430,6 +432,7 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
                 )}
                 
                 {isLandCase && <LandInfoDisplay report={report} />}
+                {isFamilyLawCase && <FamilyLawInfoDisplay report={report} />}
 
                 {report.caseTimeline?.length > 0 && (
                      <ReportSection title="Dòng thời gian Vụ việc">
