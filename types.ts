@@ -128,6 +128,27 @@ export interface OpponentArgument {
     supportingEvidence: string[];
 }
 
+export interface FamilyLawInfo {
+  divorceType: 'Thuận tình' | 'Đơn phương' | 'Vắng mặt một bên' | 'Chưa xác định';
+  marriageInfo?: string; // e.g., "Đăng ký ngày XX/YY/ZZZZ tại UBND Phường A, Quận B"
+  commonChildren: {
+    name: string;
+    dob: string;
+    requestedCustody: string; // Who wants custody
+    requestedSupport: string; // How much support is requested
+  }[];
+  commonProperty: {
+    name: string;
+    value?: string;
+    proposedDivision: string;
+  }[];
+  commonDebt: {
+    name: string;
+    value?: string;
+    proposedDivision: string;
+  }[];
+}
+
 export interface AnalysisReport {
   editableCaseSummary?: string;
   caseTimeline: CaseTimelineEvent[];
@@ -145,6 +166,7 @@ export interface AnalysisReport {
     landUseSource?: string;
     planningStatus?: string;
   };
+  familyLawInfo?: FamilyLawInfo;
   applicableLaws: ApplicableLaw[];
   gapAnalysis: GapAnalysis;
   caseProspects: CaseProspects;
