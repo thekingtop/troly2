@@ -254,6 +254,16 @@ QUY TẮC PHÂN TÍCH BẮT BUỘC:
         a.  **Ưu tiên trích xuất thông tin chuyên sâu:** Tìm kiếm và trích xuất các thông tin sau từ tài liệu (đặc biệt là sổ đỏ, bản đồ, quyết định...): Số tờ bản đồ, số thửa đất, địa chỉ thửa đất, diện tích, mục đích sử dụng, thời hạn sử dụng, nguồn gốc sử dụng.
         b.  **Phân tích Quy hoạch:** Dựa vào thông tin có được, đưa ra nhận định sơ bộ về tình trạng quy hoạch (nếu có thể).
         c.  **Điền vào trường 'landInfo':** Tập hợp tất cả thông tin trích xuất được ở trên và điền vào đối tượng 'landInfo' trong JSON output. Nếu không tìm thấy thông tin nào, có thể bỏ qua trường đó.
+12. **CHẾ ĐỘ PHÂN TÍCH CHUYÊN SÂU - HÔN NHÂN & GIA ĐÌNH (QUAN TRỌNG):**
+    *   **Nhận diện:** NẾU 'Yêu cầu của luật sư' hoặc nội dung tài liệu chứa các từ khóa như "ly hôn", "hôn nhân", "thuận tình", "đơn phương", "ly thân", "tài sản chung", "con chung", "chia tài sản", "quyền nuôi con", BẠN PHẢI kích hoạt chế độ này.
+    *   **Hành động:** Khi được kích hoạt, bạn phải:
+        a.  **Phân loại Vụ việc:** Xác định loại ly hôn ('Thuận tình', 'Đơn phương', 'Vắng mặt một bên', 'Chưa xác định') và điền vào \`divorceType\`.
+        b.  **Trích xuất Thông tin Cốt lõi:** Tìm và trích xuất các thông tin sau:
+            -   **Thông tin Hôn nhân:** Ngày, nơi đăng ký kết hôn.
+            -   **Con chung:** Tên, ngày sinh, yêu cầu về quyền nuôi con và cấp dưỡng.
+            -   **Tài sản chung:** Liệt kê các tài sản, giá trị (nếu có), và phương án phân chia.
+            -   **Nợ chung:** Liệt kê các khoản nợ, giá trị (nếu có), và phương án phân chia.
+        c.  **Điền vào trường 'familyLawInfo':** Tập hợp tất cả thông tin trích xuất được ở trên và điền vào đối tượng 'familyLawInfo' trong JSON output. Nếu không tìm thấy thông tin nào, hãy trả về mảng rỗng cho các trường tương ứng.
 `;
 
 export const ANALYSIS_UPDATE_SYSTEM_INSTRUCTION = `
@@ -350,6 +360,54 @@ export const REPORT_SCHEMA = {
         landUseSource: { type: Type.STRING, description: "Nguồn gốc sử dụng đất." },
         planningStatus: { type: Type.STRING, description: "Thông tin quy hoạch liên quan (nếu có)." }
       }
+    },
+    familyLawInfo: {
+        type: Type.OBJECT,
+        description: "Thông tin chi tiết về vụ việc hôn nhân gia đình nếu có.",
+        properties: {
+            divorceType: { type: Type.STRING, description: "Loại ly hôn: 'Thuận tình', 'Đơn phương', 'Vắng mặt một bên', hoặc 'Chưa xác định'."},
+            marriageInfo: { type: Type.STRING, description: "Thông tin về việc đăng ký kết hôn (ngày, nơi)."},
+            commonChildren: {
+                type: Type.ARRAY,
+                description: "Danh sách các con chung.",
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        name: { type: Type.STRING },
+                        dob: { type: Type.STRING, description: "Ngày sinh của con (DD/MM/YYYY)." },
+                        requestedCustody: { type: Type.STRING, description: "Ai là người được yêu cầu nuôi con." },
+                        requestedSupport: { type: Type.STRING, description: "Mức cấp dưỡng được yêu cầu." }
+                    },
+                    required: ['name', 'dob', 'requestedCustody', 'requestedSupport']
+                }
+            },
+            commonProperty: {
+                type: Type.ARRAY,
+                description: "Danh sách tài sản chung.",
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        name: { type: Type.STRING, description: "Tên/mô tả tài sản." },
+                        value: { type: Type.STRING, description: "Giá trị ước tính của tài sản." },
+                        proposedDivision: { type: Type.STRING, description: "Phương án phân chia được đề xuất." }
+                    },
+                    required: ['name', 'proposedDivision']
+                }
+            },
+            commonDebt: {
+                type: Type.ARRAY,
+                description: "Danh sách các khoản nợ chung.",
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        name: { type: Type.STRING, description: "Tên/mô tả khoản nợ." },
+                        value: { type: Type.STRING, description: "Giá trị của khoản nợ." },
+                        proposedDivision: { type: Type.STRING, description: "Phương án phân chia nghĩa vụ trả nợ." }
+                    },
+                    required: ['name', 'proposedDivision']
+                }
+            }
+        }
     },
     applicableLaws: {
       type: Type.ARRAY,
