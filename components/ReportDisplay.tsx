@@ -13,6 +13,7 @@ import { CaseTimeline } from './CaseTimeline.tsx';
 import { DownloadIcon } from './icons/DownloadIcon.tsx';
 import { RefreshIcon } from './icons/RefreshIcon.tsx';
 import { EditIcon } from './icons/EditIcon.tsx';
+import { LandInfoDisplay } from './LandInfoDisplay.tsx';
 
 // --- Internal Components and Icons ---
 declare var html2canvas: any;
@@ -370,6 +371,9 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
     if (!report && !caseSummary && !clientRequestSummary) {
         return null;
     }
+    
+    // Check if the case is land-related to show specialized UI
+    const isLandCase = !!report?.landInfo;
 
     return (
         <div className="space-y-6" id="report-content">
@@ -425,6 +429,8 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
                     </ReportSection>
                 )}
                 
+                {isLandCase && <LandInfoDisplay report={report} />}
+
                 {report.caseTimeline?.length > 0 && (
                      <ReportSection title="Dòng thời gian Vụ việc">
                         <CaseTimeline events={report.caseTimeline} highlightTerm={highlightTerm} onUpdateEvents={(updatedEvents) => onUpdateReport({...report, caseTimeline: updatedEvents})} />

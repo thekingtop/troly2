@@ -248,6 +248,12 @@ QUY TẮC PHÂN TÍCH BẮT BUỘC:
 8.  **GIẢI QUYẾT YÊU CẦU CHÍNH:** Dựa trên "Yêu cầu của luật sư (Mục tiêu phân tích)", bạn phải xây dựng một phương án/cách thức giải quyết cụ thể cho vấn đề đó và điền vào trường 'requestResolutionPlan'. Đây là câu trả lời trực tiếp cho yêu cầu của người dùng. Đối với các vụ việc hành chính ở giai đoạn tiền tố tụng, mục này phải nêu rõ hai lựa chọn: khiếu nại hành chính lên cấp trên và khởi kiện hành chính ra Tòa án, đồng thời phân tích ưu/nhược điểm của mỗi phương án.
 9.  **Phân tích Cơ sở pháp lý SÂU và Tìm Bằng chứng:** Khi viện dẫn cơ sở pháp lý, phải kiểm tra hiệu lực văn bản. Đối với mỗi văn bản, BẮT BUỘC phải: a) Giải thích rõ vấn đề pháp lý cốt lõi mà văn bản đó giải quyết ('coreIssueAddressed'); b) Giải thích sự liên quan trực tiếp của nó đến vụ việc ('relevanceToCase'); và c) (CỰC KỲ QUAN TRỌNG) Tìm và trích dẫn các đoạn văn bản chính xác từ các tài liệu được cung cấp để làm bằng chứng cho các giải thích ở (a) và (b). Điền các bằng chứng này vào trường 'supportingEvidence'. Nếu không tìm thấy bằng chứng trực tiếp, hãy trả về một mảng rỗng cho 'supportingEvidence'.
 10. **Xây dựng "BẢN ĐỒ LẬP LUẬN" ban đầu (QUAN TRỌNG):** Sau khi hoàn thành phân tích, tổng hợp các yếu tố trong 'coreLegalIssues', 'strengths', 'weaknesses', 'risks', 'caseTimeline', 'applicableLaws', 'legalLoopholes' thành các 'node'. Suy luận các mối quan hệ logic cơ bản nhất và tạo ra các 'edge' để nối chúng. Điền kết quả vào trường 'argumentGraph'.
+11. **CHẾ ĐỘ PHÂN TÍCH CHUYÊN SÂU - ĐẤT ĐAI (QUAN TRỌNG):**
+    *   **Nhận diện:** NẾU 'Yêu cầu của luật sư' hoặc nội dung tài liệu chứa các từ khóa như "đất đai", "quyền sử dụng đất", "sổ đỏ", "giấy chứng nhận", "thu hồi đất", "quy hoạch", "tranh chấp đất", "hạn mức", BẠN PHẢI kích hoạt chế độ này.
+    *   **Hành động:** Khi được kích hoạt, bạn phải:
+        a.  **Ưu tiên trích xuất thông tin chuyên sâu:** Tìm kiếm và trích xuất các thông tin sau từ tài liệu (đặc biệt là sổ đỏ, bản đồ, quyết định...): Số tờ bản đồ, số thửa đất, địa chỉ thửa đất, diện tích, mục đích sử dụng, thời hạn sử dụng, nguồn gốc sử dụng.
+        b.  **Phân tích Quy hoạch:** Dựa vào thông tin có được, đưa ra nhận định sơ bộ về tình trạng quy hoạch (nếu có thể).
+        c.  **Điền vào trường 'landInfo':** Tập hợp tất cả thông tin trích xuất được ở trên và điền vào đối tượng 'landInfo' trong JSON output. Nếu không tìm thấy thông tin nào, có thể bỏ qua trường đó.
 `;
 
 export const ANALYSIS_UPDATE_SYSTEM_INSTRUCTION = `
@@ -330,6 +336,20 @@ export const REPORT_SCHEMA = {
       type: Type.ARRAY,
       description: "Danh sách các vấn đề pháp lý cốt lõi cần giải quyết.",
       items: { type: Type.STRING }
+    },
+    landInfo: {
+      type: Type.OBJECT,
+      description: "Thông tin chi tiết về thửa đất nếu đây là vụ việc liên quan đến đất đai.",
+      properties: {
+        mapSheetNumber: { type: Type.STRING, description: "Số tờ bản đồ." },
+        parcelNumber: { type: Type.STRING, description: "Số thửa đất." },
+        address: { type: Type.STRING, description: "Địa chỉ của thửa đất." },
+        area: { type: Type.STRING, description: "Diện tích của thửa đất (kèm đơn vị)." },
+        landUsePurpose: { type: Type.STRING, description: "Mục đích sử dụng đất." },
+        landUseTerm: { type: Type.STRING, description: "Thời hạn sử dụng đất." },
+        landUseSource: { type: Type.STRING, description: "Nguồn gốc sử dụng đất." },
+        planningStatus: { type: Type.STRING, description: "Thông tin quy hoạch liên quan (nếu có)." }
+      }
     },
     applicableLaws: {
       type: Type.ARRAY,

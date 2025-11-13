@@ -38,6 +38,43 @@ declare var mammoth: any;
 
 // --- Helper Functions ---
 
+const withRetry = async <T>(
+  apiCall: () => Promise<T>,
+  context: string,
+  onRetry?: (attempt: number, maxRetries: number) => void,
+  maxRetries: number = 3
+): Promise<T> => {
+  let lastError: any = null;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await apiCall();
+    } catch (error) {
+      lastError = error;
+      const errorMessage = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+      
+      const isRetryable = errorMessage.includes('429') || 
+                          errorMessage.includes('500') || 
+                          errorMessage.includes('503');
+
+      if (isRetryable) {
+        if (attempt < maxRetries) {
+          onRetry?.(attempt, maxRetries);
+          // Exponential backoff with jitter: 1s, 2s, 4s... + random ms
+          const delay = (2 ** (attempt - 1)) * 1000 + Math.random() * 250; 
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue; // Retry
+        }
+      }
+      
+      // If not a retryable error or max retries reached, throw the handled error
+      throw handleGeminiError(error, context);
+    }
+  }
+  // This should not be reached if maxRetries > 0, but as a fallback:
+  throw handleGeminiError(lastError, `${context} sau nhiều lần thử`);
+};
+
+
 const handleGeminiError = (error: any, context: string): Error => {
   console.error(`Lỗi trong lúc ${context}:`, error);
 
@@ -162,75 +199,74 @@ const getFileContentParts = async (files: UploadedFile[]): Promise<{ fileContent
 // --- API Service Functions ---
 
 export const categorizeMultipleFiles = async (files: File[]): Promise<Record<string, FileCategory>> => {
+  return withRetry(async () => {
     if (files.length === 0) {
         return {};
     }
-    try {
-        const categories = Object.keys(fileCategoryLabels).join(', ');
-        const fileNames = files.map(f => f.name);
-        
-        const prompt = `Dựa vào danh sách tên tệp sau đây, hãy phân loại mỗi tệp vào một trong các danh mục sau: ${categories}. Trả về một đối tượng JSON trong đó key là tên tệp và value là danh mục tương ứng.\n\nDanh sách tệp:\n${fileNames.join('\n')}`;
+    const categories = Object.keys(fileCategoryLabels).join(', ');
+    const fileNames = files.map(f => f.name);
+    
+    const prompt = `Dựa vào danh sách tên tệp sau đây, hãy phân loại mỗi tệp vào một trong các danh mục sau: ${categories}. Trả về một đối tượng JSON trong đó key là tên tệp và value là danh mục tương ứng.\n\nDanh sách tệp:\n${fileNames.join('\n')}`;
 
-        const schema = {
-            type: Type.OBJECT,
-            properties: {
-                classifications: {
-                    type: Type.ARRAY,
-                    description: "An array of file classification objects.",
-                    items: {
-                        type: Type.OBJECT,
-                        properties: {
-                            fileName: { type: Type.STRING, description: "The name of the file." },
-                            category: { type: Type.STRING, description: `The category of the file. Must be one of: ${categories}` }
-                        },
-                        required: ['fileName', 'category']
-                    }
+    const schema = {
+        type: Type.OBJECT,
+        properties: {
+            classifications: {
+                type: Type.ARRAY,
+                description: "An array of file classification objects.",
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        fileName: { type: Type.STRING, description: "The name of the file." },
+                        category: { type: Type.STRING, description: `The category of the file. Must be one of: ${categories}` }
+                    },
+                    required: ['fileName', 'category']
                 }
-            },
-            required: ['classifications']
-        };
+            }
+        },
+        required: ['classifications']
+    };
 
-        const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: prompt,
-            config: {
-                temperature: 0,
-                responseMimeType: "application/json",
-                responseSchema: schema,
-            }
-        });
-        
-        if (!response || typeof response.text !== 'string' || !response.text.trim()) {
-            throw new Error("AI không trả về dữ liệu phân loại hợp lệ.");
+    const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+        config: {
+            temperature: 0,
+            responseMimeType: "application/json",
+            responseSchema: schema,
         }
-        const jsonText = response.text.trim().replace(/^```json\s*|```$/g, '');
-        const parsedResponse = JSON.parse(jsonText);
-
-        const categoryMap: Record<string, FileCategory> = {};
-        for (const item of parsedResponse.classifications) {
-            if (fileNames.includes(item.fileName) && Object.keys(fileCategoryLabels).includes(item.category)) {
-                categoryMap[item.fileName] = item.category as FileCategory;
-            }
-        }
-        
-        // Ensure all files get a category, even if the model misses some.
-        for (const name of fileNames) {
-            if (!categoryMap[name]) {
-                categoryMap[name] = 'Uncategorized';
-            }
-        }
-        
-        return categoryMap;
-    } catch (error) {
-        throw handleGeminiError(error, `phân loại hàng loạt tệp`);
+    });
+    
+    if (!response || typeof response.text !== 'string' || !response.text.trim()) {
+        throw new Error("AI không trả về dữ liệu phân loại hợp lệ.");
     }
+    const jsonText = response.text.trim().replace(/^```json\s*|```$/g, '');
+    const parsedResponse = JSON.parse(jsonText);
+
+    const categoryMap: Record<string, FileCategory> = {};
+    for (const item of parsedResponse.classifications) {
+        if (fileNames.includes(item.fileName) && Object.keys(fileCategoryLabels).includes(item.category)) {
+            categoryMap[item.fileName] = item.category as FileCategory;
+        }
+    }
+    
+    // Ensure all files get a category, even if the model misses some.
+    for (const name of fileNames) {
+        if (!categoryMap[name]) {
+            categoryMap[name] = 'Uncategorized';
+        }
+    }
+    
+    return categoryMap;
+  }, 'phân loại hàng loạt tệp');
 };
 
 export const extractSummariesFromFiles = async (
   files: UploadedFile[],
-  clientPosition?: 'left' | 'right' | null
+  clientPosition?: 'left' | 'right' | null,
+  onRetry?: (attempt: number, maxRetries: number) => void
 ): Promise<{ caseSummary: string; clientRequestSummary: string }> => {
-  try {
+  return withRetry(async () => {
     const { fileContentParts, multimodalParts } = await getFileContentParts(files);
     
     if (fileContentParts.length === 0 && multimodalParts.length === 0) {
@@ -270,10 +306,7 @@ export const extractSummariesFromFiles = async (
         caseSummary: result.caseSummary || '',
         clientRequestSummary: result.clientRequestSummary || ''
     };
-
-  } catch (error) {
-    throw handleGeminiError(error, 'trích xuất tóm tắt từ hồ sơ');
-  }
+  }, 'trích xuất tóm tắt từ hồ sơ', onRetry);
 };
 
 interface AnalysisUpdateContext {
@@ -285,9 +318,11 @@ export const analyzeCaseFiles = async (
   files: UploadedFile[],
   query: string,
   updateContext?: AnalysisUpdateContext,
-  clientPosition?: 'left' | 'right' | null
+  clientPosition?: 'left' | 'right' | null,
+  onRetry?: (attempt: number, maxRetries: number) => void
 ): Promise<AnalysisReport> => {
-  try {
+  const context = updateContext ? 'cập nhật phân tích' : 'phân tích hồ sơ';
+  return withRetry(async () => {
     const { fileContentParts, multimodalParts } = await getFileContentParts(files);
     const filesContent = fileContentParts.length > 0 ? fileContentParts.join('\n\n') : 'Không có tài liệu mới nào được cung cấp.';
     const currentDate = new Date().toLocaleDateString('vi-VN');
@@ -326,18 +361,16 @@ export const analyzeCaseFiles = async (
     }
     const jsonText = response.text.trim().replace(/^```json\s*|```$/g, '');
     return JSON.parse(jsonText);
-  } catch (error) {
-    const context = updateContext ? 'cập nhật phân tích' : 'phân tích hồ sơ';
-    throw handleGeminiError(error, context);
-  }
+  }, context, onRetry);
 };
 
 export const reanalyzeCaseWithCorrections = async (
   correctedReport: AnalysisReport,
   files: UploadedFile[],
-  clientPosition?: 'left' | 'right' | null
+  clientPosition?: 'left' | 'right' | null,
+  onRetry?: (attempt: number, maxRetries: number) => void
 ): Promise<AnalysisReport> => {
-  try {
+  return withRetry(async () => {
     const { fileContentParts, multimodalParts } = await getFileContentParts(files);
     const filesContent = fileContentParts.length > 0 ? fileContentParts.join('\n\n') : 'Không có tài liệu nào được cung cấp.';
     
@@ -387,20 +420,18 @@ Dựa trên báo cáo đã được điều chỉnh ở trên làm nguồn thôn
     newReport.applicableLawsChat = correctedReport.applicableLawsChat || [];
     newReport.contingencyPlanChat = correctedReport.contingencyPlanChat || [];
 
-
     return newReport;
-  } catch (error) {
-    throw handleGeminiError(error, 'phân tích lại hồ sơ');
-  }
+  }, 'phân tích lại hồ sơ', onRetry);
 };
 
 
 export const analyzeConsultingCase = async (
     files: UploadedFile[],
     disputeContent: string,
-    clientRequest: string
+    clientRequest: string,
+    onRetry?: (attempt: number, maxRetries: number) => void
 ): Promise<ConsultingReport> => {
-    try {
+    return withRetry(async () => {
         const { fileContentParts, multimodalParts } = await getFileContentParts(files);
         const filesContent = fileContentParts.length > 0 ? fileContentParts.join('\n\n') : 'Không có tệp.';
         
@@ -424,9 +455,7 @@ export const analyzeConsultingCase = async (
         }
         const jsonText = response.text.trim().replace(/^```json\s*|```$/g, '');
         return JSON.parse(jsonText);
-    } catch (error) {
-        throw handleGeminiError(error, 'phân tích nghiệp vụ tư vấn');
-    }
+    }, 'phân tích nghiệp vụ tư vấn', onRetry);
 };
 
 
@@ -435,7 +464,7 @@ export const generateConsultingDocument = async (
     disputeContent: string, 
     request: string
 ): Promise<string> => {
-    try {
+    return withRetry(async () => {
         const systemInstruction = `Bạn là một luật sư tư vấn AI tại Việt Nam, chuyên soạn thảo văn bản pháp lý (thư tư vấn, thư yêu cầu). Văn bản phải chuyên nghiệp, rõ ràng, chính xác.`;
         const reportContext = report ? `\n\nBỐI CẢNH ĐÃ PHÂN TÍCH:\n\`\`\`json\n${JSON.stringify(report, null, 2)}\n\`\`\`` : '';
         
@@ -451,13 +480,11 @@ export const generateConsultingDocument = async (
             throw new Error("AI không tạo được nội dung văn bản.");
         }
         return response.text.trim();
-    } catch (error) {
-        throw handleGeminiError(error, 'soạn thảo văn bản tư vấn');
-    }
+    }, 'soạn thảo văn bản tư vấn');
 }
 
 export const summarizeText = async (textToSummarize: string, context: 'disputeContent' | 'clientRequest'): Promise<string> => {
-    try {
+    return withRetry(async () => {
         const contextDescription = context === 'disputeContent' 
             ? "tóm tắt lại bối cảnh, diễn biến chính của một vụ việc pháp lý"
             : "làm rõ và tóm tắt lại yêu cầu hoặc mong muốn chính của khách hàng";
@@ -476,16 +503,14 @@ export const summarizeText = async (textToSummarize: string, context: 'disputeCo
             throw new Error("AI không thể tóm tắt nội dung.");
         }
         return response.text.trim();
-    } catch (error) {
-        throw handleGeminiError(error, 'tóm tắt nội dung');
-    }
+    }, 'tóm tắt nội dung');
 };
 
 export const refineQuickAnswer = async (
     originalAnswer: string,
     mode: 'concise' | 'empathetic' | 'formal' | 'zalo_fb'
 ): Promise<string> => {
-    try {
+    return withRetry(async () => {
         const modeDescriptions = {
             concise: 'ngắn gọn, súc tích hơn',
             empathetic: 'thể hiện sự đồng cảm, chia sẻ hơn',
@@ -508,19 +533,17 @@ export const refineQuickAnswer = async (
             throw new Error("AI không thể tinh chỉnh câu trả lời.");
         }
         return response.text.trim();
-
-    } catch (error) {
-        throw handleGeminiError(error, `tinh chỉnh câu trả lời nhanh`);
-    }
+    }, `tinh chỉnh câu trả lời nhanh`);
 };
 
 export const continueConsultingChat = async (
     report: ConsultingReport,
     chatHistory: ChatMessage[],
     newMessage: string,
-    newFiles: UploadedFile[]
+    newFiles: UploadedFile[],
+    onRetry?: (attempt: number, maxRetries: number) => void
 ): Promise<{ chatResponse: string; updatedReport: ConsultingReport | null }> => {
-    try {
+    return withRetry(async () => {
         const { fileContentParts, multimodalParts } = await getFileContentParts(newFiles);
         const newFilesContent = fileContentParts.length > 0 ? `\n\nNỘI DUNG TỆP MỚI:\n---\n${fileContentParts.join('\n\n')}\n---` : '';
 
@@ -578,19 +601,17 @@ export const continueConsultingChat = async (
         }
 
         return { chatResponse, updatedReport };
-
-    } catch (error) {
-        throw handleGeminiError(error, `trao đổi về nghiệp vụ tư vấn`);
-    }
+    }, `trao đổi về nghiệp vụ tư vấn`, onRetry);
 };
 
 export const continueLitigationChat = async (
     report: AnalysisReport,
     chatHistory: ChatMessage[],
     newMessage: string,
-    newFiles: UploadedFile[]
+    newFiles: UploadedFile[],
+    onRetry?: (attempt: number, maxRetries: number) => void
 ): Promise<{ chatResponse: string; updatedReport: AnalysisReport | null }> => {
-    try {
+    return withRetry(async () => {
         const { fileContentParts, multimodalParts } = await getFileContentParts(newFiles);
         const newFilesContent = fileContentParts.length > 0 ? `\n\nNỘI DUNG TỆP MỚI:\n---\n${fileContentParts.join('\n\n')}\n---` : '';
 
@@ -650,10 +671,7 @@ export const continueLitigationChat = async (
         }
 
         return { chatResponse, updatedReport };
-
-    } catch (error) {
-        throw handleGeminiError(error, `trao đổi về vụ việc tranh tụng`);
-    }
+    }, `trao đổi về vụ việc tranh tụng`, onRetry);
 };
 
 
@@ -666,7 +684,7 @@ export const generateContextualDocument = async (
     draftingMode: DraftingMode;
   }
 ): Promise<string> => {
-    try {
+    return withRetry(async () => {
         const { detail, draftingMode } = options;
         
         const modeLabel = DRAFTING_MODE_LABELS[draftingMode] || 'Trung lập';
@@ -697,13 +715,11 @@ export const generateContextualDocument = async (
             throw new Error("AI không tạo được nội dung văn bản.");
         }
         return response.text.trim();
-    } catch (error) {
-        throw handleGeminiError(error, 'soạn thảo văn bản');
-    }
+    }, 'soạn thảo văn bản');
 };
 
 export const generateDocumentFromTemplate = async (docType: DocType, formData: FormData): Promise<string> => {
-    try {
+    return withRetry(async () => {
         const systemInstruction = `Bạn là trợ lý luật sư AI, chuyên soạn thảo văn bản pháp lý Việt Nam. Dựa vào dữ liệu JSON và loại văn bản, hãy soạn thảo một văn bản hoàn chỉnh, đúng chuẩn.`;
         const prompt = `LOẠI VĂN BẢN: "${docType}"\n\nDỮ LIỆU (JSON):\n\`\`\`json\n${JSON.stringify(formData, null, 2)}\n\`\`\`\n\n**YÊU CẦU:** Soạn thảo văn bản hoàn chỉnh.`;
         const response = await ai.models.generateContent({
@@ -716,13 +732,11 @@ export const generateDocumentFromTemplate = async (docType: DocType, formData: F
             throw new Error("AI không tạo được nội dung văn bản từ mẫu.");
         }
         return response.text.trim();
-    } catch (error) {
-        throw handleGeminiError(error, 'tạo văn bản từ mẫu');
-    }
+    }, 'tạo văn bản từ mẫu');
 };
 
 export const generateParagraph = async (userRequest: string, options: ParagraphGenerationOptions): Promise<string> => {
-  try {
+  return withRetry(async () => {
     const systemInstruction = `Bạn là trợ lý luật sư AI chuyên soạn thảo đoạn văn pháp lý theo yêu cầu và các tùy chọn về văn phong.`;
     const prompt = `YÊU CẦU: "${userRequest}"\n\nHÃY SOẠN THẢO MỘT ĐOẠN VĂN THEO CÁC TIÊU CHÍ:\n- Giọng văn: ${options.tone}\n- Mức độ thuật ngữ: ${options.terminology}\n- Mức độ chi tiết: ${options.detail}\n- Định dạng: ${options.outputFormat}`;
     const response = await ai.models.generateContent({
@@ -735,13 +749,11 @@ export const generateParagraph = async (userRequest: string, options: ParagraphG
         throw new Error("AI không tạo được nội dung đoạn văn.");
     }
     return response.text.trim();
-  } catch (error) {
-    throw handleGeminiError(error, 'soạn thảo đoạn văn');
-  }
+  }, 'soạn thảo đoạn văn');
 };
 
 export const refineText = async (text: string, mode: 'concise' | 'detailed'): Promise<string> => {
-  try {
+  return withRetry(async () => {
     const systemInstruction = `Bạn là một biên tập viên AI chuyên nghiệp. Nhiệm vụ của bạn là chỉnh sửa lại văn bản được cung cấp theo một yêu cầu cụ thể (làm cho nó súc tích hơn hoặc chi tiết hơn).`;
     const action = mode === 'concise' ? 'làm cho nó súc tích và cô đọng hơn' : 'mở rộng và làm cho nó chi tiết, rõ ràng hơn';
     const prompt = `VĂN BẢN GỐC:\n---\n${text}\n---\n\nYÊU CẦU: Hãy chỉnh sửa lại văn bản trên để ${action}. Chỉ trả về văn bản đã được chỉnh sửa.`;
@@ -755,13 +767,11 @@ export const refineText = async (text: string, mode: 'concise' | 'detailed'): Pr
         throw new Error("AI không thể hoàn thiện văn bản.");
     }
     return response.text.trim();
-  } catch (error) {
-    throw handleGeminiError(error, `hoàn thiện văn bản (chế độ: ${mode})`);
-  }
+  }, `hoàn thiện văn bản (chế độ: ${mode})`);
 };
 
 export const generateFieldContent = async (formContext: { [key: string]: string | undefined }, docType: string, fieldName: string): Promise<string> => {
-    try {
+    return withRetry(async () => {
         const systemInstruction = `Bạn là trợ lý luật sư AI, chuyên soạn thảo điều khoản pháp lý tại Việt Nam.`;
         const prompt = `BỐI CẢNH (LOẠI VĂN BẢN: ${docType}):\n\`\`\`json\n${JSON.stringify(formContext, null, 2)}\n\`\`\`\n\nYÊU CẦU: Soạn thảo nội dung cho trường có tên là "${fieldName}". Chỉ trả về nội dung cho trường đó.`;
         const response = await ai.models.generateContent({
@@ -774,12 +784,11 @@ export const generateFieldContent = async (formContext: { [key: string]: string 
             throw new Error("AI không thể tạo nội dung cho trường này.");
         }
         return response.text.trim();
-    } catch (error) {
-        throw handleGeminiError(error, 'tạo nội dung cho trường này');
-    }
+    }, 'tạo nội dung cho trường này');
 };
 
 export const extractInfoFromFile = async (file: UploadedFile, docType: DocType): Promise<Partial<FormData>> => {
+  return withRetry(async () => {
     const fieldsToExtract = DOC_TYPE_FIELDS[docType];
     if (!fieldsToExtract || fieldsToExtract.length === 0) return {};
     let contentPart: Part;
@@ -796,32 +805,29 @@ export const extractInfoFromFile = async (file: UploadedFile, docType: DocType):
         throw new Error(`Định dạng tệp "${file.file.name}" không được hỗ trợ để trích xuất.`);
     }
 
-    try {
-        const schemaProperties = fieldsToExtract.reduce((acc, field) => {
-            acc[field] = { type: Type.STRING, description: `The value for the '${field}' field.` };
-            return acc;
-        }, {} as { [key: string]: { type: Type, description: string } });
-        const schema = { type: Type.OBJECT, properties: schemaProperties };
-        const systemInstruction = `You are a highly accurate AI assistant. Your task is to extract specific pieces of information from a document and structure it into a JSON object.`;
-        const prompt = `From the attached document (${file.file.name}), extract the information for a '${docType}' form. Adhere to the provided JSON schema. If a piece of information cannot be found, omit its key. The output MUST be only the JSON object.`;
+    const schemaProperties = fieldsToExtract.reduce((acc, field) => {
+        acc[field] = { type: Type.STRING, description: `The value for the '${field}' field.` };
+        return acc;
+    }, {} as { [key: string]: { type: Type, description: string } });
+    const schema = { type: Type.OBJECT, properties: schemaProperties };
+    const systemInstruction = `You are a highly accurate AI assistant. Your task is to extract specific pieces of information from a document and structure it into a JSON object.`;
+    const prompt = `From the attached document (${file.file.name}), extract the information for a '${docType}' form. Adhere to the provided JSON schema. If a piece of information cannot be found, omit its key. The output MUST be only the JSON object.`;
 
-        const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: { parts: [contentPart, { text: prompt }] },
-            config: { systemInstruction, responseMimeType: "application/json", responseSchema: schema, temperature: 0.0 }
-        });
+    const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: { parts: [contentPart, { text: prompt }] },
+        config: { systemInstruction, responseMimeType: "application/json", responseSchema: schema, temperature: 0.0 }
+    });
 
-        if (!response || typeof response.text !== 'string' || !response.text.trim()) {
-            throw new Error("AI không thể trích xuất thông tin từ tệp.");
-        }
-        return JSON.parse(response.text.trim().replace(/^```json\s*|```$/g, ''));
-    } catch (error) {
-        throw handleGeminiError(error, `trích xuất thông tin từ tệp`);
+    if (!response || typeof response.text !== 'string' || !response.text.trim()) {
+        throw new Error("AI không thể trích xuất thông tin từ tệp.");
     }
+    return JSON.parse(response.text.trim().replace(/^```json\s*|```$/g, ''));
+  }, `trích xuất thông tin từ tệp`);
 };
 
 export const generateReportSummary = async (report: AnalysisReport): Promise<string> => {
-    try {
+    return withRetry(async () => {
         const { quickSummary, ...reportData } = report;
         const systemInstruction = `Bạn là một trợ lý luật sư AI chuyên sâu, có nhiệm vụ tổng hợp một báo cáo phân tích pháp lý chi tiết (dưới dạng JSON) thành một bản tóm tắt vụ việc có cấu trúc rõ ràng theo mẫu được cung cấp. Nhiệm vụ của bạn là trích xuất và suy luận thông tin từ báo cáo JSON để điền vào các mục của mẫu một cách chính xác, đầy đủ và mạch lạc.`;
         
@@ -868,13 +874,11 @@ LƯU Ý: Suy luận thông tin từ toàn bộ báo cáo (bao gồm các mô t�
             throw new Error("AI không thể tạo tóm tắt báo cáo.");
         }
         return response.text.trim();
-    } catch (error) {
-        throw handleGeminiError(error, 'tạo tóm tắt báo cáo');
-    }
+    }, 'tạo tóm tắt báo cáo');
 };
 
 export const explainLaw = async (lawText: string): Promise<string> => {
-    try {
+    return withRetry(async () => {
         const systemInstruction = `Bạn là chuyên gia pháp lý AI tại Việt Nam. Nhiệm vụ của bạn là giải thích ngắn gọn, súc tích và chính xác nội dung cốt lõi của một điều luật.`;
         const prompt = `Hãy giải thích nội dung chính của điều luật sau: "${lawText}".\n\nYÊU CẦU: Giải thích ngắn gọn (3-5 câu), trung lập. Chỉ trả về văn bản giải thích.`;
         const response = await ai.models.generateContent({
@@ -887,9 +891,7 @@ export const explainLaw = async (lawText: string): Promise<string> => {
             throw new Error("AI không thể giải thích điều luật.");
         }
         return response.text.trim();
-    } catch (error) {
-        throw handleGeminiError(error, `giải thích điều luật "${lawText}"`);
-    }
+    }, `giải thích điều luật "${lawText}"`);
 };
 
 export const continueContextualChat = async (
@@ -898,7 +900,7 @@ export const continueContextualChat = async (
   newMessage: string,
   contextTitle: string
 ): Promise<string> => {
-  try {
+  return withRetry(async () => {
     // Exclude chat histories from the context to prevent redundancy and save tokens
     const { prospectsChat, gapAnalysisChat, strategyChat, resolutionPlanChat, intelligentSearchChat, applicableLawsChat, contingencyPlanChat, ...reportContext } = report;
 
@@ -939,18 +941,17 @@ TRỢ LÝ AI:
         throw new Error("AI không thể tiếp tục cuộc trò chuyện.");
     }
     return response.text.trim();
-  } catch (error) {
-    throw handleGeminiError(error, `trao đổi về "${contextTitle}"`);
-  }
+  }, `trao đổi về "${contextTitle}"`);
 };
 
 export const intelligentSearchQuery = async (
   report: AnalysisReport,
   files: UploadedFile[],
   chatHistory: ChatMessage[],
-  newUserQuery: string
+  newUserQuery: string,
+  onRetry?: (attempt: number, maxRetries: number) => void
 ): Promise<string> => {
-    try {
+    return withRetry(async () => {
         const { fileContentParts, multimodalParts } = await getFileContentParts(files);
         const filesContent = fileContentParts.length > 0 ? fileContentParts.join('\n\n') : 'Không có tệp nào được tải lên.';
 
@@ -995,15 +996,13 @@ ${newUserQuery}
             throw new Error("AI không thể trả lời câu hỏi của bạn.");
         }
         return response.text.trim();
-    } catch (error) {
-        throw handleGeminiError(error, 'hỏi đáp về hồ sơ');
-    }
+    }, 'hỏi đáp về hồ sơ', onRetry);
 };
 
 export const generateArgumentText = async (
   selectedNodes: ArgumentNode[]
 ): Promise<string> => {
-    try {
+    return withRetry(async () => {
         const context = selectedNodes.map(node => ({
             type: node.type,
             label: node.label,
@@ -1025,9 +1024,7 @@ export const generateArgumentText = async (
             throw new Error("AI không thể tạo luận cứ.");
         }
         return response.text.trim();
-    } catch (error) {
-        throw handleGeminiError(error, 'soạn thảo luận cứ');
-    }
+    }, 'soạn thảo luận cứ');
 };
 
 export const chatAboutArgumentNode = async (
@@ -1035,7 +1032,7 @@ export const chatAboutArgumentNode = async (
   chatHistory: ChatMessage[],
   newMessage: string
 ): Promise<string> => {
-  try {
+  return withRetry(async () => {
     const conversationHistoryPrompt = chatHistory
       .map(msg => `${msg.role === 'user' ? 'Luật sư' : 'Trợ lý AI'}: ${msg.content}`)
       .join('\n');
@@ -1069,9 +1066,7 @@ TRỢ LÝ AI:
         throw new Error("AI không thể tiếp tục cuộc trò chuyện.");
     }
     return response.text.trim();
-  } catch (error) {
-    throw handleGeminiError(error, `trao đổi về luận cứ "${node.label}"`);
-  }
+  }, `trao đổi về luận cứ "${node.label}"`);
 };
 
 export const analyzeOpponentArguments = async (
@@ -1079,7 +1074,7 @@ export const analyzeOpponentArguments = async (
     files: UploadedFile[],
     opponentArgumentsText: string
 ): Promise<OpponentArgument[]> => {
-    try {
+    return withRetry(async () => {
         const { fileContentParts, multimodalParts } = await getFileContentParts(files);
         const filesContent = fileContentParts.join('\n\n');
         // Exclude potentially large/recursive fields from the main report context to save tokens
@@ -1120,16 +1115,14 @@ Dựa vào toàn bộ bối cảnh vụ việc của khách hàng, hãy phân t�
         }
         const jsonText = response.text.trim().replace(/^```json\s*|```$/g, '');
         return JSON.parse(jsonText);
-    } catch (error) {
-        throw handleGeminiError(error, 'phân tích lập luận của đối phương');
-    }
+    }, 'phân tích lập luận của đối phương');
 };
 
 export const predictOpponentArguments = async (
     report: AnalysisReport,
     files: UploadedFile[]
 ): Promise<string[]> => {
-    try {
+    return withRetry(async () => {
         const { fileContentParts, multimodalParts } = await getFileContentParts(files);
         const filesContent = fileContentParts.join('\n\n');
         const { argumentGraph, opponentAnalysis, ...reportContext } = report;
@@ -1165,7 +1158,5 @@ Với vai trò là luật sư của phía đối lập, hãy nghiên cứu hồ 
         const jsonText = response.text.trim().replace(/^```json\s*|```$/g, '');
         const result = JSON.parse(jsonText);
         return result.predictedArguments || [];
-    } catch (error) {
-        throw handleGeminiError(error, 'giả định lập luận của đối phương');
-    }
+    }, 'giả định lập luận của đối phương');
 };

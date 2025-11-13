@@ -1,6 +1,6 @@
 {
-  "name": "Trợ lý luật 3-11 ver 19 Test",
-  "description": "1- Phân tích giai đoạn tố tụng chưa chinh xác ví dụ trong vụ khởi kiện hành chính: Tiếp tục khiếu nại lên cấp trên hoặc khởi kiện ra tòa\n2- Phần lập luận cần trả lời thẳng vào trọng tâm, trích rõ nội dung vấn đề phản biện\n3- Phần gợi ý hành động chỉ đưa ra các gợi ý chính xác chứ ko đưa ra gợi ý tham khảo, ko có giá trị\n4- Quan điểm bảo vệ nêu ra phải trích rõ căn cứ pháp luật, phân tích quan điểm bảo vệ đó\n5- Việc xác định chủ thể trong \"phân tích vụ việc\" \"hỏi đáp thông minh\" đều sai. Đối tượng kháng cáo chưa đúng.\n6- Phần nhập nội dung \"hỏi đáp thông minh\" chỉ 1 dòng, hãy thành 1 ô để dễ quan sát, nhập nội dung\n7- Phần Bản đồ lập luận chưa tối ưu cách trải nghiệm.",
+  "name": "Backup of Trợ lý luật 14-11",
+  "description": "cập nhật phân tích chuyên sâu đất đai\ncập nhật cách trả lời ngắn gọn đi sâu vấn đề tại phân tích nhanh",
   "requestFramePermissions": [
     "microphone"
   ]

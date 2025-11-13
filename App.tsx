@@ -235,6 +235,8 @@ export default function App() {
     const [clientRequestSummary, setClientRequestSummary] = useState('');
     const [query, setQuery] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [isRetrying, setIsRetrying] = useState(false);
+    const [retryAttempt, setRetryAttempt] = useState(0);
     const [isReanalyzing, setIsReanalyzing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [previewFile, setPreviewFile] = useState<UploadedFile | null>(null);
@@ -341,20 +343,33 @@ export default function App() {
           setError("Vui lòng tải tệp hoặc nhập nội dung để phân tích.");
           return;
         }
-        setIsLoading(true); setError(null);
+        setIsLoading(true); 
+        setError(null);
+        setIsRetrying(false);
+        setRetryAttempt(0);
+
+        const onRetryCallback = (attempt: number) => {
+            setIsRetrying(true);
+            setRetryAttempt(attempt);
+        };
+
         try {
             const effectiveQuery = query.trim() || "Phân tích toàn diện hồ sơ.";
             if (!caseSummary && !clientRequestSummary && files.length > 0) {
-              const summaries = await extractSummariesFromFiles(files, clientPosition !== 'not_applicable' ? clientPosition : undefined);
+              const summaries = await extractSummariesFromFiles(files, clientPosition !== 'not_applicable' ? clientPosition : undefined, onRetryCallback);
               setCaseSummary(summaries.caseSummary);
               setClientRequestSummary(summaries.clientRequestSummary);
             }
-            const analysisResult = await analyzeCaseFiles(files, effectiveQuery, undefined, clientPosition !== 'not_applicable' ? clientPosition : undefined);
+            const analysisResult = await analyzeCaseFiles(files, effectiveQuery, undefined, clientPosition !== 'not_applicable' ? clientPosition : undefined, onRetryCallback);
             setReport(analysisResult);
             setMainActionType('update');
         } catch (err) {
             setError(err instanceof Error ? err.message : "Đã xảy ra lỗi không xác định.");
-        } finally { setIsLoading(false); }
+        } finally { 
+            setIsLoading(false);
+            setIsRetrying(false);
+            setRetryAttempt(0);
+        }
     };
 
     const handleReanalyzeClick = async (reportToReanalyze: AnalysisReport) => {
@@ -588,7 +603,26 @@ export default function App() {
                             </button>
                         )}
                          <div className="bg-white border rounded-lg p-6 h-full">
-                            {isLoading && !report && <div className="flex flex-col items-center justify-center h-full"><div className="loading-bar-container"><div className="loading-bars"><div className="loading-bar"></div><div className="loading-bar"></div><div className="loading-bar"></div></div><p className="mt-4 text-slate-600 font-medium">AI đang phân tích, vui lòng đợi trong giây lát...</p></div></div>}
+                            {isLoading && !report && (
+                                <div className="flex flex-col items-center justify-center h-full">
+                                    <div className="loading-bar-container">
+                                        <div className="loading-bars">
+                                            <div className="loading-bar"></div>
+                                            <div className="loading-bar"></div>
+                                            <div className="loading-bar"></div>
+                                        </div>
+                                        {isRetrying ? (
+                                            <p className="mt-4 text-amber-700 font-medium">
+                                                Kết nối không ổn định. Đang tự động thử lại lần {retryAttempt}/3...
+                                            </p>
+                                        ) : (
+                                            <p className="mt-4 text-slate-600 font-medium">
+                                                AI đang phân tích, vui lòng đợi trong giây lát...
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                             {!isLoading && !report && <div className="flex flex-col items-center justify-center h-full text-center text-slate-400"><StyledAnalysisIcon className="w-16 h-16 mb-4 text-slate-300" /><p className="font-medium text-slate-600">Kết quả phân tích sẽ được hiển thị tại đây.</p></div>}
                             
                             {report && view === 'caseAnalysis' && <ReportDisplay report={report} onClearSummary={() => setReport(r => r ? {...r, quickSummary: ''} : null)} litigationType={litigationType} onUpdateUserLaws={(laws) => setReport(r => r ? {...r, userAddedLaws: laws} : null)} onUpdateReport={handleUpdateReport} caseSummary={caseSummary} clientRequestSummary={clientRequestSummary} onReanalyze={handleReanalyzeClick} isReanalyzing={isReanalyzing} files={files} onPreview={setPreviewFile} />}

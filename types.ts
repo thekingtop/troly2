@@ -135,6 +135,16 @@ export interface AnalysisReport {
   proceduralStatus: ProceduralStatus[];
   legalRelationship: string;
   coreLegalIssues: string[];
+  landInfo?: {
+    mapSheetNumber?: string;
+    parcelNumber?: string;
+    address?: string;
+    area?: string;
+    landUsePurpose?: string;
+    landUseTerm?: string;
+    landUseSource?: string;
+    planningStatus?: string;
+  };
   applicableLaws: ApplicableLaw[];
   gapAnalysis: GapAnalysis;
   caseProspects: CaseProspects;
