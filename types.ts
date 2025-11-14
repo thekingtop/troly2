@@ -194,6 +194,7 @@ export interface AnalysisReport {
   applicableLawsChat?: ChatMessage[];
   contingencyPlanChat?: ChatMessage[];
   globalChatHistory?: ChatMessage[];
+  checklistChat?: ChatMessage[];
 }
 
 // --- New Consulting Report Structure ---

@@ -1,9 +1,9 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { generateDocumentFromTemplate, extractInfoFromFile, generateFieldContent } from '../services/geminiService.ts';
 import { Loader } from './Loader.tsx';
 import { MagicIcon } from './icons/MagicIcon.tsx';
 import { FileImportIcon } from './icons/FileImportIcon.tsx';
-import type { DocType, FormData, UploadedFile } from '../types.ts';
+import type { DocType, FormData, UploadedFile, AnalysisReport } from '../types.ts';
 import { DOC_TYPE_FIELDS, FIELD_LABELS } from '../constants.ts';
 
 const DOC_TYPE_LABELS: Record<DocType, string> = {
@@ -37,7 +37,46 @@ const FieldLabel: React.FC<{ fieldName: string }> = ({ fieldName }) => {
     return <>{FIELD_LABELS[fieldName] || formatted}</>;
 };
 
-export const DocumentGenerator: React.FC = () => {
+const prefillDataFromReport = (report: AnalysisReport, files: UploadedFile[], docType: DocType): Partial<FormData> => {
+    const data: Partial<FormData> = {};
+    if (!report) return data;
+
+    const plaintiff = report.proceduralStatus?.find(p => p.status.toLowerCase().includes('nguyên đơn') || p.status.toLowerCase().includes('khởi kiện'));
+    const defendant = report.proceduralStatus?.find(p => p.status.toLowerCase().includes('bị đơn') || p.status.toLowerCase().includes('bị kiện'));
+
+    // Common fields
+    data.plaintiffName = plaintiff?.partyName;
+    data.defendantName = defendant?.partyName;
+    data.caseContent = report.editableCaseSummary;
+    data.caseSummary = report.editableCaseSummary;
+    data.requests = report.requestResolutionPlan?.join('\n');
+    data.evidence = files.map(f => f.file.name).join('; ');
+    data.caseNumber = report.proceduralStatus?.find(p => (p as any).caseNumber)?.['caseNumber']; // A bit of a guess
+
+    // DocType specific
+    if (docType === 'divorcePetition' && report.familyLawInfo) {
+        data.petitionerName = plaintiff?.partyName; // Assumption
+        data.respondentName = defendant?.partyName; // Assumption
+        data.marriageInfo = report.familyLawInfo.marriageInfo;
+        data.childrenInfo = report.familyLawInfo.commonChildren
+            .map(c => `Con chung: ${c.name}, sinh ngày ${c.dob}. Yêu cầu nuôi dưỡng: ${c.requestedCustody}. Cấp dưỡng: ${c.requestedSupport}.`)
+            .join('\n');
+        data.propertyInfo = report.familyLawInfo.commonProperty
+            .map(p => `${p.name} - Đề xuất phân chia: ${p.proposedDivision}.`)
+            .join('\n');
+        if (report.familyLawInfo.commonDebt && report.familyLawInfo.commonDebt.length > 0) {
+            const debtInfo = report.familyLawInfo.commonDebt
+                .map(d => `${d.name} - Đề xuất phân chia: ${d.proposedDivision}.`)
+                .join('\n');
+            data.propertyInfo += `\n\nVề nợ chung:\n${debtInfo}`;
+        }
+    }
+
+    return data;
+};
+
+
+export const DocumentGenerator: React.FC<{ report: AnalysisReport | null; files: UploadedFile[]; }> = ({ report, files }) => {
     const [docType, setDocType] = useState<DocType>('');
     const [formData, setFormData] = useState<FormData>({});
     const [generatedText, setGeneratedText] = useState('');
@@ -45,11 +84,20 @@ export const DocumentGenerator: React.FC = () => {
     const [isExtracting, setIsExtracting] = useState(false);
     const [isGeneratingField, setIsGeneratingField] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    
+    useEffect(() => {
+        if (report && docType) {
+            const prefilled = prefillDataFromReport(report, files, docType);
+            setFormData(prefilled); 
+        } else {
+            setFormData({});
+        }
+    }, [docType, report, files]);
 
     const handleDocTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const newDocType = e.target.value as DocType;
         setDocType(newDocType);
-        setFormData({}); // Reset form data when type changes
+        // formData will be reset by the useEffect
         setGeneratedText('');
         setError(null);
     };
@@ -122,7 +170,7 @@ export const DocumentGenerator: React.FC = () => {
     return (
         <div className="w-full h-full p-1">
             <h2 className="text-2xl font-bold text-slate-900 mb-2">Soạn thảo Văn bản theo Mẫu</h2>
-            <p className="text-sm text-slate-600 mb-6">Chọn loại văn bản, điền thông tin, và để AI giúp bạn soạn thảo.</p>
+            <p className="text-sm text-slate-600 mb-6">Chọn loại văn bản, AI sẽ điền sẵn thông tin từ hồ sơ, bạn chỉ cần kiểm tra và soạn thảo.</p>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
                 {/* --- Left Column: Form --- */}
@@ -148,7 +196,7 @@ export const DocumentGenerator: React.FC = () => {
                             </div>
                             <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2 -mr-2">
                                {currentFields.map(field => {
-                                   const isTextArea = field.toLowerCase().includes('content') || field.toLowerCase().includes('summary') || field.toLowerCase().includes('request') || field.toLowerCase().includes('actions') || field.toLowerCase().includes('analysis') || field.toLowerCase().includes('basis') || field.toLowerCase().includes('arguments') || field.toLowerCase().includes('evidence') || field.toLowerCase().includes('circumstances');
+                                   const isTextArea = field.toLowerCase().includes('content') || field.toLowerCase().includes('summary') || field.toLowerCase().includes('request') || field.toLowerCase().includes('actions') || field.toLowerCase().includes('analysis') || field.toLowerCase().includes('basis') || field.toLowerCase().includes('arguments') || field.toLowerCase().includes('evidence') || field.toLowerCase().includes('circumstances') || field.toLowerCase().includes('info');
                                    return (
                                        <div key={field}>
                                            <label htmlFor={field} className="block text-sm font-semibold text-slate-700 mb-1"><FieldLabel fieldName={field} /></label>

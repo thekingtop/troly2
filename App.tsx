@@ -4,7 +4,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { FileUpload } from './components/FileUpload.tsx';
 import { ReportDisplay } from './components/ReportDisplay.tsx';
 import { Loader } from './components/Loader.tsx';
-import { analyzeCaseFiles, generateContextualDocument, categorizeMultipleFiles, generateReportSummary, refineText, extractSummariesFromFiles, reanalyzeCaseWithCorrections, intelligentSearchQuery, continueLitigationChat } from './services/geminiService.ts';
+import { analyzeCaseFiles, generateContextualDocument, categorizeMultipleFiles, generateReportSummary, refineText, extractSummariesFromFiles, reanalyzeCaseWithCorrections, intelligentSearchQuery, continueLitigationChat, updateReportFromChatHistory } from './services/geminiService.ts';
 import { db, getAllCasesSorted, saveCase, deleteCaseById, clearAndBulkAddCases } from './services/db.ts';
 import type { AnalysisReport, UploadedFile, SavedCase, SerializableFile, LitigationStage, LitigationType, FileCategory, ApplicableLaw, LegalLoophole, ParagraphGenerationOptions, ChatMessage, DraftingMode } from './types.ts';
 import { ConsultingWorkflow } from './components/ConsultingWorkflow.tsx';
@@ -31,6 +31,7 @@ import { DocumentIcon } from './components/icons/DocumentIcon.tsx';
 import { ChatIcon } from './components/icons/ChatIcon.tsx';
 import { SendIcon } from './components/icons/SendIcon.tsx';
 import { DocumentChecklistView } from './components/DocumentChecklistView.tsx';
+import { MagicIcon } from './components/icons/MagicIcon.tsx';
 
 
 // Declare global variables from CDN scripts to satisfy TypeScript
@@ -150,12 +151,14 @@ const useIsMobile = () => {
 const GlobalLitigationChat: React.FC<{
     report: AnalysisReport;
     onUpdateReport: (updatedReport: AnalysisReport) => void;
+    onUpdateFromChat: (history: ChatMessage[], context: string) => void;
     files: UploadedFile[];
-}> = ({ report, onUpdateReport, files }) => {
+}> = ({ report, onUpdateReport, onUpdateFromChat, files }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [userInput, setUserInput] = useState('');
     const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [isUpdatingFromChat, setIsUpdatingFromChat] = useState(false);
     
     const isMobile = useIsMobile();
     const chatEndRef = useRef<HTMLDivElement>(null);
@@ -165,6 +168,12 @@ const GlobalLitigationChat: React.FC<{
         if (isOpen) { setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100); }
     }, [report.globalChatHistory, isOpen]);
     
+    const handleUpdateFromChatClick = async () => {
+        if (!report.globalChatHistory || report.globalChatHistory.length === 0) return;
+        setIsUpdatingFromChat(true);
+        await onUpdateFromChat(report.globalChatHistory, 'Trò chuyện chung về vụ việc');
+        setIsUpdatingFromChat(false);
+    };
 
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -226,9 +235,12 @@ const GlobalLitigationChat: React.FC<{
             <footer className="p-4 border-t border-slate-200 flex-shrink-0">
                 {attachedFiles.length > 0 && (<div className="mb-2 space-y-1">{attachedFiles.map((file, index) => (<div key={index} className="flex items-center justify-between text-xs bg-slate-100 p-1.5 rounded"><span className="truncate">{file.name}</span><button onClick={() => setAttachedFiles(p => p.filter((_, i) => i !== index))} className="p-0.5 rounded-full hover:bg-slate-200"><XMarkIcon className="w-3 h-3 text-slate-500"/></button></div>))}</div>)}
                 <form onSubmit={handleSendMessage} className="flex items-start gap-2">
-                    <textarea value={userInput} onChange={e => setUserInput(e.target.value)} placeholder="Nhập tin nhắn..." className="flex-grow p-2 border border-slate-300 rounded-md text-sm resize-none" rows={2} disabled={isLoading} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(e); } }} />
-                    <div className="flex flex-col gap-2"><label className="p-2 bg-slate-100 text-slate-600 font-semibold rounded-md hover:bg-slate-200 cursor-pointer"><PaperClipIcon className="w-5 h-5"/><input type="file" className="hidden" multiple ref={fileInputRef} onChange={(e) => { if (e.target.files) setAttachedFiles(p => [...p, ...Array.from(e.target.files!)]); if (fileInputRef.current) fileInputRef.current.value = ""; }} accept=".pdf,.doc,.docx,.jpg,.jpeg" disabled={isLoading}/></label><button type="submit" disabled={isLoading || (!userInput.trim() && attachedFiles.length === 0)} className="p-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 disabled:bg-slate-300"><SendIcon className="w-5 h-5"/></button></div>
+                    <textarea value={userInput} onChange={e => setUserInput(e.target.value)} placeholder="Nhập tin nhắn..." className="flex-grow p-2 border border-slate-300 rounded-md text-sm resize-none" rows={1} disabled={isLoading || isUpdatingFromChat} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(e); } }} />
+                    <div className="flex flex-col gap-2"><label className="p-2 bg-slate-100 text-slate-600 font-semibold rounded-md hover:bg-slate-200 cursor-pointer"><PaperClipIcon className="w-5 h-5"/><input type="file" className="hidden" multiple ref={fileInputRef} onChange={(e) => { if (e.target.files) setAttachedFiles(p => [...p, ...Array.from(e.target.files!)]); if (fileInputRef.current) fileInputRef.current.value = ""; }} accept=".pdf,.doc,.docx,.jpg,.jpeg" disabled={isLoading || isUpdatingFromChat}/></label><button type="submit" disabled={isLoading || isUpdatingFromChat || (!userInput.trim() && attachedFiles.length === 0)} className="p-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 disabled:bg-slate-300"><SendIcon className="w-5 h-5"/></button></div>
                 </form>
+                 <button onClick={handleUpdateFromChatClick} disabled={isUpdatingFromChat || isLoading || !report.globalChatHistory || report.globalChatHistory.length === 0} className="w-full mt-2 flex items-center justify-center gap-2 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md py-1.5 disabled:opacity-50">
+                    {isUpdatingFromChat ? <><Loader /> <span>Đang cập nhật...</span></> : <><MagicIcon className="w-4 h-4" /> <span>Cập nhật Phân tích từ Trò chuyện</span></>}
+                </button>
             </footer>
         </div>
     );
@@ -243,6 +255,7 @@ export default function App() {
     const [clientRequestSummary, setClientRequestSummary] = useState('');
     const [query, setQuery] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [isUpdatingFromChat, setIsUpdatingFromChat] = useState(false);
     const [isRetrying, setIsRetrying] = useState(false);
     const [retryAttempt, setRetryAttempt] = useState(0);
     const [isReanalyzing, setIsReanalyzing] = useState(false);
@@ -387,6 +400,21 @@ export default function App() {
             setReport(newReport);
         } catch (err) { setError(err instanceof Error ? err.message : "Lỗi khi phân tích lại.");
         } finally { setIsReanalyzing(false); }
+    };
+    
+    const handleUpdateReportFromChat = async (chatHistory: ChatMessage[], context: string) => {
+        if (!report) return;
+        setIsUpdatingFromChat(true);
+        setError(null);
+        try {
+            const newReport = await updateReportFromChatHistory(report, chatHistory, context);
+            setReport(newReport);
+            alert('Báo cáo đã được cập nhật từ nội dung trò chuyện!');
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Lỗi khi cập nhật báo cáo.');
+        } finally {
+            setIsUpdatingFromChat(false);
+        }
     };
 
     const handleSearch = async (newQuery: string) => {
@@ -589,7 +617,7 @@ export default function App() {
                                         ))}
                                         </div>
                                     </div>
-                                    <button onClick={handleAnalyzeClick} disabled={isLoading} className="w-full py-2.5 px-4 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-slate-300 flex items-center justify-center gap-2">
+                                    <button onClick={handleAnalyzeClick} disabled={isLoading || isReanalyzing} className="w-full py-2.5 px-4 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-slate-300 flex items-center justify-center gap-2">
                                         {isLoading ? <><Loader /> <span>Đang phân tích...</span></> : (mainActionType === 'analyze' ? 'Phân tích Vụ việc' : 'Cập nhật Phân tích')}
                                     </button>
                                     {error && <div className="text-red-600 text-sm p-3 bg-red-50 rounded-lg">{error}</div>}
@@ -634,8 +662,8 @@ export default function App() {
                             {!isLoading && !report && <div className="flex flex-col items-center justify-center h-full text-center text-slate-400"><StyledAnalysisIcon className="w-16 h-16 mb-4 text-slate-300" /><p className="font-medium text-slate-600">Kết quả phân tích sẽ được hiển thị tại đây.</p></div>}
                             
                             {report && view === 'caseAnalysis' && <ReportDisplay report={report} onClearSummary={() => setReport(r => r ? {...r, quickSummary: ''} : null)} litigationType={litigationType} onUpdateUserLaws={(laws) => setReport(r => r ? {...r, userAddedLaws: laws} : null)} onUpdateReport={handleUpdateReport} caseSummary={caseSummary} clientRequestSummary={clientRequestSummary} onReanalyze={handleReanalyzeClick} isReanalyzing={isReanalyzing} files={files} onPreview={setPreviewFile} />}
-                            {view === 'documentChecklist' && <DocumentChecklistView report={report} files={files} />}
-                            {view === 'documentGenerator' && <DocumentGenerator />}
+                            {report && view === 'documentChecklist' && <DocumentChecklistView report={report} files={files} setFiles={setFiles} onUpdateReport={handleUpdateReport} onReanalyze={handleReanalyzeClick} isReanalyzing={isReanalyzing} onUpdateReportFromChat={handleUpdateReportFromChat} isUpdatingFromChat={isUpdatingFromChat}/>}
+                            {view === 'documentGenerator' && <DocumentGenerator report={report} files={files} />}
                             {view === 'quickDraft' && <QuickDraftGenerator />}
                             {view === 'argumentMap' && <ArgumentMapView report={report} onUpdateReport={handleUpdateReport} />}
                             {view === 'intelligentSearch' && <IntelligentSearch report={report} onSearch={handleSearch} isLoading={isLoading} error={error} />}
@@ -646,7 +674,7 @@ export default function App() {
             </main>
 
             {previewFile && <PreviewModal file={previewFile} onClose={() => setPreviewFile(null)} />}
-            {report && <GlobalLitigationChat report={report} onUpdateReport={handleUpdateReport} files={files} />}
+            {report && <GlobalLitigationChat report={report} onUpdateReport={handleUpdateReport} onUpdateFromChat={handleUpdateReportFromChat} files={files} />}
         </div>
     );
 }

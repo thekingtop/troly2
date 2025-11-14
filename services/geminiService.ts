@@ -27,9 +27,11 @@ import {
     LITIGATION_CHAT_UPDATE_SYSTEM_INSTRUCTION,
     DOCUMENT_CHECKLIST_SYSTEM_INSTRUCTION,
     DOCUMENT_CHECKLIST_SCHEMA,
+    DOCUMENT_CHECKLIST_CHAT_SYSTEM_INSTRUCTION,
+    UPDATE_REPORT_FROM_CHAT_SYSTEM_INSTRUCTION,
 } from '../constants.ts';
 
-const API_KEY = import.meta.env.VITE_API_KEY;
+const API_KEY = process.env.API_KEY;
 
 if (!API_KEY) {
   throw new Error("API_KEY environment variable not set");
@@ -676,6 +678,48 @@ export const continueLitigationChat = async (
     }, `trao đổi về vụ việc tranh tụng`, onRetry);
 };
 
+export const updateReportFromChatHistory = async (
+  currentReport: AnalysisReport,
+  chatHistory: ChatMessage[],
+  chatContext: string
+): Promise<AnalysisReport> => {
+  return withRetry(async () => {
+    const conversationHistoryPrompt = chatHistory
+      .map(msg => `${msg.role === 'user' ? 'Luật sư' : 'Trợ lý AI'}: ${msg.content}`)
+      .join('\n');
+    
+    const prompt = `
+    BÁO CÁO PHÂN TÍCH GỐC (JSON):
+    \`\`\`json
+    ${JSON.stringify(currentReport, null, 2)}
+    \`\`\`
+
+    LỊCH SỬ TRÒ CHUYỆN (TRONG BỐI CẢNH: ${chatContext}):
+    ---
+    ${conversationHistoryPrompt}
+    ---
+
+    YÊU CẦU: Dựa vào lịch sử trò chuyện, hãy cập nhật báo cáo JSON gốc và trả về phiên bản JSON hoàn chỉnh đã được cập nhật.
+    `;
+
+    const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+        config: {
+            systemInstruction: UPDATE_REPORT_FROM_CHAT_SYSTEM_INSTRUCTION,
+            responseMimeType: "application/json",
+            responseSchema: REPORT_SCHEMA,
+            temperature: 0.2,
+        }
+    });
+
+    if (!response || typeof response.text !== 'string' || !response.text.trim()) {
+        throw new Error("AI không thể cập nhật báo cáo từ cuộc trò chuyện.");
+    }
+    const jsonText = response.text.trim().replace(/^```json\s*|```$/g, '');
+    return JSON.parse(jsonText);
+  }, 'cập nhật báo cáo từ cuộc trò chuyện');
+};
 
 
 export const generateContextualDocument = async (
@@ -1205,4 +1249,62 @@ Dựa vào các thông tin trên, hãy tạo ra một danh sách kiểm tra hồ
     const jsonText = response.text.trim().replace(/^```json\s*|```$/g, '');
     return JSON.parse(jsonText);
   }, `kiểm tra hồ sơ cho thủ tục "${procedure}"`, onRetry);
+};
+
+export const chatAboutDocumentChecklist = async (
+  report: AnalysisReport,
+  files: UploadedFile[],
+  checklist: DocumentChecklistItem[],
+  chatHistory: ChatMessage[],
+  newUserQuery: string,
+  onRetry?: (attempt: number, maxRetries: number) => void
+): Promise<string> => {
+    return withRetry(async () => {
+        const { fileContentParts, multimodalParts } = await getFileContentParts(files);
+        const filesContent = fileContentParts.length > 0 ? fileContentParts.join('\n\n') : 'Không có tệp nào được tải lên.';
+
+        // Exclude chat histories from the context
+        const { prospectsChat, gapAnalysisChat, strategyChat, resolutionPlanChat, intelligentSearchChat, checklistChat, ...reportContext } = report;
+
+        const conversationHistoryPrompt = chatHistory
+          .map(msg => `${msg.role === 'user' ? 'Luật sư' : 'Trợ lý AI'}: ${msg.content}`)
+          .join('\n');
+
+        const prompt = `**BỐI CẢNH VỤ VIỆC**
+1.  **BÁO CÁO PHÂN TÍCH (JSON):**
+    \`\`\`json
+    ${JSON.stringify(reportContext, null, 2)}
+    \`\`\`
+2.  **CHECKLIST HỒ SƠ HIỆN TẠI (JSON):**
+    \`\`\`json
+    ${JSON.stringify(checklist, null, 2)}
+    \`\`\`
+3.  **TÓM TẮT NỘI DUNG TÀI LIỆU:**
+    ${filesContent}
+
+**LỊCH SỬ TRAO ĐỔI VỀ CHECKLIST:**
+---
+${conversationHistoryPrompt}
+---
+
+**CÂU HỎI MỚI CỦA LUẬT SƯ:**
+${newUserQuery}
+`;
+
+        const allParts: Part[] = [...multimodalParts, { text: prompt }];
+
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: { parts: allParts },
+            config: {
+                systemInstruction: DOCUMENT_CHECKLIST_CHAT_SYSTEM_INSTRUCTION,
+                temperature: 0.5,
+            }
+        });
+
+        if (!response || typeof response.text !== 'string') {
+            throw new Error("AI không thể trả lời câu hỏi của bạn về checklist.");
+        }
+        return response.text.trim();
+    }, 'hỏi đáp về checklist hồ sơ', onRetry);
 };
