@@ -149,6 +149,14 @@ export interface FamilyLawInfo {
   }[];
 }
 
+export interface DocumentChecklistItem {
+    documentName: string;
+    status: 'provided' | 'missing' | 'provisional' | 'not_applicable';
+    reason: string;
+    analysis: string;
+    howToSupplement: string;
+}
+
 export interface AnalysisReport {
   editableCaseSummary?: string;
   caseTimeline: CaseTimelineEvent[];

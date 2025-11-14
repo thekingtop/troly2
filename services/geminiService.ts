@@ -1,5 +1,5 @@
 import { GoogleGenAI, Part, Type } from "@google/genai";
-import type { AnalysisReport, FileCategory, UploadedFile, DocType, FormData, LitigationStage, LitigationType, ConsultingReport, ParagraphGenerationOptions, ChatMessage, ArgumentNode, DraftingMode, OpponentArgument } from '../types.ts';
+import type { AnalysisReport, FileCategory, UploadedFile, DocType, FormData, LitigationStage, LitigationType, ConsultingReport, ParagraphGenerationOptions, ChatMessage, ArgumentNode, DraftingMode, OpponentArgument, DocumentChecklistItem } from '../types.ts';
 import { 
     SYSTEM_INSTRUCTION, 
     REANALYSIS_SYSTEM_INSTRUCTION,
@@ -25,6 +25,8 @@ import {
     QUICK_ANSWER_REFINE_SYSTEM_INSTRUCTION,
     CONSULTING_CHAT_UPDATE_SYSTEM_INSTRUCTION,
     LITIGATION_CHAT_UPDATE_SYSTEM_INSTRUCTION,
+    DOCUMENT_CHECKLIST_SYSTEM_INSTRUCTION,
+    DOCUMENT_CHECKLIST_SCHEMA,
 } from '../constants.ts';
 
 const API_KEY = import.meta.env.VITE_API_KEY;
@@ -1159,4 +1161,48 @@ Với vai trò là luật sư của phía đối lập, hãy nghiên cứu hồ 
         const result = JSON.parse(jsonText);
         return result.predictedArguments || [];
     }, 'giả định lập luận của đối phương');
+};
+
+export const generateDocumentChecklist = async (
+  report: AnalysisReport,
+  fileNames: string[],
+  procedure: string,
+  onRetry?: (attempt: number, maxRetries: number) => void
+): Promise<DocumentChecklistItem[]> => {
+  return withRetry(async () => {
+    // Exclude potentially large/recursive fields from the main report context to save tokens
+    const { argumentGraph, opponentAnalysis, ...reportContext } = report;
+
+    const prompt = `
+**BÁO CÁO PHÂN TÍCH VỤ VIỆC (JSON):**
+\`\`\`json
+${JSON.stringify(reportContext, null, 2)}
+\`\`\`
+
+**DANH SÁCH TỆP ĐÃ TẢI LÊN:**
+- ${fileNames.join('\n- ')}
+
+**TÊN THỦ TỤC CẦN THỰC HIỆN:**
+"${procedure}"
+
+**YÊU CẦU:**
+Dựa vào các thông tin trên, hãy tạo ra một danh sách kiểm tra hồ sơ chi tiết và trả về kết quả dưới dạng một mảng JSON.`;
+
+    const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+        config: {
+            systemInstruction: DOCUMENT_CHECKLIST_SYSTEM_INSTRUCTION,
+            responseMimeType: "application/json",
+            responseSchema: DOCUMENT_CHECKLIST_SCHEMA,
+            temperature: 0.1,
+        }
+    });
+
+    if (!response || typeof response.text !== 'string' || !response.text.trim()) {
+      throw new Error("AI không trả về checklist hồ sơ hợp lệ.");
+    }
+    const jsonText = response.text.trim().replace(/^```json\s*|```$/g, '');
+    return JSON.parse(jsonText);
+  }, `kiểm tra hồ sơ cho thủ tục "${procedure}"`, onRetry);
 };

@@ -198,15 +198,125 @@ export const FIELD_LABELS: Record<string, string> = {
 
 const UPDATED_LEGAL_KNOWLEDGE_BASE = `
 **NỀN TẢNG KIẾN THỨC PHÁP LUẬT CẬP NHẬT:** Kiến thức của bạn bao gồm các thay đổi pháp lý và hành chính lớn có hiệu lực từ năm 2024 và 2025. Khi phân tích, bạn sẽ tự động áp dụng đúng hệ thống pháp luật theo mốc thời gian của vụ việc. Cụ thể:
+    *   **QUAN TRỌNG: Về Sổ hộ khẩu và Giấy xác nhận cư trú (ÁP DỤNG NGHIÊM NGẶT):** Từ ngày 01/01/2023, sổ hộ khẩu, sổ tạm trú giấy đã chính thức bị bãi bỏ. Khi phân tích hoặc đề xuất hồ sơ, giấy tờ, BẠN TUYỆT ĐỐI KHÔNG ĐƯỢC yêu cầu 'sổ hộ khẩu'. Thay vào đó, phương thức chứng minh nơi cư trú hợp lệ hiện nay là:
+        1.  Sử dụng thẻ Căn cước công dân (CCCD) gắn chip.
+        2.  Sử dụng ứng dụng định danh điện tử VNeID.
+        3.  Xin "Giấy xác nhận thông tin về cư trú" (Mẫu CT07) tại cơ quan công an cấp xã hoặc qua Cổng Dịch vụ công.
+        Ví dụ: trong checklist hồ sơ ly hôn, thay vì 'Sổ hộ khẩu', bạn phải ghi 'Giấy xác nhận thông tin về cư trú của vợ và chồng'. Đây là một quy tắc BẮT BUỘC, áp dụng cho mọi phân tích.
     *   **Về Tín dụng, Căn cước, và các luật khác (từ 01/07/2024):** Áp dụng các luật mới sau đây cho các sự kiện phát sinh sau ngày hiệu lực: **Luật Các tổ chức tín dụng 2024**, **Luật Căn cước 2023** (thay thế Luật CCCD), **Luật Giao dịch điện tử 2023**, **Luật Viễn thông (sửa đổi) 2023**, **Luật Tài nguyên nước (sửa đổi) 2023**, và **Luật Lực lượng tham gia bảo vệ an ninh, trật tự ở cơ sở 2023**.
     *   **Về Đất đai, Nhà ở, Kinh doanh Bất động sản (từ 01/01/2025):** Áp dụng đồng bộ **Luật Đất đai 2024** (lưu ý các quy định có hiệu lực sớm từ 01/04/2024), **Luật Nhà ở 2023**, và **Luật Kinh doanh bất động sản 2023**. Điều này đòi hỏi bạn phải phân tích chính xác, cụ thể các vấn đề về phương pháp định giá đất mới, quy định về thu hồi đất, điều kiện cấp Giấy chứng nhận cho đất không có giấy tờ, thay vì đưa ra các nhận định chung chung.
-    *   **Về Hành chính (từ 01/07/2025):** Áp dụng mô hình chính quyền địa phương 2 cấp (tỉnh, xã), **không còn cấp huyện/quận**. Điều này có nghĩa là khi phân tích các thủ tục hành chính thực hiện từ 01/07/2025 trở đi, BẠN BẮT BUỘC **không được đề cập đến các cơ quan cấp huyện/quận** (ví dụ: UBND cấp huyện, Văn phòng Đăng ký đất đai cấp huyện). Thay vào đó, thẩm quyền sẽ được phân chia giữa cấp tỉnh và cấp xã.
+    *   **QUY TẮC VÀNG VỀ CẢI CÁCH HÀNH CHÍNH (ÁP DỤNG NGHIÊM NGẶT NHẤT):** Việt Nam đang trong giai đoạn cải cách hành chính lớn, bao gồm sáp nhập các đơn vị hành chính (tỉnh, huyện, xã) và tổ chức lại bộ máy. Để đảm bảo tính chính xác tuyệt đối khi tư vấn, BẠN BẮT BUỘC PHẢI tuân thủ các quy tắc sau:
+        1.  **Xác định Thẩm quyền theo Mốc Thời gian:** Khi xác định một cơ quan có thẩm quyền (UBND, Sở, Cục, Tòa án...), bạn phải luôn dựa vào mốc thời gian của hành vi hoặc thủ tục.
+        2.  **Mô hình Chính quyền 2 cấp (từ 01/07/2025):** Đối với bất kỳ thủ tục hành chính nào được thực hiện từ ngày 01/07/2025 trở đi, **TUYỆT ĐỐI KHÔNG ĐƯỢỢC** đề cập đến các cơ quan cấp huyện/quận/thị xã (ví dụ: "Phòng Tài nguyên và Môi trường quận X", "UBND huyện Y"). Thẩm quyền sẽ được phân chia giữa cấp tỉnh và cấp xã. Bạn phải phân tích và chỉ rõ cơ quan cấp tỉnh hoặc cấp xã nào sẽ tiếp nhận thẩm quyền đó.
+        3.  **Nhận diện Sáp nhập Đơn vị Hành chính:** Bạn phải nhận thức được rằng nhiều tỉnh, thành phố đang sắp xếp, sáp nhập các đơn vị hành chính cấp huyện và cấp xã. Khi một địa danh trong vụ việc có liên quan đến một khu vực có sáp nhập, bạn phải:
+            *   **Viện dẫn cơ sở pháp lý:** Nêu rõ rằng "Tên gọi và thẩm quyền của các đơn vị hành chính có thể đã thay đổi theo các Nghị quyết của Ủy ban Thường vụ Quốc hội về việc sắp xếp đơn vị hành chính cấp huyện, cấp xã. Cần kiểm tra Nghị quyết áp dụng cho [Tên tỉnh/thành phố] tại thời điểm [Thời gian liên quan]".
+            *   **Tư vấn Tên gọi Mới:** Nếu biết tên đơn vị hành chính mới sau sáp nhập, hãy sử dụng tên mới đó. Ví dụ: "Quận Đống Đa và quận Ba Đình được sáp nhập thành khu vực hành chính mới, do đó Tòa án có thẩm quyền là Tòa án nhân dân khu vực Ba Đình".
+        4.  **Sáp nhập Bộ, Ngành:** Tương tự, khi đề cập đến các cơ quan trung ương, hãy lưu ý đến các nghị định về cơ cấu tổ chức của Chính phủ để viện dẫn đúng tên Bộ, Vụ, Cục có thẩm quyền.
     *   **Về Hệ thống Tòa án (từ 2025):** Áp dụng cấu trúc tòa án mới theo lộ trình cải cách tư pháp. Khi phân tích hoặc soạn thảo văn bản cho các vụ việc phát sinh hoặc tố tụng từ năm 2025 trở đi, bạn BẮT BUỘC phải sử dụng đúng tên gọi và thẩm quyền của các cấp tòa án sau:
         *   **Tòa án nhân dân khu vực:** Đây là tòa án cấp sơ thẩm, thay thế cho Tòa án nhân dân cấp huyện, quận, thị xã, thành phố thuộc tỉnh trước đây.
         *   **Tòa án nhân dân cấp tỉnh (hoặc vùng):** Vừa là cấp phúc thẩm đối với bản án của Tòa án nhân dân khu vực, vừa là cấp sơ thẩm đối với các vụ án lớn, phức tạp, có yếu tố nước ngoài.
         *   **Tòa án nhân dân cấp cao:** Giải quyết phúc thẩm (đối với bản án của TAND cấp tỉnh) hoặc giám đốc thẩm, tái thẩm trong khu vực (Bắc, Trung, Nam).
-        Khi đề cập đến tòa án trong các văn bản (ví dụ: "Tên Tòa án" trong đơn khởi kiện), hãy sử dụng đúng tên gọi mới, ví dụ: "Kính gửi: Tòa án nhân dân khu vực X" thay vì "Kính gửi: Tòa án nhân dân quận Y".
+        Khi đề cập đến tòa án trong các văn bản (ví dụ: "Tên Tòa án" trong đơn khởi kiện), hãy sử dụng đúng tên gọi mới, ví dụ: "Kính gửi: Tòa án nhân dân khu vực X" thay vì "Kính gửi: Tòa án nhân dân quận Y". Khi cần xác định thẩm quyền, BẠN BẮT BUỘC phải tra cứu và viện dẫn chính xác Tòa án nhân dân khu vực có thẩm quyền dựa trên **PHỤ LỤC DANH SÁCH TÒA ÁN** đính kèm bên dưới.
     *   **Đối với các sự kiện xảy ra trước các mốc thời gian trên, bạn sẽ áp dụng pháp luật có hiệu lực tại thời điểm đó.**
+
+**PHỤ LỤC: DANH SÁCH 355 TÒA ÁN NHÂN DÂN KHU VỰC (ÁP DỤNG TỪ 2025/2026 THEO LỘ TRÌNH)**
+*   **TP. Hà Nội (21):**
+    1.  TAND khu vực Ba Đình: Gồm quận Ba Đình, Đống Đa.
+    2.  TAND khu vực Hoàn Kiếm: Gồm quận Hoàn Kiếm, Hai Bà Trưng.
+    3.  TAND khu vực Cầu Giấy: Gồm quận Cầu Giấy, Nam Từ Liêm, Bắc Từ Liêm.
+    4.  TAND khu vực Tây Hồ: Gồm quận Tây Hồ.
+    5.  TAND khu vực Long Biên: Gồm quận Long Biên.
+    6.  TAND khu vực Hoàng Mai: Gồm quận Hoàng Mai.
+    7.  TAND khu vực Thanh Xuân: Gồm quận Thanh Xuân.
+    8.  TAND khu vực Hà Đông: Gồm quận Hà Đông.
+    9.  TAND khu vực Sơn Tây: Gồm thị xã Sơn Tây, huyện Ba Vì.
+    10. TAND khu vực Gia Lâm: Gồm huyện Gia Lâm.
+    11. TAND khu vực Đông Anh: Gồm huyện Đông Anh, Mê Linh, Sóc Sơn.
+    12. TAND khu vực Thanh Trì: Gồm huyện Thanh Trì.
+    13. TAND khu vực Chương Mỹ: Gồm huyện Chương Mỹ.
+    14. TAND khu vực Đan Phượng: Gồm huyện Đan Phượng, Hoài Đức, Phúc Thọ.
+    15. TAND khu vực Mỹ Đức: Gồm huyện Mỹ Đức.
+    16. TAND khu vực Phú Xuyên: Gồm huyện Phú Xuyên.
+    17. TAND khu vực Quốc Oai: Gồm huyện Quốc Oai, Thạch Thất.
+    18. TAND khu vực Thanh Oai: Gồm huyện Thanh Oai.
+    19. TAND khu vực Thường Tín: Gồm huyện Thường Tín.
+    20. TAND khu vực Ứng Hòa: Gồm huyện Ứng Hòa.
+    21. TAND khu vực Mê Linh (riêng): Gồm huyện Mê Linh (dự phòng).
+*   **TP. Hồ Chí Minh (16):**
+    1.  TAND khu vực 1: Gồm Quận 1, 3.
+    2.  TAND khu vực 2: Gồm Quận 4, 7.
+    3.  TAND khu vực 3: Gồm Quận 5, 8.
+    4.  TAND khu vực 4: Gồm Quận 6, 11, Bình Tân.
+    5.  TAND khu vực 5: Gồm Quận 10, Tân Bình, Tân Phú.
+    6.  TAND khu vực 6: Gồm quận Bình Thạnh, Phú Nhuận.
+    7.  TAND khu vực 7: Gồm TP. Thủ Đức.
+    8.  TAND khu vực 8: Gồm quận Gò Vấp, 12.
+    9.  TAND khu vực 9: Gồm huyện Củ Chi.
+    10. TAND khu vực 10: Gồm huyện Hóc Môn.
+    11. TAND khu vực 11: Gồm huyện Bình Chánh.
+    12. TAND khu vực 12: Gồm huyện Nhà Bè.
+    13. TAND khu vực 13: Gồm huyện Cần Giờ.
+*   **TP. Hải Phòng (8):** Hồng Bàng, Lê Chân, Ngô Quyền, Kiến An, Hải An, Đồ Sơn, An Dương, An Lão, Cát Hải, Kiến Thụy, Tiên Lãng, Vĩnh Bảo, Thủy Nguyên, Bạch Long Vĩ.
+*   **TP. Đà Nẵng (5):** Hải Châu, Thanh Khê, Sơn Trà, Ngũ Hành Sơn, Liên Chiểu, Cẩm Lệ, Hòa Vang.
+*   **TP. Cần Thơ (5):** Ninh Kiều, Bình Thủy, Cái Răng, Ô Môn, Thốt Nốt, Cờ Đỏ, Phong Điền, Thới Lai, Vĩnh Thạnh.
+*   **An Giang (7):** Long Xuyên, Châu Đốc, An Phú, Tân Châu, Phú Tân, Tịnh Biên, Tri Tôn, Châu Phú, Châu Thành, Chợ Mới, Thoại Sơn.
+*   **Bà Rịa - Vũng Tàu (5):** Vũng Tàu, Bà Rịa, Châu Đức, Côn Đảo, Long Điền, Đất Đỏ, Xuyên Mộc, Phú Mỹ.
+*   **Bạc Liêu (5):** Bạc Liêu, Giá Rai, Đông Hải, Hòa Bình, Hồng Dân, Phước Long, Vĩnh Lợi.
+*   **Bắc Kạn (5):** Bắc Kạn, Ba Bể, Bạch Thông, Chợ Đồn, Chợ Mới, Na Rì, Ngân Sơn, Pác Nặm.
+*   **Bắc Giang (6):** Bắc Giang, Hiệp Hòa, Lạng Giang, Lục Nam, Lục Ngạn, Sơn Động, Tân Yên, Việt Yên, Yên Dũng, Yên Thế.
+*   **Bắc Ninh (5):** Bắc Ninh, Từ Sơn, Gia Bình, Lương Tài, Quế Võ, Thuận Thành, Tiên Du, Yên Phong.
+*   **Bến Tre (6):** Bến Tre, Ba Tri, Bình Đại, Châu Thành, Chợ Lách, Giồng Trôm, Mỏ Cày Bắc, Mỏ Cày Nam, Thạnh Phú.
+*   **Bình Dương (5):** Thủ Dầu Một, Bến Cát, Dĩ An, Thuận An, Tân Uyên, Bàu Bàng, Dầu Tiếng, Phú Giáo, Bắc Tân Uyên.
+*   **Bình Định (7):** Quy Nhơn, An Lão, An Nhơn, Hoài Ân, Hoài Nhơn, Phù Cát, Phù Mỹ, Tuy Phước, Tây Sơn, Vân Canh, Vĩnh Thạnh.
+*   **Bình Phước (7):** Đồng Xoài, Bình Long, Phước Long, Bù Đăng, Bù Đốp, Bù Gia Mập, Chơn Thành, Đồng Phú, Hớn Quản, Lộc Ninh, Phú Riềng.
+*   **Bình Thuận (6):** Phan Thiết, La Gi, Bắc Bình, Đức Linh, Hàm Tân, Hàm Thuận Bắc, Hàm Thuận Nam, Phú Quý, Tánh Linh, Tuy Phong.
+*   **Cà Mau (6):** Cà Mau, Cái Nước, Đầm Dơi, Năm Căn, Ngọc Hiển, Phú Tân, Thới Bình, Trần Văn Thời, U Minh.
+*   **Cao Bằng (7):** Cao Bằng, Bảo Lạc, Bảo Lâm, Hạ Lang, Hà Quảng, Hòa An, Nguyên Bình, Quảng Hòa, Thạch An, Trùng Khánh.
+*   **Đắk Lắk (9):** Buôn Ma Thuột, Buôn Hồ, Ea H'leo, Ea Súp, Krông Năng, Krông Búk, Krông Bông, Krông Pắc, M'Đrắk, Lắk, Cư M'gar, Cư Kuin, Ea Kar, Krông A Na, Buôn Đôn.
+*   **Đắk Nông (5):** Gia Nghĩa, Cư Jút, Đắk Glong, Đắk Mil, Đắk R'lấp, Đắk Song, Krông Nô, Tuy Đức.
+*   **Điện Biên (6):** Điện Biên Phủ, Mường Lay, Điện Biên, Điện Biên Đông, Mường Ảng, Mường Chà, Mường Nhé, Tủa Chùa, Tuần Giáo, Nậm Pồ.
+*   **Đồng Nai (7):** Biên Hòa, Long Khánh, Cẩm Mỹ, Định Quán, Long Thành, Nhơn Trạch, Tân Phú, Thống Nhất, Trảng Bom, Vĩnh Cửu, Xuân Lộc.
+*   **Đồng Tháp (7):** Cao Lãnh, Sa Đéc, Hồng Ngự, Cao Lãnh (huyện), Châu Thành, Hồng Ngự (huyện), Lai Vung, Lấp Vò, Tam Nông, Tân Hồng, Thanh Bình, Tháp Mười.
+*   **Gia Lai (10):** Pleiku, An Khê, Ayun Pa, Chư Păh, Chư Prông, Chư Sê, Đắk Đoa, Đắk Pơ, Đức Cơ, Ia Grai, Ia Pa, K'Bang, Kông Chro, Krông Pa, Mang Yang, Phú Thiện.
+*   **Hà Giang (7):** Hà Giang, Bắc Mê, Bắc Quang, Đồng Văn, Hoàng Su Phì, Mèo Vạc, Quản Bạ, Quang Bình, Vị Xuyên, Xín Mần, Yên Minh.
+*   **Hà Nam (5):** Phủ Lý, Duy Tiên, Kim Bảng, Lý Nhân, Thanh Liêm, Bình Lục.
+*   **Hà Tĩnh (8):** Hà Tĩnh, Hồng Lĩnh, Kỳ Anh, Cẩm Xuyên, Can Lộc, Đức Thọ, Hương Khê, Hương Sơn, Kỳ Anh (huyện), Lộc Hà, Nghi Xuân, Thạch Hà, Vũ Quang.
+*   **Hải Dương (7):** Hải Dương, Chí Linh, Bình Giang, Cẩm Giàng, Gia Lộc, Kim Thành, Kinh Môn, Nam Sách, Ninh Giang, Thanh Hà, Thanh Miện, Tứ Kỳ.
+*   **Hậu Giang (5):** Vị Thanh, Ngã Bảy, Châu Thành, Châu Thành A, Long Mỹ, Phụng Hiệp, Vị Thủy.
+*   **Hòa Bình (6):** Hòa Bình, Cao Phong, Đà Bắc, Kim Bôi, Lạc Sơn, Lạc Thủy, Lương Sơn, Mai Châu, Tân Lạc, Yên Thủy.
+*   **Hưng Yên (6):** Hưng Yên, Ân Thi, Khoái Châu, Kim Động, Mỹ Hào, Phù Cừ, Tiên Lữ, Văn Giang, Văn Lâm, Yên Mỹ.
+*   **Khánh Hòa (6):** Nha Trang, Cam Ranh, Diên Khánh, Cam Lâm, Khánh Sơn, Khánh Vĩnh, Ninh Hòa, Trường Sa, Vạn Ninh.
+*   **Kiên Giang (9):** Rạch Giá, Hà Tiên, Phú Quốc, An Biên, An Minh, Châu Thành, Giang Thành, Giồng Riềng, Gò Quao, Hòn Đất, Kiên Hải, Kiên Lương, Tân Hiệp, U Minh Thượng, Vĩnh Thuận.
+*   **Kon Tum (6):** Kon Tum, Đắk Glei, Đắk Hà, Đắk Tô, Ia H'Drai, Kon Plông, Kon Rẫy, Ngọc Hồi, Sa Thầy, Tu Mơ Rông.
+*   **Lai Châu (5):** Lai Châu, Mường Tè, Nậm Nhùn, Phong Thổ, Sìn Hồ, Tam Đường, Tân Uyên, Than Uyên.
+*   **Lạng Sơn (7):** Lạng Sơn, Bắc Sơn, Bình Gia, Cao Lộc, Chi Lăng, Đình Lập, Hữu Lũng, Lộc Bình, Tràng Định, Văn Lãng, Văn Quan.
+*   **Lào Cai (6):** Lào Cai, Sa Pa, Bắc Hà, Bảo Thắng, Bảo Yên, Bát Xát, Mường Khương, Si Ma Cai, Văn Bàn.
+*   **Lâm Đồng (8):** Đà Lạt, Bảo Lộc, Bảo Lâm, Cát Tiên, Đạ Huoai, Đạ Tẻh, Đam Rông, Di Linh, Đơn Dương, Đức Trọng, Lạc Dương, Lâm Hà.
+*   **Long An (9):** Tân An, Kiến Tường, Bến Lức, Cần Đước, Cần Giuộc, Châu Thành, Đức Hòa, Đức Huệ, Mộc Hóa, Tân Hưng, Tân Thạnh, Tân Trụ, Thạnh Hóa, Thủ Thừa, Vĩnh Hưng.
+*   **Nam Định (6):** Nam Định, Giao Thủy, Hải Hậu, Mỹ Lộc, Nam Trực, Nghĩa Hưng, Trực Ninh, Vụ Bản, Xuân Trường, Ý Yên.
+*   **Nghệ An (12):** Vinh, Cửa Lò, Hoàng Mai, Thái Hòa, Anh Sơn, Con Cuông, Diễn Châu, Đô Lương, Hưng Nguyên, Kỳ Sơn, Nam Đàn, Nghi Lộc, Nghĩa Đàn, Quế Phong, Quỳ Châu, Quỳ Hợp, Quỳnh Lưu, Tân Kỳ, Thanh Chương, Tương Dương, Yên Thành.
+*   **Ninh Bình (5):** Ninh Bình, Tam Điệp, Gia Viễn, Hoa Lư, Kim Sơn, Nho Quan, Yên Khánh, Yên Mô.
+*   **Ninh Thuận (5):** Phan Rang - Tháp Chàm, Bác Ái, Ninh Hải, Ninh Phước, Ninh Sơn, Thuận Bắc, Thuận Nam.
+*   **Phú Thọ (8):** Việt Trì, Phú Thọ (thị xã), Cẩm Khê, Đoan Hùng, Hạ Hòa, Lâm Thao, Phù Ninh, Tam Nông, Tân Sơn, Thanh Ba, Thanh Sơn, Thanh Thủy, Yên Lập.
+*   **Phú Yên (6):** Tuy Hòa, Sông Cầu, Đông Hòa, Đồng Xuân, Phú Hòa, Sơn Hòa, Sông Hinh, Tây Hòa, Tuy An.
+*   **Quảng Bình (6):** Đồng Hới, Ba Đồn, Bố Trạch, Lệ Thủy, Minh Hóa, Quảng Ninh, Quảng Trạch, Tuyên Hóa.
+*   **Quảng Nam (11):** Tam Kỳ, Hội An, Điện Bàn, Bắc Trà My, Duy Xuyên, Đại Lộc, Đông Giang, Hiệp Đức, Nam Giang, Nam Trà My, Nông Sơn, Núi Thành, Phú Ninh, Phước Sơn, Quế Sơn, Tây Giang, Thăng Bình, Tiên Phước.
+*   **Quảng Ngãi (9):** Quảng Ngãi, Ba Tơ, Bình Sơn, Đức Phổ, Lý Sơn, Minh Long, Mộ Đức, Nghĩa Hành, Sơn Hà, Sơn Tây, Sơn Tịnh, Trà Bồng, Tư Nghĩa.
+*   **Quảng Ninh (8):** Hạ Long, Móng Cái, Uông Bí, Cẩm Phả, Quảng Yên, Bình Liêu, Cô Tô, Đầm Hà, Hải Hà, Tiên Yên, Vân Đồn, Đông Triều.
+*   **Quảng Trị (6):** Đông Hà, Quảng Trị, Cam Lộ, Cồn Cỏ, Đa Krông, Gio Linh, Hải Lăng, Hướng Hóa, Triệu Phong, Vĩnh Linh.
+*   **Sóc Trăng (7):** Sóc Trăng, Vĩnh Châu, Ngã Năm, Châu Thành, Cù Lao Dung, Kế Sách, Long Phú, Mỹ Tú, Mỹ Xuyên, Thạnh Trị, Trần Đề.
+*   **Sơn La (8):** Sơn La, Mộc Châu, Mai Sơn, Phù Yên, Bắc Yên, Quỳnh Nhai, Sông Mã, Sốp Cộp, Thuận Châu, Vân Hồ, Yên Châu.
+*   **Tây Ninh (6):** Tây Ninh, Hòa Thành, Trảng Bàng, Bến Cầu, Châu Thành, Dương Minh Châu, Gò Dầu, Tân Biên, Tân Châu.
+*   **Thái Bình (5):** Thái Bình, Đông Hưng, Hưng Hà, Kiến Xương, Quỳnh Phụ, Thái Thụy, Tiền Hải, Vũ Thư.
+*   **Thái Nguyên (6):** Thái Nguyên, Sông Công, Phổ Yên, Đại Từ, Định Hóa, Đồng Hỷ, Phú Bình, Phú Lương, Võ Nhai.
+*   **Thanh Hóa (16):** Thanh Hóa, Sầm Sơn, Bỉm Sơn, Nghi Sơn, Bá Thước, Cẩm Thủy, Đông Sơn, Hà Trung, Hậu Lộc, Hoằng Hóa, Lang Chánh, Mường Lát, Nga Sơn, Ngọc Lặc, Như Thanh, Như Xuân, Nông Cống, Quan Hóa, Quan Sơn, Quảng Xương, Thạch Thành, Thiệu Hóa, Thọ Xuân, Thường Xuân, Triệu Sơn, Vĩnh Lộc, Yên Định.
+*   **Thừa Thiên Huế (6):** Huế, A Lưới, Hương Thủy, Hương Trà, Nam Đông, Phong Điền, Phú Lộc, Phú Vang, Quảng Điền.
+*   **Tiền Giang (7):** Mỹ Tho, Gò Công, Cai Lậy, Cái Bè, Cai Lậy (thị xã), Châu Thành, Chợ Gạo, Gò Công Đông, Gò Công Tây, Tân Phước, Tân Phú Đông.
+*   **Trà Vinh (6):** Trà Vinh, Càng Long, Cầu Kè, Cầu Ngang, Châu Thành, Duyên Hải, Duyên Hải (thị xã), Tiểu Cần, Trà Cú.
+*   **Tuyên Quang (5):** Tuyên Quang, Chiêm Hóa, Hàm Yên, Lâm Bình, Na Hang, Sơn Dương, Yên Sơn.
+*   **Vĩnh Long (5):** Vĩnh Long, Bình Minh, Bình Tân, Long Hồ, Mang Thít, Tam Bình, Trà Ôn, Vũng Liêm.
+*   **Vĩnh Phúc (6):** Vĩnh Yên, Phúc Yên, Bình Xuyên, Lập Thạch, Sông Lô, Tam Đảo, Tam Dương, Vĩnh Tường, Yên Lạc.
+*   **Yên Bái (6):** Yên Bái, Nghĩa Lộ, Lục Yên, Mù Cang Chải, Trạm Tấu, Trấn Yên, Văn Chấn, Văn Yên, Yên Bình.
 `;
 
 const RESPONSE_STYLE_RULES = `
@@ -1012,3 +1122,56 @@ Trả về một chuỗi văn bản duy nhất có cấu trúc như sau:
 
 [Đối tượng JSON hoàn chỉnh và đã được cập nhật của báo cáo phân tích ở đây]
 `;
+
+export const LEGAL_PROCEDURES = {
+  land: [
+    'Thủ tục cấp GCNQSDĐ (sổ đỏ) lần đầu cho đất có giấy tờ',
+    'Thủ tục cấp GCNQSDĐ (sổ đỏ) lần đầu cho đất không có giấy tờ',
+    'Thủ tục khởi kiện tranh chấp quyền sử dụng đất',
+    'Thủ tục sang tên GCNQSDĐ (chuyển nhượng, tặng cho)',
+    'Thủ tục đính chính thông tin trên GCNQSDĐ',
+  ],
+  family: [
+    'Thủ tục ly hôn đơn phương',
+    'Thủ tục ly hôn thuận tình',
+    'Thủ tục yêu cầu cấp dưỡng nuôi con sau ly hôn',
+    'Thủ tục xác định cha, mẹ cho con',
+  ]
+};
+
+export const DOCUMENT_CHECKLIST_SYSTEM_INSTRUCTION = `Bạn là một trợ lý luật sư AI chuyên nghiệp, có kiến thức sâu rộng về các thủ tục hành chính và pháp lý tại Việt Nam. Nhiệm vụ của bạn là nhận thông tin về một vụ việc, danh sách các tài liệu đã có, và một thủ tục pháp lý cụ thể, sau đó tạo ra một danh sách kiểm tra (checklist) hồ sơ chi tiết.
+
+${UPDATED_LEGAL_KNOWLEDGE_BASE}
+
+QUY TRÌNH THỰC HIỆN:
+1.  **Phân tích Bối cảnh:** Dựa vào "Báo cáo Phân tích Vụ việc" và "Danh sách Tệp đã tải lên" để hiểu rõ tình trạng hiện tại.
+2.  **Xác định Hồ sơ cần thiết:** Dựa vào "Tên Thủ tục cần thực hiện", hãy liệt kê TẤT CẢ các giấy tờ, tài liệu bắt buộc và cần thiết theo quy định của pháp luật hiện hành. Luôn tuân thủ các quy định mới nhất, đặc biệt là việc bãi bỏ sổ hộ khẩu giấy.
+3.  **Đối chiếu và Đánh giá:** Với mỗi giấy tờ trong danh sách cần thiết, hãy:
+    a.  **Đối chiếu:** So sánh với "Danh sách Tệp đã tải lên" để xác định xem giấy tờ đó đã được cung cấp hay chưa. Sử dụng logic suy luận (ví dụ: tệp 'don_xin_ly_hon.pdf' tương ứng với "Đơn xin ly hôn").
+    b.  **Đánh giá Trạng thái:** Gán một trong các trạng thái sau:
+        *   'provided': Nếu tìm thấy tệp tương ứng.
+        *   'missing': Nếu không tìm thấy tệp tương ứng.
+        *   'provisional': Nếu có tệp nhưng có vẻ chưa đúng/đủ (ví dụ: bản photo thay vì bản sao công chứng, thiếu chữ ký).
+        *   'not_applicable': Nếu giấy tờ đó không áp dụng cho trường hợp cụ thể này (dựa vào bối cảnh vụ việc).
+4.  **Soạn thảo Phân tích & Hướng dẫn:** Với mỗi giấy tờ, cung cấp các thông tin sau:
+    *   **\`reason\`**: Giải thích ngắn gọn tại sao giấy tờ này lại cần thiết cho thủ tục.
+    *   **\`analysis\`**: Phân tích chi tiết. Nếu 'provided', nêu rõ tệp nào tương ứng và đưa ra lưu ý (nếu có). Nếu 'missing' hoặc 'provisional', chỉ ra vấn đề.
+    *   **\`howToSupplement\`**: Hướng dẫn cụ thể cách bổ sung. Nếu thiếu, phải chỉ rõ nơi xin/làm giấy tờ đó, mẫu đơn cần dùng (nếu có). Nếu sai, hướng dẫn cách sửa chữa hoặc làm lại.
+
+YÊU CẦU ĐẦU RA: Trả về một mảng JSON tuân thủ nghiêm ngặt schema đã cung cấp.`;
+
+export const DOCUMENT_CHECKLIST_SCHEMA = {
+  type: Type.ARRAY,
+  description: "Một danh sách các mục kiểm tra hồ sơ.",
+  items: {
+    type: Type.OBJECT,
+    properties: {
+      documentName: { type: Type.STRING, description: "Tên đầy đủ của giấy tờ, tài liệu theo quy định." },
+      status: { type: Type.STRING, description: "Trạng thái của giấy tờ: 'provided' (đã có), 'missing' (còn thiếu), 'provisional' (cần xem xét lại), hoặc 'not_applicable' (không áp dụng)." },
+      reason: { type: Type.STRING, description: "Lý do tại sao giấy tờ này lại cần thiết cho thủ tục." },
+      analysis: { type: Type.STRING, description: "Phân tích chi tiết về trạng thái của giấy tờ (ví dụ: 'Đã có trong tệp don_ly_hon.pdf. Cần kiểm tra chữ ký của cả hai vợ chồng.')." },
+      howToSupplement: { type: Type.STRING, description: "Hướng dẫn cụ thể cách bổ sung hoặc sửa chữa giấy tờ (ví dụ: 'Cần ra UBND cấp xã nơi cư trú để xin xác nhận.')." }
+    },
+    required: ['documentName', 'status', 'reason', 'analysis', 'howToSupplement']
+  }
+};

@@ -30,6 +30,7 @@ import { UserGroupIcon } from './components/icons/UserGroupIcon.tsx';
 import { DocumentIcon } from './components/icons/DocumentIcon.tsx';
 import { ChatIcon } from './components/icons/ChatIcon.tsx';
 import { SendIcon } from './components/icons/SendIcon.tsx';
+import { DocumentChecklistView } from './components/DocumentChecklistView.tsx';
 
 
 // Declare global variables from CDN scripts to satisfy TypeScript
@@ -39,7 +40,7 @@ declare var jspdf: any;
 declare var html2canvas: any;
 
 type MainActionType = 'analyze' | 'update' | 'none';
-type View = 'caseAnalysis' | 'intelligentSearch' | 'argumentMap' | 'documentGenerator' | 'quickDraft' | 'dashboard' | 'fileManagement' | 'calendar' | 'client';
+type View = 'caseAnalysis' | 'documentChecklist' | 'intelligentSearch' | 'argumentMap' | 'documentGenerator' | 'quickDraft' | 'dashboard' | 'fileManagement' | 'calendar' | 'client';
 type ClientPosition = 'left' | 'right' | 'not_applicable';
 
 // --- Local Icons & Components ---
@@ -79,6 +80,12 @@ const StyledAnalysisIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5v10.5h-16.5z" />
   </svg>
 );
+const StyledChecklistIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 12v5.25a2.25 2.25 0 0 1-2.25 2.25H4.5A2.25 2.25 0 0 1 2.25 17.25V6.75a2.25 2.25 0 0 1 2.25-2.25h.586a1.5 1.5 0 0 0 1.06-.44L8.25 3.15a1.5 1.5 0 0 1 1.06-.44h5.38a1.5 1.5 0 0 1 1.06.44l.803.804a1.5 1.5 0 0 0 1.06.44h.586a2.25 2.25 0 0 1 2.25 2.25v2.25Z" />
+  </svg>
+);
 const StyledQuestionIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" />
@@ -102,6 +109,7 @@ const StyledMagicIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 
 const navItems = [
     { id: 'caseAnalysis', icon: StyledAnalysisIcon, label: 'Phân tích Vụ việc' },
+    { id: 'documentChecklist', icon: StyledChecklistIcon, label: 'Kiểm tra Hồ sơ' },
     { id: 'intelligentSearch', icon: StyledQuestionIcon, label: 'Hỏi đáp Thông minh' },
     { id: 'argumentMap', icon: StyledArgumentMapIcon, label: 'Bản đồ Lập luận' },
     { id: 'documentGenerator', icon: StyledDocumentIcon, label: 'Soạn thảo Văn bản' },
@@ -626,6 +634,7 @@ export default function App() {
                             {!isLoading && !report && <div className="flex flex-col items-center justify-center h-full text-center text-slate-400"><StyledAnalysisIcon className="w-16 h-16 mb-4 text-slate-300" /><p className="font-medium text-slate-600">Kết quả phân tích sẽ được hiển thị tại đây.</p></div>}
                             
                             {report && view === 'caseAnalysis' && <ReportDisplay report={report} onClearSummary={() => setReport(r => r ? {...r, quickSummary: ''} : null)} litigationType={litigationType} onUpdateUserLaws={(laws) => setReport(r => r ? {...r, userAddedLaws: laws} : null)} onUpdateReport={handleUpdateReport} caseSummary={caseSummary} clientRequestSummary={clientRequestSummary} onReanalyze={handleReanalyzeClick} isReanalyzing={isReanalyzing} files={files} onPreview={setPreviewFile} />}
+                            {view === 'documentChecklist' && <DocumentChecklistView report={report} files={files} />}
                             {view === 'documentGenerator' && <DocumentGenerator />}
                             {view === 'quickDraft' && <QuickDraftGenerator />}
                             {view === 'argumentMap' && <ArgumentMapView report={report} onUpdateReport={handleUpdateReport} />}
