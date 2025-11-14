@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { AnalysisReport, UploadedFile, DocumentChecklistItem, ChatMessage } from '../types.ts';
 import { generateDocumentChecklist, chatAboutDocumentChecklist } from '../services/geminiService.ts';
 import { LEGAL_PROCEDURES } from '../constants.ts';
@@ -6,8 +6,8 @@ import { Loader } from './Loader.tsx';
 import { MagicIcon } from './icons/MagicIcon.tsx';
 import { ChatIcon } from './icons/ChatIcon.tsx';
 import { SendIcon } from './icons/SendIcon.tsx';
-import { UploadIcon } from './icons/UploadIcon.tsx';
 import { RefreshIcon } from './icons/RefreshIcon.tsx';
+import { UploadIcon } from './icons/UploadIcon.tsx';
 
 
 // Icons
@@ -54,18 +54,58 @@ interface DocumentChecklistViewProps {
     isUpdatingFromChat: boolean;
 }
 
+type AugmentedChecklistItem = {
+    item: DocumentChecklistItem;
+    associatedFiles: UploadedFile[];
+};
+
 export const DocumentChecklistView: React.FC<DocumentChecklistViewProps> = ({ report, files, setFiles, onUpdateReport, onReanalyze, isReanalyzing, onUpdateReportFromChat, isUpdatingFromChat }) => {
     const [selectedProcedure, setSelectedProcedure] = useState('');
     const [checklist, setChecklist] = useState<DocumentChecklistItem[] | null>(null);
+    const [augmentedChecklist, setAugmentedChecklist] = useState<AugmentedChecklistItem[] | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [userInput, setUserInput] = useState('');
     const [isChatLoading, setIsChatLoading] = useState(false);
+    const [filesJustAdded, setFilesJustAdded] = useState(false);
     
-    const uploadInputRef = useRef<HTMLInputElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [uploadTargetIndex, setUploadTargetIndex] = useState<number | null>(null);
     const chatEndRef = useRef<HTMLDivElement>(null);
     const chatHistory = report.checklistChat || [];
 
+    // Effect to initially build the augmented checklist when AI generates a new one
+    useEffect(() => {
+        if (!checklist) {
+            setAugmentedChecklist(null);
+            return;
+        }
+
+        const findAssociatedFiles = (item: DocumentChecklistItem, allFiles: UploadedFile[]): UploadedFile[] => {
+            const associated: UploadedFile[] = [];
+            const analysisText = item.analysis.toLowerCase();
+            const filenameRegex = /'([^']+?\.(?:pdf|docx?|jpe?g|png))'/g;
+            let match;
+            const mentionedFilenames = new Set<string>();
+            while ((match = filenameRegex.exec(analysisText)) !== null) {
+                mentionedFilenames.add(match[1].toLowerCase());
+            }
+
+            allFiles.forEach(file => {
+                if (mentionedFilenames.has(file.file.name.toLowerCase())) {
+                    associated.push(file);
+                }
+            });
+            return associated;
+        };
+
+        const newAugmentedChecklist = checklist.map(item => ({
+            item,
+            associatedFiles: findAssociatedFiles(item, files),
+        }));
+        setAugmentedChecklist(newAugmentedChecklist);
+    }, [checklist, files]);
+    
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [chatHistory]);
@@ -78,6 +118,7 @@ export const DocumentChecklistView: React.FC<DocumentChecklistViewProps> = ({ re
         setIsLoading(true);
         setError(null);
         setChecklist(null);
+        setFilesJustAdded(false);
         try {
             const fileNames = files.map(f => f.file.name);
             const result = await generateDocumentChecklist(report, fileNames, selectedProcedure);
@@ -110,28 +151,41 @@ export const DocumentChecklistView: React.FC<DocumentChecklistViewProps> = ({ re
             setIsChatLoading(false);
         }
     };
-    
-    const handleUploadClick = () => {
-        uploadInputRef.current?.click();
+
+    const handleDeleteFile = (fileIdToDelete: string) => {
+        setFiles(prev => prev.filter(f => f.id !== fileIdToDelete));
+    };
+
+    const handleAttachClick = (index: number) => {
+        setUploadTargetIndex(index);
+        fileInputRef.current?.click();
     };
     
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const newFiles = e.target.files;
-        if (!newFiles) return;
-
-        // FIX: Explicitly type 'file' as File to resolve type inference issue.
-        const filesToAdd: UploadedFile[] = Array.from(newFiles).map((file: File) => ({
-            id: `${file.name}-${file.lastModified}-${Math.random()}`,
-            file,
-            preview: null,
-            category: 'Uncategorized',
-            status: 'pending',
-        }));
-        setFiles(prev => [...prev, ...filesToAdd]);
+    const handleFileAttachChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && uploadTargetIndex !== null) {
+            const newLocalFiles = Array.from(e.target.files);
+            const newUploadedFiles: UploadedFile[] = newLocalFiles.map(file => ({
+                id: `${file.name}-${file.lastModified}-${Math.random()}`,
+                file, preview: null, category: 'Uncategorized', status: 'pending',
+            }));
+            
+            setFiles(prev => [...prev, ...newUploadedFiles]);
+            
+            setAugmentedChecklist(prev => {
+                if (!prev) return null;
+                const newChecklist = [...prev];
+                newChecklist[uploadTargetIndex].associatedFiles.push(...newUploadedFiles);
+                return newChecklist;
+            });
+            setFilesJustAdded(true);
+        }
+        if (e.target) e.target.value = '';
+        setUploadTargetIndex(null);
     };
 
     return (
         <div className="grid grid-cols-12 gap-6 h-full">
+             <input type="file" multiple ref={fileInputRef} onChange={handleFileAttachChange} className="hidden" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"/>
             {/* Left Panel: Checklist */}
             <div className="col-span-12 lg:col-span-7 flex flex-col h-full">
                 <h2 className="text-2xl font-bold text-slate-900 mb-2">Kiểm tra Hồ sơ theo Thủ tục</h2>
@@ -141,12 +195,7 @@ export const DocumentChecklistView: React.FC<DocumentChecklistViewProps> = ({ re
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
                         <div>
                             <label htmlFor="procedure-select" className="block text-sm font-semibold text-slate-700 mb-1.5">Chọn thủ tục cần thực hiện:</label>
-                            <select
-                                id="procedure-select"
-                                value={selectedProcedure}
-                                onChange={(e) => setSelectedProcedure(e.target.value)}
-                                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-md text-sm"
-                            >
+                            <select id="procedure-select" value={selectedProcedure} onChange={(e) => setSelectedProcedure(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-md text-sm">
                                 <option value="" disabled>--- Chọn thủ tục ---</option>
                                 {Object.entries(LEGAL_PROCEDURES).map(([group, procedures]) => (
                                     <optgroup key={group} label={group === 'land' ? 'Đất đai' : 'Hôn nhân & Gia đình'}>
@@ -155,19 +204,23 @@ export const DocumentChecklistView: React.FC<DocumentChecklistViewProps> = ({ re
                                 ))}
                             </select>
                         </div>
-                        <button
-                            onClick={handleGenerateChecklist}
-                            disabled={isLoading || !selectedProcedure}
-                            className="w-full py-2.5 px-4 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-slate-300 flex items-center justify-center gap-2"
-                        >
+                        <button onClick={handleGenerateChecklist} disabled={isLoading || !selectedProcedure} className="w-full py-2.5 px-4 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-slate-300 flex items-center justify-center gap-2">
                             {isLoading ? <><Loader /> <span>Đang tạo...</span></> : <>Tạo Checklist</>}
                         </button>
                     </div>
                      {error && <p className="text-red-600 text-sm mt-2">{error}</p>}
+                     {filesJustAdded && (
+                        <div className="p-2 bg-blue-50 text-blue-800 text-sm rounded-md flex items-center justify-between">
+                            <span>Đã bổ sung tệp mới, bạn nên phân tích lại để có kết quả chính xác nhất.</span>
+                            <button onClick={() => onReanalyze(report)} disabled={isReanalyzing} className="px-3 py-1 bg-blue-600 text-white text-xs font-semibold rounded-md hover:bg-blue-700 disabled:bg-blue-300">
+                                {isReanalyzing ? <Loader /> : 'Phân tích lại'}
+                            </button>
+                        </div>
+                     )}
                 </div>
                 
                 <div className="flex-grow bg-white border border-slate-200 rounded-lg overflow-y-auto min-h-0">
-                    {!checklist && !isLoading && (
+                    {!augmentedChecklist && !isLoading && (
                         <div className="flex flex-col items-center justify-center h-full text-slate-400 text-center p-4">
                             <p>Kết quả kiểm tra hồ sơ sẽ được hiển thị tại đây.</p>
                         </div>
@@ -178,9 +231,10 @@ export const DocumentChecklistView: React.FC<DocumentChecklistViewProps> = ({ re
                             <p className="mt-4">AI đang đối chiếu hồ sơ...</p>
                         </div>
                     )}
-                    {checklist && (
+                    {augmentedChecklist && (
                         <ul className="divide-y divide-slate-200">
-                           {checklist.map((item, index) => {
+                           {augmentedChecklist.map((entry, index) => {
+                               const { item, associatedFiles } = entry;
                                const meta = getStatusMeta(item.status);
                                return (
                                    <li key={index} className="p-4 hover:bg-slate-50/50">
@@ -209,6 +263,25 @@ export const DocumentChecklistView: React.FC<DocumentChecklistViewProps> = ({ re
                                                 )}
                                             </tbody>
                                         </table>
+                                         <div className="mt-3 pt-3 border-t border-slate-200/70">
+                                            <h5 className="text-xs font-semibold text-slate-600 mb-2">Tệp đính kèm cho mục này:</h5>
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                {associatedFiles.map(file => (
+                                                    <div key={file.id} className="bg-slate-200 text-slate-800 text-xs px-2.5 py-1 rounded-full flex items-center gap-1.5">
+                                                        <span>{file.file.name}</span>
+                                                        <button 
+                                                            onClick={() => handleDeleteFile(file.id)} 
+                                                            className="text-slate-500 hover:text-red-600 font-bold leading-none text-base"
+                                                            title={`Xóa tệp ${file.file.name}`}
+                                                        >&times;</button>
+                                                    </div>
+                                                ))}
+                                                <button onClick={() => handleAttachClick(index)} className="flex items-center gap-1.5 px-2.5 py-1 text-xs bg-blue-50 text-blue-700 font-semibold rounded-lg hover:bg-blue-100 border border-blue-200">
+                                                    <UploadIcon className="w-3 h-3" />
+                                                    Đính kèm tệp mới...
+                                                </button>
+                                            </div>
+                                        </div>
                                    </li>
                                )
                            })}

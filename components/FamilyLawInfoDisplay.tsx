@@ -25,15 +25,6 @@ export const FamilyLawInfoDisplay: React.FC<{ report: AnalysisReport }> = ({ rep
         return null;
     }
 
-    const hasData = Object.values(familyLawInfo).some(value => {
-        if (Array.isArray(value)) return value.length > 0;
-        return value !== undefined && value !== '';
-    });
-
-    if (!hasData) {
-        return null;
-    }
-
     return (
         <ReportSection title="Thông tin Vụ việc Hôn nhân & Gia đình">
              <div className="flex items-center gap-2 mb-4 p-2 bg-rose-50 border border-rose-200 rounded-md">

@@ -21,13 +21,8 @@ const InfoRow: React.FC<{ label: string; value: string | undefined }> = ({ label
 export const LandInfoDisplay: React.FC<{ report: AnalysisReport }> = ({ report }) => {
     const { landInfo } = report;
 
+    // The parent component `ReportDisplay` now ensures that `landInfo` exists and has data before rendering this component.
     if (!landInfo) {
-        return null;
-    }
-
-    // Check if there is any actual data to display
-    const hasData = Object.values(landInfo).some(value => value !== undefined && value !== '');
-    if (!hasData) {
         return null;
     }
 

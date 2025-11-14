@@ -54,6 +54,30 @@ const HighlightedText: React.FC<{ text: string | undefined; term: string }> = Re
     return (<>{parts.map((part, i) => regex.test(part) ? (<mark key={i} className="bg-yellow-200 text-yellow-900 px-0.5 rounded-sm">{part}</mark>) : (<React.Fragment key={i}>{part}</React.Fragment>))}</>);
 });
 
+const CunningLawyerText: React.FC<{ text: string | undefined; term: string }> = React.memo(({ text, term }) => {
+    if (!text) return null;
+
+    // Split by the <cg> tags, keeping the tags in the array
+    const parts = text.split(/(<cg>.*?<\/cg>)/g).filter(Boolean);
+
+    return (
+        <>
+            {parts.map((part, i) => {
+                if (part.startsWith('<cg>') && part.endsWith('</cg>')) {
+                    const content = part.substring(4, part.length - 5);
+                    return (
+                        <span key={i} className="text-purple-700 font-semibold italic">
+                            <HighlightedText text={content} term={term} />
+                        </span>
+                    );
+                }
+                return <HighlightedText key={i} text={part} term={term} />;
+            })}
+        </>
+    );
+});
+
+
 const getLoopholeIcon = (classification: LegalLoophole['classification']) => {
   const iconProps = { className: "w-5 h-5 flex-shrink-0" };
   switch (classification) {
@@ -372,10 +396,12 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
     if (!report && !caseSummary && !clientRequestSummary) {
         return null;
     }
-    
-    // Check if the case is land-related to show specialized UI
-    const isLandCase = !!report?.landInfo;
-    const isFamilyLawCase = !!report?.familyLawInfo;
+
+    const hasLandInfoData = report?.landInfo && Object.values(report.landInfo).some(value => value !== undefined && value !== '');
+    const hasFamilyLawInfoData = report?.familyLawInfo && Object.values(report.familyLawInfo).some(value => {
+        if (Array.isArray(value)) return value.length > 0;
+        return value !== undefined && value !== '' && value !== null;
+    });
 
     return (
         <div className="space-y-6" id="report-content">
@@ -431,8 +457,8 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
                     </ReportSection>
                 )}
                 
-                {isLandCase && <LandInfoDisplay report={report} />}
-                {isFamilyLawCase && <FamilyLawInfoDisplay report={report} />}
+                {hasLandInfoData && <LandInfoDisplay report={report} />}
+                {hasFamilyLawInfoData && <FamilyLawInfoDisplay report={report} />}
 
                 {report.caseTimeline?.length > 0 && (
                      <ReportSection title="Dòng thời gian Vụ việc">
@@ -456,7 +482,7 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
                 
                 {report.requestResolutionPlan && (
                     <ReportSection title="3. Phương án giải quyết theo Yêu cầu" chatHistory={report.resolutionPlanChat} onChatToggle={() => setActiveChat(prev => prev === 'resolutionPlanChat' ? null : 'resolutionPlanChat')} isChatOpen={activeChat === 'resolutionPlanChat'}>
-                        <ul className="list-disc list-inside space-y-1.5">{report.requestResolutionPlan.map((item, i) => <li key={i}><HighlightedText text={item} term={highlightTerm} /></li>)}</ul>
+                        <ul className="list-disc list-inside space-y-1.5">{report.requestResolutionPlan.map((item, i) => <li key={i}><CunningLawyerText text={item} term={highlightTerm} /></li>)}</ul>
                         {activeChat === 'resolutionPlanChat' && <ChatWindow chatHistory={report.resolutionPlanChat || []} onSendMessage={(msg) => handleChatSendMessage('resolutionPlanChat', msg)} isLoading={isChatLoading} onClose={() => setActiveChat(null)} title="Trao đổi về Phương án giải quyết" />}
                     </ReportSection>
                 )}
@@ -524,7 +550,7 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
                        <h5 className="font-semibold flex items-center gap-2"><InfoIcon className="w-5 h-5 text-slate-500" />Thông tin / Chứng cứ còn thiếu</h5>
                        <ul className="list-disc list-inside pl-2 space-y-1">{report.gapAnalysis?.missingInformation.map((item, i) => <li key={i}><HighlightedText text={item} term={highlightTerm} /></li>)}</ul>
                        <h5 className="font-semibold flex items-center gap-2"><MagicIcon className="w-5 h-5 text-slate-500" />Hành động đề xuất</h5>
-                       <ul className="list-disc list-inside pl-2 space-y-1">{report.gapAnalysis?.recommendedActions.map((item, i) => <li key={i}><HighlightedText text={item} term={highlightTerm} /></li>)}</ul>
+                       <ul className="list-disc list-inside pl-2 space-y-1">{report.gapAnalysis?.recommendedActions.map((item, i) => <li key={i}><CunningLawyerText text={item} term={highlightTerm} /></li>)}</ul>
                        <h5 className="font-semibold flex items-center gap-2"><SearchIcon className="w-5 h-5 text-slate-500" />Lỗ hổng pháp lý tiềm ẩn</h5>
                        <div className="space-y-2 pl-2">
                            {(report.gapAnalysis?.legalLoopholes || []).map((item, i) => (
@@ -534,7 +560,7 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
                                        <span>[<HighlightedText text={item.classification} term={highlightTerm} /> - Mức độ: <HighlightedText text={item.severity} term={highlightTerm} />]</span>
                                    </div>
                                    <p className="mt-1"><HighlightedText text={item.description} term={highlightTerm} /></p>
-                                   <p className="text-slate-600"><span className="font-semibold">Gợi ý:</span> <HighlightedText text={item.suggestion} term={highlightTerm} /></p>
+                                   <p className="text-slate-600"><span className="font-semibold">Gợi ý:</span> <CunningLawyerText text={item.suggestion} term={highlightTerm} /></p>
                                    <blockquote className="mt-1 border-l-2 border-slate-300 pl-2 italic text-slate-500 text-xs">"...<HighlightedText text={item.evidence} term={highlightTerm} />..."</blockquote>
                                </div>
                            ))}
@@ -567,11 +593,11 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                            <h5 className="font-semibold mb-2">Giai đoạn Tiền tố tụng</h5>
-                           <ul className="list-decimal list-inside space-y-1">{report.proposedStrategy?.preLitigation.map((item, i) => <li key={i}><HighlightedText text={item} term={highlightTerm} /></li>)}</ul>
+                           <ul className="list-decimal list-inside space-y-1">{report.proposedStrategy?.preLitigation.map((item, i) => <li key={i}><CunningLawyerText text={item} term={highlightTerm} /></li>)}</ul>
                         </div>
                          <div>
                            <h5 className="font-semibold mb-2">Giai đoạn Tố tụng</h5>
-                           <ul className="list-decimal list-inside space-y-1">{report.proposedStrategy?.litigation.map((item, i) => <li key={i}><HighlightedText text={item} term={highlightTerm} /></li>)}</ul>
+                           <ul className="list-decimal list-inside space-y-1">{report.proposedStrategy?.litigation.map((item, i) => <li key={i}><CunningLawyerText text={item} term={highlightTerm} /></li>)}</ul>
                         </div>
                     </div>
                      {activeChat === 'strategyChat' && <ChatWindow chatHistory={report.strategyChat || []} onSendMessage={(msg) => handleChatSendMessage('strategyChat', msg)} isLoading={isChatLoading} onClose={() => setActiveChat(null)} title="Trao đổi về Chiến lược Đề xuất" />}
@@ -579,7 +605,7 @@ export const ReportDisplay: React.FC<ReportDisplayProps> = ({ report, onClearSum
 
                 {report.contingencyPlan && (
                     <ReportSection title="8. Phương án xử lý nếu thua kiện" chatHistory={report.contingencyPlanChat} onChatToggle={() => setActiveChat(prev => prev === 'contingencyPlanChat' ? null : 'contingencyPlanChat')} isChatOpen={activeChat === 'contingencyPlanChat'}>
-                        <ul className="list-disc list-inside space-y-1.5">{report.contingencyPlan.map((item, i) => <li key={i}><HighlightedText text={item} term={highlightTerm} /></li>)}</ul>
+                        <ul className="list-disc list-inside space-y-1.5">{report.contingencyPlan.map((item, i) => <li key={i}><CunningLawyerText text={item} term={highlightTerm} /></li>)}</ul>
                          {activeChat === 'contingencyPlanChat' && <ChatWindow chatHistory={report.contingencyPlanChat || []} onSendMessage={(msg) => handleChatSendMessage('contingencyPlanChat', msg)} isLoading={isChatLoading} onClose={() => setActiveChat(null)} title="Trao đổi về Phương án Dự phòng" />}
                     </ReportSection>
                 )}
