@@ -164,7 +164,8 @@ export const DocumentChecklistView: React.FC<DocumentChecklistViewProps> = ({ re
     const handleFileAttachChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && uploadTargetIndex !== null) {
             const newLocalFiles = Array.from(e.target.files);
-            const newUploadedFiles: UploadedFile[] = newLocalFiles.map(file => ({
+            // FIX: Explicitly type `file` as `File` to resolve type inference issue.
+            const newUploadedFiles: UploadedFile[] = newLocalFiles.map((file: File) => ({
                 id: `${file.name}-${file.lastModified}-${Math.random()}`,
                 file, preview: null, category: 'Uncategorized', status: 'pending',
             }));
