@@ -317,6 +317,85 @@ const UPDATED_LEGAL_KNOWLEDGE_BASE = `
 *   **Vĩnh Long (5):** Vĩnh Long, Bình Minh, Bình Tân, Long Hồ, Mang Thít, Tam Bình, Trà Ôn, Vũng Liêm.
 *   **Vĩnh Phúc (6):** Vĩnh Yên, Phúc Yên, Bình Xuyên, Lập Thạch, Sông Lô, Tam Đảo, Tam Dương, Vĩnh Tường, Yên Lạc.
 *   **Yên Bái (6):** Yên Bái, Nghĩa Lộ, Lục Yên, Mù Cang Chải, Trạm Tấu, Trấn Yên, Văn Chấn, Văn Yên, Yên Bình.
+
+**CƠ SỞ DỮ LIỆU ÁN LỆ (BẮT BUỘC ÁP DỤNG):**
+Bạn được cung cấp kiến thức về 72 án lệ đang có hiệu lực tại Việt Nam. Khi phân tích vụ việc, nếu phát hiện các tình tiết hoặc vấn đề pháp lý tương tự với nội dung của một án lệ, bạn BẮT BUỘC phải:
+1.  **Viện dẫn Án lệ:** Trích dẫn rõ ràng số hiệu của án lệ (ví dụ: "Tình huống này tương tự với Án lệ số 47/2021/AL...").
+2.  **Phân tích Áp dụng:** Giải thích ngắn gọn tại sao án lệ đó lại liên quan và có thể được áp dụng để củng cố cho lập luận hoặc chiến lược đề xuất.
+
+**DANH SÁCH 72 ÁN LỆ:**
+*   **AL số 01/2016:** Xác định tình tiết "có tính chất côn đồ" trong tội giết người khi bị hại cũng có lỗi.
+*   **AL số 02/2016:** Không áp dụng thời hiệu khởi kiện cho tranh chấp đòi lại tài sản thuộc sở hữu nhà nước.
+*   **AL số 03/2016:** Giải quyết ly hôn có yếu tố nước ngoài, xác định thẩm quyền của Tòa án Việt Nam.
+*   **AL số 04/2016:** Hợp đồng thế chấp QSDĐ có hiệu lực dù bên thế chấp chưa được cấp GCN, nhưng sau đó đã được cấp.
+*   **AL số 05/2016:** Quyền thừa kế của người con được sinh ra và lớn lên ở nước ngoài nhưng chưa nhập quốc tịch Việt Nam.
+*   **AL số 06/2016:** Xác định di sản thừa kế là quyền sử dụng đất trong trường hợp đất chưa được cấp GCN.
+*   **AL số 07/2016:** Tranh chấp hợp đồng mua bán nhà, bên bán chết, giải quyết quyền lợi người thừa kế.
+*   **AL số 08/2016:** Xác định hợp đồng tín dụng vô hiệu do giả mạo chữ ký.
+*   **AL số 09/2016:** Tính lãi suất nợ quá hạn trong hợp đồng tín dụng theo thỏa thuận.
+*   **AL số 10/2016:** Xác định thẩm quyền giải quyết khiếu nại quyết định hành chính về đất đai.
+*   **AL số 11/2017:** Hợp đồng thế chấp QSDĐ của hộ gia đình do một thành viên ký vẫn có hiệu lực nếu các thành viên khác biết và không phản đối.
+*   **AL số 12/2017:** Xác định đương sự được triệu tập hợp lệ lần thứ nhất dù vắng mặt.
+*   **AL số 13/2017:** Hiệu lực thanh toán của thư tín dụng (L/C) không phụ thuộc vào hợp đồng cơ sở.
+*   **AL số 14/2017:** Công nhận hợp đồng tặng cho QSDĐ có điều kiện dù chưa đăng ký, nếu điều kiện đã được thực hiện.
+*   **AL số 15/2017:** Công nhận thỏa thuận miệng về chuyển đổi QSDĐ nông nghiệp đã được thực hiện trên thực tế.
+*   **AL số 16/2017:** Công nhận hợp đồng chuyển nhượng QSDĐ là di sản thừa kế dù chưa sang tên.
+*   **AL số 17/2018:** Hướng dẫn xác định tình tiết "có tính chất côn đồ" (hành vi vô cớ, hung hãn).
+*   **AL số 18/2018:** Giết người đang thi hành công vụ là tình tiết tăng nặng định khung.
+*   **AL số 19/2018:** Hướng dẫn tình tiết "phạm tội có tổ chức" trong tội lừa đảo.
+*   **AL số 20/2018:** Xác định giá trị tài sản tham ô là giá trị thực tế tại thời điểm chiếm đoạt.
+*   **AL số 21/2018:** Lỗi và thiệt hại trong vận chuyển hàng hải khi người nhận hàng không thông báo tổn thất.
+*   **AL số 22/2018:** Không phải chịu phạt cọc do lý do khách quan (quy hoạch của nhà nước).
+*   **AL số 23/2018:** Nghĩa vụ của bên bán nhà là phải cung cấp đầy đủ thông tin pháp lý về nhà ở.
+*   **AL số 24/2018:** Hợp đồng bảo lãnh vẫn có hiệu lực một phần tương ứng với giá trị hợp đồng tín dụng có hiệu lực.
+*   **AL số 25/2018:** Không hủy hợp đồng đặt cọc khi bên nhận cọc có lỗi nhưng bên đặt cọc cũng có lỗi.
+*   **AL số 26/2018:** Thời hiệu yêu cầu chia di sản là bất động sản bắt đầu từ thời điểm mở thừa kế.
+*   **AL số 27/2019:** Thẩm quyền của Tòa án giải quyết vụ án hành chính liên quan đến nhà đất do Nhà nước quản lý.
+*   **AL số 28/2019:** Xác định tội "Giết người trong trạng thái tinh thần bị kích động mạnh".
+*   **AL số 29/2019:** Tài sản bị chiếm đoạt trong tội cướp tài sản bao gồm cả tài sản không thuộc sở hữu của bị hại.
+*   **AL số 30/2020:** Hành vi cố ý lái xe chèn lên người bị hại sau TNGT bị truy cứu tội giết người.
+*   **AL số 31/2020:** Xác định chỗ để xe ô tô là sở hữu chung hay riêng trong nhà chung cư.
+*   **AL số 32/2020:** Quyền lựa chọn Tòa án giải quyết tranh chấp của người tiêu dùng.
+*   **AL số 33/2020:** Bên thuê có quyền đơn phương chấm dứt hợp đồng nếu bên cho thuê không sửa chữa tài sản.
+*   **AL số 34/2020:** Quyền yêu cầu Tòa án hủy nghị quyết ĐHĐCĐ của cổ đông, nhóm cổ đông.
+*   **AL số 35/2020:** Bảo vệ người nhận thế chấp ngay tình khi bên thế chấp không phải chủ sở hữu tài sản.
+*   **AL số 36/2020:** Hiệu lực hợp đồng thế chấp nhà đất khi có sự chênh lệch diện tích.
+*   **AL số 37/2020:** Hợp đồng bảo hiểm tài sản vẫn có hiệu lực dù bên mua chưa đóng phí.
+*   **AL số 38/2020:** Không thu hồi lại khoản tiền đã thanh toán trong tranh chấp thừa kế.
+*   **AL số 39/2021:** Xác định tội "Giết người" thuộc trường hợp "Phạm tội chưa đạt".
+*   **AL số 40/2021:** Trách nhiệm bồi thường của người thứ ba làm người có nghĩa vụ cấp dưỡng không thể thực hiện nghĩa vụ.
+*   **AL số 41/2021:** Chấm dứt hợp đồng gia công hàng hóa khi có vi phạm.
+*   **AL số 42/2021:** Quyền lựa chọn phương thức bồi thường khi đơn phương chấm dứt hợp đồng thuê.
+*   **AL số 43/2021:** Hiệu lực hợp đồng thế chấp tài sản chung vợ chồng mà chỉ một người ký.
+*   **AL số 44/2021:** Xác định thời hiệu khởi kiện đối với yêu cầu phản tố.
+*   **AL số 45/2021:** Xác định tình tiết "Bằng phương pháp có khả năng làm chết nhiều người" trong tội giết người.
+*   **AL số 46/2021:** Xác định tình tiết "Đối với người dưới 16 tuổi" trong tội hiếp dâm.
+*   **AL số 47/2021:** Xác định tội danh Giết người hay Cố ý gây thương tích khi dùng hung khí nguy hiểm đâm vào vùng trọng yếu.
+*   **AL số 48/2021:** Xác định yếu tố "để sử dụng vào mục đích bất hợp pháp" trong tội về vũ khí quân dụng.
+*   **AL số 49/2021:** Xác định quyền sở hữu đối với tài sản hụi.
+*   **AL số 50/2021:** Trách nhiệm bồi thường của Ban quản lý KCN khi không thực hiện đúng trách nhiệm.
+*   **AL số 51/2021:** Quyền thuê, mua nhà thuộc sở hữu nhà nước là quyền tài sản và được thừa kế.
+*   **AL số 52/2021:** Hiệu lực của hợp đồng tặng cho QSDĐ dù chưa đăng ký nếu đã giao đất và xây nhà.
+*   **AL số 53/2022:** Hủy kết hôn trái pháp luật khi một bên bị lừa dối.
+*   **AL số 54/2022:** Quyền nuôi con dưới 36 tháng tuổi khi mẹ không trực tiếp chăm sóc.
+*   **AL số 55/2022:** Công nhận hiệu lực hợp đồng vi phạm hình thức (hợp đồng viết tay).
+*   **AL số 56/2022:** Giải quyết tranh chấp di dời mồ mả theo tập quán địa phương.
+*   **AL số 57/2023:** Sai phạm trong đấu thầu gây hậu quả nghiêm trọng.
+*   **AL số 58/2023:** Tranh chấp hợp đồng chuyển nhượng QSDĐ khi đất có nguồn gốc phức tạp.
+*   **AL số 59/2023:** Áp dụng tình tiết giảm nhẹ "thành khẩn khai báo, ăn năn hối cải".
+*   **AL số 60/2023:** Áp dụng tình tiết tăng nặng "phạm tội có tính chất chuyên nghiệp".
+*   **AL số 61/2023:** Xác định QSDĐ là tài sản chung vợ chồng dù chỉ đứng tên một người.
+*   **AL số 62/2023:** Giải quyết chấm dứt HĐLĐ do thay đổi cơ cấu, công nghệ.
+*   **AL số 63/2023:** Không chấp nhận hủy HĐ chuyển nhượng QSDĐ khi bên mua đã thực hiện nghĩa vụ.
+*   **AL số 64/2023:** Định giá tài sản tại thời điểm xét xử sơ thẩm khi chia tài sản chung.
+*   **AL số 65/2023:** Tranh chấp đặt cọc khi bên nhận cọc không có quyền sử dụng đất.
+*   **AL số 66/2023:** Nghĩa vụ của các bên trong hợp đồng bảo hiểm nhân thọ.
+*   **AL số 67/2023:** Miễn TNHS cho người chưa thành niên phạm tội ít nghiêm trọng.
+*   **AL số 68/2023:** Quyền khởi kiện của người có quyền lợi liên quan trong vụ án dân sự.
+*   **AL số 69/2023:** Thẩm quyền của Tòa án trong tranh chấp hợp đồng bảo hiểm.
+*   **AL số 70/2024:** Định khung hình phạt tội "Cố ý gây thương tích" khi có nhiều tình tiết tăng nặng.
+*   **AL số 71/2024:** Áp dụng tình tiết "phạm tội 02 lần trở lên" khi các hành vi diễn ra liên tục.
+*   **AL số 72/2024:** Hợp đồng vô hiệu khi một bên không có năng lực hành vi dân sự tại thời điểm giao kết.
 `;
 
 const RESPONSE_STYLE_RULES = `
